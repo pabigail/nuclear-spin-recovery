@@ -427,7 +427,7 @@ def birth_bool_uniform(current_k, k_max):
 
 
 def within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
-                           coherence_data, exp_params, sigma_sq=None):
+                           coherence_data, exp_params, sigma_sq=None, beta_k=None):
     '''
     input:
         current_spins (1d numpy array of ints of length current_k): indices of current spins
@@ -443,11 +443,14 @@ def within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat,
         in RWMH algorithm
         error (float): L2 error between coherence data and next_spins
     '''
+    if beta_k == None:
+        beta_k = 1
     
     proposed_spins = get_proposal_spins_within_model_step_RWMH(current_spins, hf_dist_mat, r)
     
     log_a = get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, exp_params,
-                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq)
+                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq,
+                                                       beta_k)
     u = np.random.uniform(0, 1)
     if np.log(u) < log_a:
         next_spins = proposed_spins
@@ -651,7 +654,8 @@ def death_step(current_k, current_spins, r, hf_df, hf_dist_mat,
 
 
 def get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, exp_params,
-                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq=None):
+                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq=None,
+                                               beta_k = 1):
     '''
     input:
         current_spins (1d numpy array of ints):
@@ -678,9 +682,8 @@ def get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, ex
     log_prob_curr_to_prop = get_log_prob_within_step_move(current_spins,proposed_spins, r, 
                                                           hf_dist_mat)
     
-    log_a = min((0, (log_L_prop_spins + log_prob_prop_to_curr -
-                     log_L_curr_spins + log_prob_curr_to_prop)))
-    
+    log_a = min((0, (beta_k*log_L_prop_spins + log_prob_prop_to_curr -
+                     beta_k*log_L_curr_spins + log_prob_curr_to_prop)))
     return log_a
 
 
@@ -849,6 +852,7 @@ def RJMCMC_RWMH(initial_spin_list, hf_df, hf_dist_mat, r, exp_params,
         count += 1
     
     return k_samples, spin_samples, error_samples
+
 
 
 
@@ -1111,6 +1115,79 @@ def fit_exp_data_rjmcmc(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH, NOI
         num_ensembles += 1
     
     return ensembles, exp_params, coherence_signals, hf_df
+
+
+def parallel_tempering_steps(curent_spins, hf_df, exp_params, coherence_data, 
+                             num_strands, num_steps, r, beta):
+    '''
+    input:
+        current_spins: list of ints 
+        hf_df: 
+        exp_params:
+        coherence_data:
+        num_strands (int): number of replicas to run with different inverse temps
+        r (float): step distance in RWMH
+        beta (list of floats): first entry must be 1, length must be num_strands
+    output:
+        spin_samples: list of lists of list corresponding to spins for each strand at each step
+        error_samples: list of lists of floats corresponding to the error for each strand at each step
+    '''
+    spin_samples = []
+    error_samples = []
+    
+    for i in range(num_strands):
+        spin_samples.append([])
+        error_samples.append([])
+        
+    spin_samples[0].append(initial_spin_list)
+    for i in range(1, num_strands):
+        random_spins = random.sample(range(len(hf_df)), len(initial_spin_list))
+        random_spins.sort()
+        spin_samples[i].append(random_spins)
+        error_initial_spins = get_error_spin_data(coherence_data, initial_spin_list, exp_params, hf_df)
+        error_samples[i].append(error_initial_spins)
+    
+    count = 1
+    while count < num_steps:
+        if count % 1000 == 0:
+            print(count)
+        for i in range(num_strands):
+            current_spins = spin_samples[i][count-1]
+            next_spins, error = within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
+                                                   coherence_data, exp_params, sigma_sq=None,
+                                                 beta_k=beta[i])
+            next_spins.sort()
+            spin_samples[i].append(next_spins)
+            error_samples[i].append(error)
+        
+        # attempt a swap
+        swap_attempt_indices = random.sample(range(num_strands), 2)
+    
+        k1 = swap_attempt_indices[0]
+        k2 = swap_attempt_indices[1]
+    
+        spins_k1 = spin_samples[k1][-1]
+        spins_k2 = spin_samples[k2][-1]
+    
+        beta_k1 = beta[k1]
+        beta_k2 = beta[k2]
+    
+        log_L_spins_k1 = get_log_likelihood_of_spins_given_data(spins_k1, coherence_data, 
+                                                                   hf_df, exp_params, sigma_sq=None)
+        log_L_spins_k2 = get_log_likelihood_of_spins_given_data(spins_k2, coherence_data, 
+                                                                   hf_df, exp_params, sigma_sq=None)
+    
+        log_swap_prob = (beta_k1*log_L_spins_k2 + beta_k2*log_L_spins_k1 - 
+                     beta_k2*log_L_spins_k2 - beta_k1*log_L_spins_k1)
+    
+        u = np.random.uniform(0, 1)
+        if np.log(u) < log_swap_prob: # swap spins, otherwise, nothing
+            spin_samples[k2][-1] = spins_k1
+            spin_samples[k1][-1] = spins_k2
+        
+        count += 1
+        
+    return spin_samples, error_samples
                                  
                                  
                                  

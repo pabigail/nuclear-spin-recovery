@@ -1188,6 +1188,85 @@ def parallel_tempering_steps(curent_spins, hf_df, exp_params, coherence_data,
         count += 1
         
     return spin_samples, error_samples
+
+
+def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r, exp_params,
+                                        coherence_data, num_trials, k_max,
+                                        num_strands, beta, num_rjmcmc_steps, num_parallel_steps,
+                                        sigma_sq=None):
+    '''
+    input:
+        initial_spin_list (1d numpy array of ints):
+        hf_df (dataframe): dataframe containing hyperfine couplings and location of 
+        all nuclear spins
+        hf_dist_mat (2d numpy array of floats): distance (A) between spins i and j
+        r (float): radius for random walk
+        exp_params (list of dicts): containing number of pulses, time points taken, amount of noise,
+        and magnetic field for each experiment resulting in coherence data
+        coherence_data (list of 1d numpy array of floats): coherence data
+        num_trials (int): number of steps in random walk
+        sigma_sq (float): amount of noise to assume for likelihood (default is use same value as experimental data)
+    output:
+        k_samples (list of ints): list of number of spins associated with each step
+        spin_samples (list of 1d numpy array of ints): list of random walk (length num_trials)
+        error_samples (list of floats): error associated with each step 
+    '''
+    
+    spin_samples = []
+    error_samples = []
+    k_samples = []
+    
+    error_initial_spins = get_error_spin_data(coherence_data, initial_spin_list, exp_params, hf_df)
+    spin_samples.append(initial_spin_list)
+    error_samples.append(error_initial_spins)
+    k_samples.append(len(initial_spin_list))
+    count = 1
+    
+    while count < num_trials:
+        
+        count_rjmcmc = 0
+        # rjmcmc steps
+        while count_rjmcmc < num_rjmcmc_steps:
+        
+            current_spins = spin_samples[count-1]
+            current_k = k_samples[count-1]
+            # if jump_bool_uniform(current_k, k_max): # jump dimensions
+            if True:
+            
+                # print(f'current_k: {current_k}, k_max:{k_max}, True', flush=True)
+            
+                if birth_bool_uniform(current_k, k_max): # birth step 
+                    next_k, next_spins, error = birth_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
+                                                       coherence_data, exp_params, k_max)
+                    # print('birth')
+                else: # death step
+                    next_k, next_spins, error = death_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
+                                                       coherence_data, exp_params, k_max)
+                    # print('death')
+            else: # within model RWMH step, same k
+            
+                # print(f'current_k: {current_k}, k_max:{k_max}, False', flush=True)  
+                next_spins, error = within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
+                                                       coherence_data, exp_params, sigma_sq)
+        
+            spin_samples.append(next_spins)
+            error_samples.append(error)
+            k_samples.append(len(next_spins))
+            count += 1
+            count_rjmcmc += 1
+         
+        # parallel tempering steps
+        spin_samples_par, error_samples_par = parallel_tempering_steps(spin_samples[count-1], hf_df, hf_dist_mat,
+                                                                       exp_params,
+                                                                   coherence_data, num_strands, num_parallel_steps,
+                                                                   r, beta)
+        for i in range(len(spin_samples_par)):
+            spin_samples.append(spin_samples_par[0][i])
+            error_samples.append(error_samples_par[0][i])
+            k_samples.append(len(spin_samples_par[0][i]))
+            count += 1
+    
+    return k_samples, spin_samples, error_samples
                                  
                                  
                                  

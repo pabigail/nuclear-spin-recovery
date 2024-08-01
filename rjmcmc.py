@@ -54,7 +54,6 @@ def make_df_from_Ivady_file(file_path, strong_thresh, weak_thresh):
     
     return hf_df
 
-
 def get_hf_limit(df_data, num_pulses, noise, confidence):
     '''
     input:
@@ -93,7 +92,6 @@ def get_hf_limit(df_data, num_pulses, noise, confidence):
             hf_detect = np.nan
             
     return hf_detect
-
 
 def calc_distance_two_atoms(hf_df, row_index_1, row_index_2):
     '''
@@ -329,19 +327,6 @@ def generate_trial_data(num_spins, hf_df, exp_params):
 
 
 
-def get_spins_in_neighborhood(spin, r, hf_dist_mat):
-    '''
-    input: 
-        curr_spin (integer): index corresponding to spin in hf_dist_mat and hf_df
-        r (float): distance in real space (A)
-        hf_dist_mat (2d numpy array of floats): distance between spins (i) and (j)
-    output:
-        indices (1d numpy array of integers): list of integers of spin indices
-    '''
-    mask = hf_dist_mat[spin] < r
-    indices = np.where(mask)[0]
-    return indices
-
 
 def get_error_spin_data(coherence_data, spin_list, exp_params, hf_df):
     '''
@@ -389,6 +374,21 @@ def sort_spins_hf_mag(spin_list, hf_df):
     return None
 
 
+def get_spins_in_neighborhood(spin, r, hf_dist_mat):
+    '''
+    input: 
+        curr_spin (integer): index corresponding to spin in hf_dist_mat and hf_df
+        r (float): distance in real space (A)
+        hf_dist_mat (2d numpy array of floats): distance between spins (i) and (j)
+    output:
+        indices (1d numpy array of integers): list of integers of spin indices
+    '''
+    mask = hf_dist_mat[spin] < r
+    indices = np.where(mask)[0]
+    return indices
+
+
+
 def jump_bool_uniform(current_k, k_max):
     '''
     output:
@@ -426,8 +426,9 @@ def birth_bool_uniform(current_k, k_max):
             return False
 
 
+
 def within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
-                           coherence_data, exp_params, sigma_sq=None):
+                           coherence_data, exp_params, sigma_sq=None, beta_k=None):
     '''
     input:
         current_spins (1d numpy array of ints of length current_k): indices of current spins
@@ -443,11 +444,14 @@ def within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat,
         in RWMH algorithm
         error (float): L2 error between coherence data and next_spins
     '''
+    if beta_k == None:
+        beta_k = 1
     
     proposed_spins = get_proposal_spins_within_model_step_RWMH(current_spins, hf_dist_mat, r)
     
     log_a = get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, exp_params,
-                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq)
+                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq,
+                                                       beta_k)
     u = np.random.uniform(0, 1)
     if np.log(u) < log_a:
         next_spins = proposed_spins
@@ -651,7 +655,8 @@ def death_step(current_k, current_spins, r, hf_df, hf_dist_mat,
 
 
 def get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, exp_params,
-                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq=None):
+                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq=None,
+                                               beta_k = 1):
     '''
     input:
         current_spins (1d numpy array of ints):
@@ -678,9 +683,8 @@ def get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, ex
     log_prob_curr_to_prop = get_log_prob_within_step_move(current_spins,proposed_spins, r, 
                                                           hf_dist_mat)
     
-    log_a = min((0, (log_L_prop_spins + log_prob_prop_to_curr -
-                     log_L_curr_spins + log_prob_curr_to_prop)))
-    
+    log_a = min((0, (beta_k*log_L_prop_spins + log_prob_prop_to_curr -
+                     beta_k*log_L_curr_spins + log_prob_curr_to_prop)))
     return log_a
 
 
@@ -754,245 +758,6 @@ def get_log_accept_prob_jump_step(current_spins, proposed_spins, exp_params,
     return log_a
 
 
-def RWMH_no_jumps(initial_spin_list, hf_df, hf_dist_mat, r, exp_params, 
-                  coherence_data, num_trials):
-    '''
-    input:
-        initial_spin_list (1d numpy array of ints):
-        hf_df (dataframe): dataframe containing hyperfine couplings and location of 
-        all nuclear spins
-        hf_dist_mat (2d numpy array of floats): distance (A) between spins i and j
-        r (float): radius for random walk
-        exp_params (list of dicts): containing number of pulses, time points taken, amount of noise,
-        and magnetic field for each experiment resulting in coherence data
-        coherence_data (list of 1d numpy array of floats): coherence data
-        num_trials (int): number of steps in random walk
-    output:
-        spin_samples (list of 1d numpy array of ints): list of random walk (length num_trials)
-        error_samples (list of floats): error associated with each step 
-    '''
-    
-    spin_samples = []
-    error_samples = []
-    spin_samples.append(initial_spin_list)
-    error_initial_spins = get_error_spin_data(coherence_data, initial_spin_list, exp_params, hf_df)
-    error_samples.append(error_initial_spins)
-    count = 1
-    
-    while count < num_trials:
-        current_spins = spin_samples[count-1]
-        next_spins, error = within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
-                                                   coherence_data, exp_params)
-        spin_samples.append(next_spins)
-        error_samples.append(error)
-        count += 1
-        
-    return spin_samples, error_samples
-
-
-def RJMCMC_RWMH(initial_spin_list, hf_df, hf_dist_mat, r, exp_params,
-                coherence_data, num_trials, k_max, sigma_sq=None):
-    '''
-    input:
-        initial_spin_list (1d numpy array of ints):
-        hf_df (dataframe): dataframe containing hyperfine couplings and location of 
-        all nuclear spins
-        hf_dist_mat (2d numpy array of floats): distance (A) between spins i and j
-        r (float): radius for random walk
-        exp_params (list of dicts): containing number of pulses, time points taken, amount of noise,
-        and magnetic field for each experiment resulting in coherence data
-        coherence_data (list of 1d numpy array of floats): coherence data
-        num_trials (int): number of steps in random walk
-        sigma_sq (float): amount of noise to assume for likelihood (default is use same value as experimental data)
-    output:
-        k_samples (list of ints): list of number of spins associated with each step
-        spin_samples (list of 1d numpy array of ints): list of random walk (length num_trials)
-        error_samples (list of floats): error associated with each step 
-    '''
-    
-    spin_samples = []
-    error_samples = []
-    k_samples = []
-    
-    error_initial_spins = get_error_spin_data(coherence_data, initial_spin_list, exp_params, hf_df)
-    spin_samples.append(initial_spin_list)
-    error_samples.append(error_initial_spins)
-    k_samples.append(len(initial_spin_list))
-    count = 1
-    
-    while count < num_trials:
-        
-        current_spins = spin_samples[count-1]
-        current_k = k_samples[count-1]
-        
-        if jump_bool_uniform(current_k, k_max): # jump dimensions
-            
-            # print(f'current_k: {current_k}, k_max:{k_max}, True', flush=True)
-            
-            if birth_bool_uniform(current_k, k_max): # birth step 
-                next_k, next_spins, error = birth_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
-                                                       coherence_data, exp_params, k_max)
-                # print('birth')
-            else: # death step
-                next_k, next_spins, error = death_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
-                                                       coherence_data, exp_params, k_max)
-                # print('death')
-        else: # within model RWMH step, same k
-            
-            # print(f'current_k: {current_k}, k_max:{k_max}, False', flush=True)  
-            next_spins, error = within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
-                                                       coherence_data, exp_params, sigma_sq)
-        
-        spin_samples.append(next_spins)
-        error_samples.append(error)
-        k_samples.append(len(next_spins))
-        count += 1
-    
-    return k_samples, spin_samples, error_samples
-
-
-
-# to run on Midway
-def random_trial_two_pulses(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH, NOISE_8, 
-                            NOISE_16, NUM_SPINS, K_MAX, NUM_TRIALS, R, NUM_ENSEMBLES):
-    
-    '''
-    input:
-        HF_FILE (string): file containing hf parameters and locations of atoms
-        BOOTSTRAPPED_DF_FILE (string): file containing bootstrapped data
-        CONF (float): confidence, needs to be in [0.5, 0.75, 0.9, 0.95, 0.99, 0.999]
-        HF_THRESH_HIGH (float): upper limit cutoff of spins
-        NOISE_8 (float): norm of uncertainty vector for 8-pulse experiment
-        NOISE_16 (float): norm of uncertainty vector for 8-pulse experiment
-        NUM_SPINS (int): number of spins to simulate
-        K_MAX (int): upper limit on number of spins to simulate
-        NUM_TRIALS (int): how many steps the walkers should take
-        R (float): hyperparameter of distance of step each walker could take
-        NUM_ENSEMBLES (int): number of different initializations to start form
-    output:
-        ensembles (list of dicts): contains dict for each ensemble about walkers
-        spin_list_ground (list of ints): ground truth spins used to generate data
-        exp_params (dict): containing experimental parameters
-    '''
-    noise = NOISE_8 + NOISE_16
-    bootstrapped_df = pd.read_pickle(BOOTSTRAPPED_DF_FILE)
-    hf_thresh_low = get_hf_limit(bootstrapped_df, 'joint', noise, CONF)
-    print(str(hf_thresh_low), flush=True)
-    
-    hf_df = make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, hf_thresh_low)
-    print('making dist matrix', flush=True)
-    hf_dist_mat = get_distance_matrix(hf_df)
-    print('finished making dist matrix', flush=True)
-    print('num spins: '+str(len(hf_dist_mat)), flush=True)
-    
-    _, _, _, TIME_8 = get_specific_exp_parameters(8)
-    _, _, _, TIME_16 = get_specific_exp_parameters(16)
-    
-    # come up with some sample data
-    num_experiments = 2
-    num_pulses = [8, 16]
-    mag_field = [311, 311]
-    
-    noise = [np.sqrt(np.linalg.norm(NOISE_8**2/len(TIME_8))),
-             np.sqrt(np.linalg.norm(NOISE_16**2/len(TIME_16)))]
-    time = [TIME_8, TIME_16]
-    
-    exp_params = make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
-    spin_list_ground, coherence_signals = generate_trial_data(NUM_SPINS, hf_df, exp_params)
-    
-    ensembles = []
-    num_ensembles = 0
-    while num_ensembles < NUM_ENSEMBLES:
-        print(num_ensembles)
-        ensemble_dict = {}
-        num_spins_initial = np.random.choice(range(1, K_MAX+1))
-        spin_indices = np.arange(len(hf_df))
-        spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
-    
-        k_trials, spin_trials, error_trials = RJMCMC_RWMH(spin_list_initial, hf_df, hf_dist_mat, R,
-                                                      exp_params, coherence_signals, NUM_TRIALS, 
-                                                      K_MAX)
-        ensemble_dict['initial_spins'] = spin_list_initial
-        ensemble_dict['k_trials'] = k_trials
-        ensemble_dict['spin_trials'] = spin_trials
-        ensemble_dict['error_trials'] = error_trials
-        ensembles.append(ensemble_dict)
-        num_ensembles += 1
-    
-    return ensembles, spin_list_ground, exp_params
-
-
-# to run on Midway
-def random_trial_two_pulses_look_at_noise(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH, HF_THRESH_LOW, NOISE_8, 
-                            NOISE_16, L_NOISE, NUM_SPINS, K_MAX, NUM_TRIALS, R, NUM_ENSEMBLES):
-    
-    '''
-    input:
-        HF_FILE (string): file containing hf parameters and locations of atoms
-        BOOTSTRAPPED_DF_FILE (string): file containing bootstrapped data
-        CONF (float): confidence, needs to be in [0.5, 0.75, 0.9, 0.95, 0.99, 0.999]
-        HF_THRESH_HIGH (float): upper limit cutoff of spins
-        HF_LOW (float): lower limit cutoff of spins
-        NOISE_8 (float): amount of noise to add to simulations at each time point (eg add np.random.noise(0, NOISE_8)
-        NOISE_16 (float): amount of noise to add to simulations at each time point (eg add np.random.noise(0, NOISE_8)
-        L_NOISE (float): amount of noise to use in likelihood calculation
-        NUM_SPINS (int): number of spins to simulate
-        K_MAX (int): upper limit on number of spins to simulate
-        NUM_TRIALS (int): how many steps the walkers should take
-        R (float): hyperparameter of distance of step each walker could take
-        NUM_ENSEMBLES (int): number of different initializations to start form
-    output:
-        ensembles (list of dicts): contains dict for each ensemble about walkers
-        spin_list_ground (list of ints): ground truth spins used to generate data
-        exp_params (dict): containing experimental parameters
-    '''
-    
-    hf_df = make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
-    print('making dist matrix', flush=True)
-    hf_dist_mat = get_distance_matrix(hf_df)
-    print('finished making dist matrix', flush=True)
-    print('num spins: '+str(len(hf_dist_mat)), flush=True)
-    
-    _, _, _, TIME_8 = get_specific_exp_parameters(8)
-    _, _, _, TIME_16 = get_specific_exp_parameters(16)
-    
-    # come up with some sample data
-    num_experiments = 2
-    num_pulses = [8, 16]
-    mag_field = [311, 311]
-    
-    noise = [NOISE_8, NOISE_16]
-    time = [TIME_8, TIME_16]
-    
-    sigma_sq = L_NOISE
-    
-    exp_params = make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
-    spin_list_ground, coherence_signals = generate_trial_data(NUM_SPINS, hf_df, exp_params)
-    
-    ensembles = []
-    num_ensembles = 0
-    while num_ensembles < NUM_ENSEMBLES:
-        print(num_ensembles)
-        ensemble_dict = {}
-        num_spins_initial = np.random.choice(range(1, K_MAX+1))
-        spin_indices = np.arange(len(hf_df))
-        spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
-    
-        k_trials, spin_trials, error_trials = RJMCMC_RWMH(spin_list_initial, hf_df, hf_dist_mat, R,
-                                                      exp_params, coherence_signals, NUM_TRIALS, 
-                                                      K_MAX, sigma_sq)
-        ensemble_dict['initial_spins'] = spin_list_initial
-        ensemble_dict['k_trials'] = k_trials
-        ensemble_dict['spin_trials'] = spin_trials
-        ensemble_dict['error_trials'] = error_trials
-        ensembles.append(ensemble_dict)
-        num_ensembles += 1
-    
-    return ensembles, spin_list_ground, exp_params
-
-
-
-
 ########### below here need to be documented and re-written
 def get_dict_data(data, num_pulses, nv_num):
     
@@ -1056,61 +821,79 @@ def get_plot_data(data):
     
 
 
-def fit_exp_data_rjmcmc(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH, NOISE_8,
-                        NOISE_16, K_MAX, NUM_TRIALS, R, NUM_ENSEMBLES, DATA_PATH_8, DATA_PATH_16,
-                        NV_NUM):
+def parallel_tempering_steps(current_spins, hf_df, hf_dist_mat, exp_params, coherence_data, 
+                             num_strands, num_steps, r, beta):
+    '''
+    input:
+        current_spins: list of ints 
+        hf_df: 
+        exp_params:
+        coherence_data:
+        num_strands (int): number of replicas to run with different inverse temps
+        r (float): step distance in RWMH
+        beta (list of floats): first entry must be 1, length must be num_strands
+    output:
+        spin_samples: list of lists of list corresponding to spins for each strand at each step
+        error_samples: list of lists of floats corresponding to the error for each strand at each step
+    '''
+    spin_samples = []
+    error_samples = []
     
-    # info from experimental data
-    data_csv_8 = pd.read_csv(DATA_PATH_8, sep='\t', header=None)
-    data_csv_16 = pd.read_csv(DATA_PATH_16, sep='\t', header=None)
-    data_dict_8 = get_dict_data(data_csv_8, 8, NV_NUM)
-    data_dict_16 = get_dict_data(data_csv_16, 16, NV_NUM)
-    data_8 = data_dict_8['rescaled_data']
-    data_16 = data_dict_16['rescaled_data']
+    for i in range(num_strands):
+        spin_samples.append([])
+        error_samples.append([])
+        
+    spin_samples[0].append(current_spins)
+    for i in range(1, num_strands):
+        random_spins = random.sample(range(len(hf_df)), len(current_spins))
+        random_spins.sort()
+        spin_samples[i].append(random_spins)
+        error_initial_spins = get_error_spin_data(coherence_data, current_spins, exp_params, hf_df)
+        error_samples[i].append(error_initial_spins)
     
-    _, _, _, TIME_8 = get_specific_exp_parameters(8)
-    _, _, _, TIME_16 = get_specific_exp_parameters(16)
+    count = 1
+    while count < num_steps:
+        if count % 1000 == 0:
+            print(count)
+        for i in range(num_strands):
+            current_spins = spin_samples[i][count-1]
+            next_spins, error = within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
+                                                   coherence_data, exp_params, sigma_sq=None,
+                                                 beta_k=beta[i])
+            next_spins.sort()
+            spin_samples[i].append(next_spins)
+            error_samples[i].append(error)
+        
+        # attempt a swap
+        swap_attempt_indices = random.sample(range(num_strands), 2)
     
-    num_experiments = 2
-    num_pulses = [8, 16]
-    mag_field = [311, 311]
-    noise = [np.sqrt(np.linalg.norm(NOISE_8**2/len(TIME_8))),
-             np.sqrt(np.linalg.norm(NOISE_16**2/len(TIME_16)))]
-    time = [TIME_8, TIME_16]
+        k1 = swap_attempt_indices[0]
+        k2 = swap_attempt_indices[1]
     
-    exp_params = make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
-    coherence_signals = []
-    coherence_signals.append(data_8)
-    coherence_signals.append(data_16)
+        spins_k1 = spin_samples[k1][-1]
+        spins_k2 = spin_samples[k2][-1]
     
-    # ab initio hf data and bootstrap df
-    noise = NOISE_8 + NOISE_16
-    bootstrapped_df = pd.read_pickle(BOOTSTRAPPED_DF_FILE)
-    hf_thresh_low = get_hf_limit(bootstrapped_df, 'joint', noise, CONF)
+        beta_k1 = beta[k1]
+        beta_k2 = beta[k2]
     
-    hf_df = make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, hf_thresh_low)
-    hf_dist_mat = get_distance_matrix(hf_df)
+        log_L_spins_k1 = get_log_likelihood_of_spins_given_data(spins_k1, coherence_data, 
+                                                                   hf_df, exp_params, sigma_sq=None)
+        log_L_spins_k2 = get_log_likelihood_of_spins_given_data(spins_k2, coherence_data, 
+                                                                   hf_df, exp_params, sigma_sq=None)
     
-    ensembles = []
-    num_ensembles = 0
-    while num_ensembles < NUM_ENSEMBLES:
-        print(num_ensembles)
-        ensemble_dict = {}
-        num_spins_initial = np.random.choice(range(1, K_MAX+1))
-        spin_indices = np.arange(len(hf_df))
-        spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
+        log_swap_prob = (beta_k1*log_L_spins_k2 + beta_k2*log_L_spins_k1 - 
+                     beta_k2*log_L_spins_k2 - beta_k1*log_L_spins_k1)
     
-        k_trials, spin_trials, error_trials = RJMCMC_RWMH(spin_list_initial, hf_df, hf_dist_mat, R,
-                                                      exp_params, coherence_signals, NUM_TRIALS, 
-                                                      K_MAX)
-        ensemble_dict['initial_spins'] = spin_list_initial
-        ensemble_dict['k_trials'] = k_trials
-        ensemble_dict['spin_trials'] = spin_trials
-        ensemble_dict['error_trials'] = error_trials
-        ensembles.append(ensemble_dict)
-        num_ensembles += 1
-    
-    return ensembles, exp_params, coherence_signals, hf_df
+        u = np.random.uniform(0, 1)
+        if np.log(u) < log_swap_prob: # swap spins, otherwise, nothing
+            spin_samples[k2][-1] = spins_k1
+            spin_samples[k1][-1] = spins_k2
+        
+        count += 1
+        
+    return spin_samples, error_samples
+
+
                                  
                                  
                                  

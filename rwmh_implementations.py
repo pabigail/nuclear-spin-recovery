@@ -171,9 +171,10 @@ def random_trial_two_pulses(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH,
 
 
 # to run on Midway
-def random_trial_two_pulses_look_at_noise(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH, HF_THRESH_LOW, NOISE_8, 
+# to run on Midway
+def random_trial_two_pulses_look_at_noise(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH, HF_THRESH_LOW, NOISE_8,
                             NOISE_16, L_NOISE, NUM_SPINS, K_MAX, NUM_TRIALS, R, NUM_ENSEMBLES):
-    
+
     '''
     input:
         HF_FILE (string): file containing hf parameters and locations of atoms
@@ -194,29 +195,29 @@ def random_trial_two_pulses_look_at_noise(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, H
         spin_list_ground (list of ints): ground truth spins used to generate data
         exp_params (dict): containing experimental parameters
     '''
-    
+
     hf_df = rjmcmc.make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
     print('making dist matrix', flush=True)
     hf_dist_mat = rjmcmc.get_distance_matrix(hf_df)
     print('finished making dist matrix', flush=True)
     print('num spins: '+str(len(hf_dist_mat)), flush=True)
-    
+
     _, _, _, TIME_8 = rjmcmc.get_specific_exp_parameters(8)
     _, _, _, TIME_16 = rjmcmc.get_specific_exp_parameters(16)
-    
+
     # come up with some sample data
     num_experiments = 2
     num_pulses = [8, 16]
     mag_field = [311, 311]
-    
+
     noise = [NOISE_8, NOISE_16]
     time = [TIME_8, TIME_16]
-    
+
     sigma_sq = L_NOISE
-    
+
     exp_params = rjmcmc.make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
     spin_list_ground, coherence_signals = rjmcmc.generate_trial_data(NUM_SPINS, hf_df, exp_params)
-    
+
     ensembles = []
     num_ensembles = 0
     while num_ensembles < NUM_ENSEMBLES:
@@ -225,9 +226,9 @@ def random_trial_two_pulses_look_at_noise(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, H
         num_spins_initial = np.random.choice(range(1, K_MAX+1))
         spin_indices = np.arange(len(hf_df))
         spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
-    
+
         k_trials, spin_trials, error_trials = RJMCMC_RWMH(spin_list_initial, hf_df, hf_dist_mat, R,
-                                                      exp_params, coherence_signals, NUM_TRIALS, 
+                                                      exp_params, coherence_signals, NUM_TRIALS,
                                                       K_MAX, sigma_sq)
         ensemble_dict['initial_spins'] = spin_list_initial
         ensemble_dict['k_trials'] = k_trials
@@ -235,8 +236,9 @@ def random_trial_two_pulses_look_at_noise(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, H
         ensemble_dict['error_trials'] = error_trials
         ensembles.append(ensemble_dict)
         num_ensembles += 1
-    
-    return ensembles, spin_list_ground, exp_params
+
+    return ensembles, spin_list_ground, exp_params, hf_df
+
 
 
 def fit_exp_data_rjmcmc(HF_FILE, BOOTSTRAPPED_DF_FILE, CONF, HF_THRESH_HIGH, NOISE_8,
@@ -367,3 +369,94 @@ def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r
             count += 1
     
     return k_samples, spin_samples, error_samples
+
+
+def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_THRESH_HIGH, HF_THRESH_LOW, 
+                                                 NUM_EXPS, L_NOISE, GROUND_SPINS,
+                                       K_MAX, NUM_TRIALS, R, NUM_STRANDS, BETA, NUM_RJMCMC_STEPS,
+                                                 NUM_PARALLEL_STEPS,
+                                       NUM_ENSEMBLES, NOISE_8=None, NOISE_16=None):
+    '''
+    input:
+        HF_FILE (string): file containing hf parameters and locations of atoms
+        HF_THRESH_HIGH (float): upper limit cutoff of spins
+        HF_LOW (float): lower limit cutoff of spins
+        NOISE_8 (float): amount of noise to add to simulations at each time point (eg add np.random.noise(0, NOISE_8)
+        NOISE_16 (float): amount of noise to add to simulations at each time point (eg add np.random.noise(0, NOISE_8)
+        L_NOISE (float): amount of noise to use in likelihood calculation
+        GROUND SPINS (list of ints): indices of spins to simulate
+        K_MAX (int): upper limit on number of spins to simulate
+        NUM_TRIALS (int): how many steps the walkers should take
+        R (float): hyperparameter of distance of step each walker could take
+        NUM_ENSEMBLES (int): number of different initializations to start form
+    output:
+        ensembles (list of dicts): contains dict for each ensemble about walkers
+        spin_list_ground (list of ints): ground truth spins used to generate data
+        exp_params (dict): containing experimental parameters
+    '''
+    hf_df = make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
+    
+    with open(HF_DIST_MAT_FILE, 'rb') as file:
+        hf_dist_mat = pkl.load(file)
+    
+    if NUM_EXPS == 2:
+        _, _, _, TIME_8 = get_specific_exp_parameters(8)
+        _, _, _, TIME_16 = get_specific_exp_parameters(16)
+        num_experiments = 2
+        num_pulses = [8, 16]
+        noise = [NOISE_8, NOISE_16]
+        mag_field = [311, 311]
+        time = [TIME_8, TIME_16]
+    
+    elif NOISE_8 != None:
+        _, _, _, TIME_8 = get_specific_exp_parameters(8)
+        num_experiments = 1
+        num_pulses = [8]
+        noise = [NOISE_8]
+        mag_field = [311]
+        time = [TIME_8]
+        
+    else:
+        _, _, _, TIME_16 = get_specific_exp_parameters(16)
+        num_experiments = 1
+        num_pulses = [16]
+        noise = [NOISE_16]
+        mag_field = [311]
+        time = [TIME_16]
+    
+    sigma_sq = L_NOISE
+    
+    exp_params = make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
+    coherence_signals_no_noise = calculate_coherence(GROUND_SPINS, hf_df, exp_params)
+    
+    coherence_signals = []
+    for index in range(exp_params['num_experiments']):
+        coherence_signal = (coherence_signals_no_noise[index] +
+                            np.random.normal(scale=exp_params['noise'][index], 
+                                             size=len(coherence_signals_no_noise[index])))
+        coherence_signals.append(coherence_signal)
+        
+
+    ensembles = []
+    num_ensembles = 0
+    while num_ensembles < NUM_ENSEMBLES:
+        print(num_ensembles)
+        ensemble_dict = {}
+        num_spins_initial = np.random.choice(range(1, K_MAX+1))
+        spin_indices = np.arange(len(hf_df))
+        spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
+        k_trials, spin_trials, error_trials = RJMCMC_RWMH_with_parallel_tempering(spin_list_initial, hf_df,
+                                                                                 hf_dist_mat, R, exp_params,
+                                                                                 coherence_signals, NUM_TRIALS,
+                                                                                 K_MAX, NUM_STRANDS, BETA,
+                                                                                 NUM_RJMCMC_STEPS,
+                                                                                 NUM_PARALLEL_STEPS, sigma_sq=L_NOISE)
+        ensemble_dict['initial_spins'] = GROUND_SPINS
+        ensemble_dict['k_trials'] = k_trials
+        ensemble_dict['spin_trials'] = spin_trials
+        ensemble_dict['error_trials'] = error_trials
+        ensemble_dict['rec_noise'] = L_NOISE
+        ensembles.append(ensemble_dict)
+        num_ensembles += 1
+        
+    return ensembles, exp_params, hf_df

@@ -1,6 +1,7 @@
 import rjmcmc
 import pandas as pd
 import numpy as np
+import pickle as pkl
 
 def RWMH_no_jumps(initial_spin_list, hf_df, hf_dist_mat, r, exp_params, 
                   coherence_data, num_trials):
@@ -394,14 +395,14 @@ def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_T
         spin_list_ground (list of ints): ground truth spins used to generate data
         exp_params (dict): containing experimental parameters
     '''
-    hf_df = make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
+    hf_df = rjmcmc.make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
     
     with open(HF_DIST_MAT_FILE, 'rb') as file:
         hf_dist_mat = pkl.load(file)
     
     if NUM_EXPS == 2:
-        _, _, _, TIME_8 = get_specific_exp_parameters(8)
-        _, _, _, TIME_16 = get_specific_exp_parameters(16)
+        _, _, _, TIME_8 = rjmcmc.get_specific_exp_parameters(8)
+        _, _, _, TIME_16 = rjmcmc.get_specific_exp_parameters(16)
         num_experiments = 2
         num_pulses = [8, 16]
         noise = [NOISE_8, NOISE_16]
@@ -409,7 +410,7 @@ def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_T
         time = [TIME_8, TIME_16]
     
     elif NOISE_8 != None:
-        _, _, _, TIME_8 = get_specific_exp_parameters(8)
+        _, _, _, TIME_8 = rjmcmc.get_specific_exp_parameters(8)
         num_experiments = 1
         num_pulses = [8]
         noise = [NOISE_8]
@@ -417,7 +418,7 @@ def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_T
         time = [TIME_8]
         
     else:
-        _, _, _, TIME_16 = get_specific_exp_parameters(16)
+        _, _, _, TIME_16 = rjmcmc.get_specific_exp_parameters(16)
         num_experiments = 1
         num_pulses = [16]
         noise = [NOISE_16]
@@ -426,8 +427,8 @@ def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_T
     
     sigma_sq = L_NOISE
     
-    exp_params = make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
-    coherence_signals_no_noise = calculate_coherence(GROUND_SPINS, hf_df, exp_params)
+    exp_params = rjmcmc.make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
+    coherence_signals_no_noise = rjmcmc.calculate_coherence(GROUND_SPINS, hf_df, exp_params)
     
     coherence_signals = []
     for index in range(exp_params['num_experiments']):

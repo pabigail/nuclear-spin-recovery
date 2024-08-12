@@ -461,3 +461,65 @@ def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_T
         num_ensembles += 1
         
     return ensembles, exp_params, hf_df
+
+
+def rjmcmc_with_parallel_tempering_trials(HF_FILE, HF_DIST_MAT_FILE, COHERENCE_SIGNAL_FILE, HF_THRESH_HIGH, HF_THRESH_LOW,
+                                                  L_NOISE, K_MAX, NUM_TRIALS, R, NUM_STRANDS, BETA, NUM_RJMCMC_STEPS,
+                                                 NUM_PARALLEL_STEPS, SAVE_PATH):
+    '''
+    input:
+        HF_FILE (string): file containing hf parameters and locations of atoms
+        HF_THRESH_HIGH (float): upper limit cutoff of spins
+        HF_LOW (float): lower limit cutoff of spins
+        L_NOISE (float): amount of noise to use in likelihood calculation
+        GROUND SPINS (list of ints): indices of spins to simulate
+        K_MAX (int): upper limit on number of spins to simulate
+        NUM_TRIALS (int): how many steps the walkers should take
+        R (float): hyperparameter of distance of step each walker could take
+        NUM_ENSEMBLES (int): number of different initializations to start form
+    output:
+        ensembles (list of dicts): contains dict for each ensemble about walkers
+        spin_list_ground (list of ints): ground truth spins used to generate data
+        exp_params (dict): containing experimental parameters
+    '''
+    hf_df = rjmcmc.make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
+
+    with open(HF_DIST_MAT_FILE, 'rb') as file:
+        hf_dist_mat = pkl.load(file)
+
+    with open(COHERENCE_SIGNAL_FILE, 'rb') as file:
+        coherence_dict = pkl.load(file)
+
+    exp_params = coherence_dict['exp_params']
+    coherence_signals = coherence_dict['coherence_signals']
+    coherence_signals_ground = coherence_dict['coherence_signals_ground']
+    ground_spins = coherence_dict['ground_spins']
+    sigma_sq = L_NOISE
+
+    ensemble_dict = {}
+    num_spins_initial = np.random.choice(range(1, K_MAX+1))
+    spin_indices = np.arange(len(hf_df))
+    spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
+    k_trials, spin_trials, error_trials, accept_rate_dict = RJMCMC_RWMH_with_parallel_tempering(spin_list_initial, hf_df,
+                                                                                 hf_dist_mat, R, exp_params,
+                                                                                 coherence_signals, NUM_TRIALS,
+                                                                                 K_MAX, NUM_STRANDS, BETA,
+                                                                                 NUM_RJMCMC_STEPS,
+                                                                                 NUM_PARALLEL_STEPS, sigma_sq=L_NOISE)
+    ensemble_dict['initial_spins'] = ground_spins
+    ensemble_dict['k_trials'] = k_trials
+    ensemble_dict['spin_trials'] = spin_trials
+    ensemble_dict['error_trials'] = error_trials
+    ensemble_dict['rec_noise'] = L_NOISE
+    ensemble_dict['coherence_signals'] = coherence_signals
+    ensemble_dict['coherence_signals_ground'] = coherence_signals_ground
+    ensemble_dict['accept_rate_dict'] = accept_rate_dict
+    ensemble_dict['hf_df'] = hf_df
+    ensemble_dict['exp_params'] = exp_params
+
+
+    with open(SAVE_PATH, 'wb') as f:
+        pkl.dump(ensemble_dict, f)
+
+    print("finished")
+    return 0

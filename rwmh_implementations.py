@@ -325,6 +325,16 @@ def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r
     error_samples = []
     k_samples = []
     
+    accept_birth = 0
+    proposed_birth = 0
+    accept_death = 0
+    proposed_death = 0
+    accept_swap = 0
+    proposed_swap = 0
+    proposed_rwmh_step = 0
+    accept_rwmh_step = 0
+
+
     error_initial_spins = rjmcmc.get_error_spin_data(coherence_data, initial_spin_list, exp_params, hf_df)
     spin_samples.append(initial_spin_list)
     error_samples.append(error_initial_spins)
@@ -340,17 +350,30 @@ def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r
             current_spins = spin_samples[count-1]
             current_k = k_samples[count-1]
             # if jump_bool_uniform(current_k, k_max): # jump dimensions
-
-            # print(f'current_k: {current_k}, k_max:{k_max}, True', flush=True)
+            if True:
             
-            if rjmcmc.birth_bool_uniform(current_k, k_max): # birth step 
-                next_k, next_spins, error = rjmcmc.birth_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
+                # print(f'current_k: {current_k}, k_max:{k_max}, True', flush=True)
+            
+                if rjmcmc.birth_bool_uniform(current_k, k_max): # birth step 
+                    next_k, next_spins, error = rjmcmc.birth_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
                                                        coherence_data, exp_params, k_max)
-                # print('birth')
-            else: # death step
-                next_k, next_spins, error = rjmcmc.death_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
+                    proposed_birth += 1
+                    if next_k != current_k:
+                        accept_birth += 1
+                    # print('birth')
+                else: # death step
+                    next_k, next_spins, error = rjmcmc.death_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
                                                        coherence_data, exp_params, k_max)
-                # print('death')
+                    proposed_death += 1
+                    if next_k != current_k:
+                        accept_death += 1
+                    # print('death')
+            else: # within model RWMH step, same k
+            
+                # print(f'current_k: {current_k}, k_max:{k_max}, False', flush=True)  
+                # this never happens the way it is set up now (if True)
+                next_spins, error = rjmcmc.within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
+                                                       coherence_data, exp_params, sigma_sq)
         
             spin_samples.append(next_spins)
             error_samples.append(error)
@@ -359,167 +382,34 @@ def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r
             count_rjmcmc += 1
          
         # parallel tempering steps
-        spin_samples_par, error_samples_par = rjmcmc.parallel_tempering_steps(spin_samples[count-1], hf_df, hf_dist_mat,
+        spin_samples_par, error_samples_par, proposed_swap_par, accept_swap_par, proposed_rwmh_step_par, accept_rwmh_step_par  = rjmcmc.parallel_tempering_steps(current_spins, hf_df, hf_dist_mat,
                                                                        exp_params,
                                                                    coherence_data, num_strands, num_parallel_steps,
-                                                                   r, beta)
-        for i in range(len(spin_samples_par)):
+                                                                   r, beta, sigma_sq=sigma_sq)
+        
+        proposed_swap += proposed_swap_par
+        accept_swap += accept_swap_par
+    
+        proposed_rwmh_step += proposed_rwmh_step_par[0][0]
+        accept_rwmh_step += accept_rwmh_step_par[0][0]
+        
+        # print(np.shape(spin_samples_par))
+        for i in range(1, len(spin_samples_par[0])): # first spin in parallel tempering is exact same as last spin in rjmcmc
             spin_samples.append(spin_samples_par[0][i])
             error_samples.append(error_samples_par[0][i])
             k_samples.append(len(spin_samples_par[0][i]))
             count += 1
+
+    accept_rate_dict = {}
+    accept_rate_dict['accept_birth'] = accept_birth
+    accept_rate_dict['proposed_birth'] = proposed_birth
+    accept_rate_dict['accept_death'] = accept_death
+    accept_rate_dict['proposed_death'] = proposed_death
+    accept_rate_dict['accept_swap'] = accept_swap
+    accept_rate_dict['proposed_swap'] = proposed_swap
+    accept_rate_dict['proposed_rwmh_step'] = proposed_rwmh_step
+    accept_rate_dict['accept_rwmh_step'] = accept_rwmh_step
+
     
-    return k_samples, spin_samples, error_samples
+    return k_samples, spin_samples, error_samples, accept_rate_dict
 
-
-def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_THRESH_HIGH, HF_THRESH_LOW, 
-                                                 NUM_EXPS, L_NOISE, GROUND_SPINS,
-                                       K_MAX, NUM_TRIALS, R, NUM_STRANDS, BETA, NUM_RJMCMC_STEPS,
-                                                 NUM_PARALLEL_STEPS,
-                                       NUM_ENSEMBLES, NOISE_8=None, NOISE_16=None):
-    '''
-    input:
-        HF_FILE (string): file containing hf parameters and locations of atoms
-        HF_THRESH_HIGH (float): upper limit cutoff of spins
-        HF_LOW (float): lower limit cutoff of spins
-        NOISE_8 (float): amount of noise to add to simulations at each time point (eg add np.random.noise(0, NOISE_8)
-        NOISE_16 (float): amount of noise to add to simulations at each time point (eg add np.random.noise(0, NOISE_8)
-        L_NOISE (float): amount of noise to use in likelihood calculation
-        GROUND SPINS (list of ints): indices of spins to simulate
-        K_MAX (int): upper limit on number of spins to simulate
-        NUM_TRIALS (int): how many steps the walkers should take
-        R (float): hyperparameter of distance of step each walker could take
-        NUM_ENSEMBLES (int): number of different initializations to start form
-    output:
-        ensembles (list of dicts): contains dict for each ensemble about walkers
-        spin_list_ground (list of ints): ground truth spins used to generate data
-        exp_params (dict): containing experimental parameters
-    '''
-    hf_df = rjmcmc.make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
-    
-    with open(HF_DIST_MAT_FILE, 'rb') as file:
-        hf_dist_mat = pkl.load(file)
-    
-    if NUM_EXPS == 2:
-        _, _, _, TIME_8 = rjmcmc.get_specific_exp_parameters(8)
-        _, _, _, TIME_16 = rjmcmc.get_specific_exp_parameters(16)
-        num_experiments = 2
-        num_pulses = [8, 16]
-        noise = [NOISE_8, NOISE_16]
-        mag_field = [311, 311]
-        time = [TIME_8, TIME_16]
-    
-    elif NOISE_8 != None:
-        _, _, _, TIME_8 = rjmcmc.get_specific_exp_parameters(8)
-        num_experiments = 1
-        num_pulses = [8]
-        noise = [NOISE_8]
-        mag_field = [311]
-        time = [TIME_8]
-        
-    else:
-        _, _, _, TIME_16 = rjmcmc.get_specific_exp_parameters(16)
-        num_experiments = 1
-        num_pulses = [16]
-        noise = [NOISE_16]
-        mag_field = [311]
-        time = [TIME_16]
-    
-    sigma_sq = L_NOISE
-    
-    exp_params = rjmcmc.make_exp_params_dict(num_experiments, num_pulses, mag_field, noise, time)
-    coherence_signals_no_noise = rjmcmc.calculate_coherence(GROUND_SPINS, hf_df, exp_params)
-    
-    coherence_signals = []
-    for index in range(exp_params['num_experiments']):
-        coherence_signal = (coherence_signals_no_noise[index] +
-                            np.random.normal(scale=exp_params['noise'][index], 
-                                             size=len(coherence_signals_no_noise[index])))
-        coherence_signals.append(coherence_signal)
-        
-
-    ensembles = []
-    num_ensembles = 0
-    while num_ensembles < NUM_ENSEMBLES:
-        print(num_ensembles)
-        ensemble_dict = {}
-        num_spins_initial = np.random.choice(range(1, K_MAX+1))
-        spin_indices = np.arange(len(hf_df))
-        spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
-        k_trials, spin_trials, error_trials = RJMCMC_RWMH_with_parallel_tempering(spin_list_initial, hf_df,
-                                                                                 hf_dist_mat, R, exp_params,
-                                                                                 coherence_signals, NUM_TRIALS,
-                                                                                 K_MAX, NUM_STRANDS, BETA,
-                                                                                 NUM_RJMCMC_STEPS,
-                                                                                 NUM_PARALLEL_STEPS, sigma_sq=L_NOISE)
-        ensemble_dict['initial_spins'] = GROUND_SPINS
-        ensemble_dict['k_trials'] = k_trials
-        ensemble_dict['spin_trials'] = spin_trials
-        ensemble_dict['error_trials'] = error_trials
-        ensemble_dict['rec_noise'] = L_NOISE
-        ensembles.append(ensemble_dict)
-        num_ensembles += 1
-        
-    return ensembles, exp_params, hf_df
-
-
-def rjmcmc_with_parallel_tempering_trials(HF_FILE, HF_DIST_MAT_FILE, COHERENCE_SIGNAL_FILE, HF_THRESH_HIGH, HF_THRESH_LOW,
-                                                  L_NOISE, K_MAX, NUM_TRIALS, R, NUM_STRANDS, BETA, NUM_RJMCMC_STEPS,
-                                                 NUM_PARALLEL_STEPS, SAVE_PATH):
-    '''
-    input:
-        HF_FILE (string): file containing hf parameters and locations of atoms
-        HF_THRESH_HIGH (float): upper limit cutoff of spins
-        HF_LOW (float): lower limit cutoff of spins
-        L_NOISE (float): amount of noise to use in likelihood calculation
-        GROUND SPINS (list of ints): indices of spins to simulate
-        K_MAX (int): upper limit on number of spins to simulate
-        NUM_TRIALS (int): how many steps the walkers should take
-        R (float): hyperparameter of distance of step each walker could take
-        NUM_ENSEMBLES (int): number of different initializations to start form
-    output:
-        ensembles (list of dicts): contains dict for each ensemble about walkers
-        spin_list_ground (list of ints): ground truth spins used to generate data
-        exp_params (dict): containing experimental parameters
-    '''
-    hf_df = rjmcmc.make_df_from_Ivady_file(HF_FILE, HF_THRESH_HIGH, HF_THRESH_LOW)
-
-    with open(HF_DIST_MAT_FILE, 'rb') as file:
-        hf_dist_mat = pkl.load(file)
-
-    with open(COHERENCE_SIGNAL_FILE, 'rb') as file:
-        coherence_dict = pkl.load(file)
-
-    exp_params = coherence_dict['exp_params']
-    coherence_signals = coherence_dict['coherence_signals']
-    coherence_signals_ground = coherence_dict['coherence_signals_ground']
-    ground_spins = coherence_dict['ground_spins']
-    sigma_sq = L_NOISE
-
-    ensemble_dict = {}
-    num_spins_initial = np.random.choice(range(1, K_MAX+1))
-    spin_indices = np.arange(len(hf_df))
-    spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
-    k_trials, spin_trials, error_trials, accept_rate_dict = RJMCMC_RWMH_with_parallel_tempering(spin_list_initial, hf_df,
-                                                                                 hf_dist_mat, R, exp_params,
-                                                                                 coherence_signals, NUM_TRIALS,
-                                                                                 K_MAX, NUM_STRANDS, BETA,
-                                                                                 NUM_RJMCMC_STEPS,
-                                                                                 NUM_PARALLEL_STEPS, sigma_sq=L_NOISE)
-    ensemble_dict['initial_spins'] = ground_spins
-    ensemble_dict['k_trials'] = k_trials
-    ensemble_dict['spin_trials'] = spin_trials
-    ensemble_dict['error_trials'] = error_trials
-    ensemble_dict['rec_noise'] = L_NOISE
-    ensemble_dict['coherence_signals'] = coherence_signals
-    ensemble_dict['coherence_signals_ground'] = coherence_signals_ground
-    ensemble_dict['accept_rate_dict'] = accept_rate_dict
-    ensemble_dict['hf_df'] = hf_df
-    ensemble_dict['exp_params'] = exp_params
-
-
-    with open(SAVE_PATH, 'wb') as f:
-        pkl.dump(ensemble_dict, f)
-
-    print("finished")
-    return 0

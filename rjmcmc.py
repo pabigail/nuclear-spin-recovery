@@ -462,6 +462,73 @@ def within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat,
     
     return next_spins, error
 
+def within_model_step_RWMH_one_spin(current_spins, r, hf_df, hf_dist_mat, 
+                           coherence_data, exp_params, sigma_sq=None, beta_k=None, spin_ind=None):
+    '''
+    input:
+        current_spins (1d numpy array of ints of length current_k): indices of current spins
+        r (float): radius for random walk
+        hf_df (dataframe): dataframe containing hyperfine couplings and location of 
+        all nuclear spins
+        hf_dist_mat (2d numpy array of floats): distance (A) between spins i and j
+        coherence_data (1d numpy array of floats): coherence data 
+        exp_params (list of dicts): containing number of pulses, time points taken, amount of noise,
+        and magnetic field for each experiment resulting in coherence data
+    output:
+        next_spins (1d numpy array of ints of length current_k): indices of spins for next step
+        in RWMH algorithm
+        error (float): L2 error between coherence data and next_spins
+    '''
+    if beta_k == None:
+        beta_k = 1
+        
+    if spin_ind == None:
+        spin_ind = random.randint(0, len(current_spins)-1)
+    
+    proposed_spins = get_proposal_spins_within_model_step_RWMH_one_spin(current_spins, hf_dist_mat, r, spin_ind)
+    
+    log_a = get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, exp_params,
+                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq,
+                                                       beta_k)
+    u = np.random.uniform(0, 1)
+    if np.log(u) < log_a:
+        next_spins = proposed_spins
+        error = get_error_spin_data(coherence_data, next_spins, exp_params, hf_df)
+    else:
+        next_spins = current_spins
+        error = get_error_spin_data(coherence_data, next_spins, exp_params, hf_df)
+    
+    return next_spins, error
+
+
+def get_proposal_spins_within_model_step_RWMH_one_spin(current_spins, hf_dist_mat, r, spin_ind):
+    '''
+    input:
+        current_spins (1d numpy array of ints of length current_k): indices of current spins
+        hf_dist_mat (2d numpy array of floats): distance (A) between spins i and j
+        r (float): radius of neighbors we are considering
+    output:
+        proposal_spins(1d numpy array of ints of length current_k): indices of proposed spins
+    '''
+    
+    # get neighbors for spin want to change
+    neighbors = get_spins_in_neighborhood(current_spins[spin_ind], r, hf_dist_mat)
+    # remove spin to propose from current list
+    prop_spins = [spin for i, spin in enumerate(current_spins) if i != spin_ind]
+    # filter neighbors for current spins
+    filtered_neighbors = remove_elements(neighbors, prop_spins)
+    
+    # choose proposal spin
+    if len(filtered_neighbors) == 0:
+        raise IndexError('neighbors are empty, radius may be too small')
+    else:
+        prop_spin = random.choice(filtered_neighbors)
+    
+    # add proposal spin to list
+    prop_spins.append(prop_spin)
+    
+    return prop_spins
+
 
 def remove_elements(original_list, elements_to_remove):
     return [element for element in original_list if element not in elements_to_remove]
@@ -822,7 +889,7 @@ def get_plot_data(data):
 
 
 def parallel_tempering_steps(current_spins, hf_df, hf_dist_mat, exp_params, coherence_data, 
-                             num_strands, num_steps, r, beta):
+                             num_strands, num_steps, r, beta, sigma_sq):
     '''
     input:
         current_spins: list of ints 
@@ -838,12 +905,20 @@ def parallel_tempering_steps(current_spins, hf_df, hf_dist_mat, exp_params, cohe
     '''
     spin_samples = []
     error_samples = []
+
+    proposed_swap = 0
+    accept_swap = 0
+    proposed_rwmh_step = []
+    accept_rwmh_step = []
     
     for i in range(num_strands):
         spin_samples.append([])
         error_samples.append([])
+        proposed_rwmh_step.append([0])
+        accept_rwmh_step.append([0])
         
     spin_samples[0].append(current_spins)
+    error_samples[0].append(get_error_spin_data(coherence_data, current_spins, exp_params, hf_df))
     for i in range(1, num_strands):
         random_spins = random.sample(range(len(hf_df)), len(current_spins))
         random_spins.sort()
@@ -852,21 +927,28 @@ def parallel_tempering_steps(current_spins, hf_df, hf_dist_mat, exp_params, cohe
         error_samples[i].append(error_initial_spins)
     
     count = 1
-    while count < num_steps:
+    while count < (num_steps+1):
         if count % 1000 == 0:
             print(count)
+            
+        spin_ind = (count % len(current_spins))
+     
         for i in range(num_strands):
+            proposed_rwmh_step[i][0] += 1
             current_spins = spin_samples[i][count-1]
-            next_spins, error = within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
-                                                   coherence_data, exp_params, sigma_sq=None,
-                                                 beta_k=beta[i])
+            next_spins, error = within_model_step_RWMH_one_spin(current_spins, r, hf_df, hf_dist_mat, 
+                                                   coherence_data, exp_params, sigma_sq=sigma_sq,
+                                                 beta_k=beta[i], spin_ind=spin_ind)
             next_spins.sort()
+            if sorted(list(next_spins)) != sorted(list(current_spins)):
+                accept_rwmh_step[i][0] += 1
             spin_samples[i].append(next_spins)
             error_samples[i].append(error)
         
         # attempt a swap
+        proposed_swap += 1
         swap_attempt_indices = random.sample(range(num_strands), 2)
-    
+        
         k1 = swap_attempt_indices[0]
         k2 = swap_attempt_indices[1]
     
@@ -877,9 +959,9 @@ def parallel_tempering_steps(current_spins, hf_df, hf_dist_mat, exp_params, cohe
         beta_k2 = beta[k2]
     
         log_L_spins_k1 = get_log_likelihood_of_spins_given_data(spins_k1, coherence_data, 
-                                                                   hf_df, exp_params, sigma_sq=None)
+                                                                   hf_df, exp_params, sigma_sq=sigma_sq)
         log_L_spins_k2 = get_log_likelihood_of_spins_given_data(spins_k2, coherence_data, 
-                                                                   hf_df, exp_params, sigma_sq=None)
+                                                                   hf_df, exp_params, sigma_sq=sigma_sq)
     
         log_swap_prob = (beta_k1*log_L_spins_k2 + beta_k2*log_L_spins_k1 - 
                      beta_k2*log_L_spins_k2 - beta_k1*log_L_spins_k1)
@@ -888,10 +970,12 @@ def parallel_tempering_steps(current_spins, hf_df, hf_dist_mat, exp_params, cohe
         if np.log(u) < log_swap_prob: # swap spins, otherwise, nothing
             spin_samples[k2][-1] = spins_k1
             spin_samples[k1][-1] = spins_k2
+            accept_swap += 1
         
         count += 1
         
-    return spin_samples, error_samples
+    return spin_samples, error_samples, proposed_swap, accept_swap, proposed_rwmh_step, accept_rwmh_step
+                                 
 
 
                                  

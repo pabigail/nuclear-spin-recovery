@@ -325,6 +325,16 @@ def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r
     error_samples = []
     k_samples = []
     
+    accept_birth = 0
+    proposed_birth = 0
+    accept_death = 0
+    proposed_death = 0
+    accept_swap = 0
+    proposed_swap = 0
+    proposed_rwmh_step = 0
+    accept_rwmh_step = 0
+
+
     error_initial_spins = rjmcmc.get_error_spin_data(coherence_data, initial_spin_list, exp_params, hf_df)
     spin_samples.append(initial_spin_list)
     error_samples.append(error_initial_spins)
@@ -340,17 +350,30 @@ def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r
             current_spins = spin_samples[count-1]
             current_k = k_samples[count-1]
             # if jump_bool_uniform(current_k, k_max): # jump dimensions
-
-            # print(f'current_k: {current_k}, k_max:{k_max}, True', flush=True)
+            if True:
             
-            if rjmcmc.birth_bool_uniform(current_k, k_max): # birth step 
-                next_k, next_spins, error = rjmcmc.birth_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
+                # print(f'current_k: {current_k}, k_max:{k_max}, True', flush=True)
+            
+                if rjmcmc.birth_bool_uniform(current_k, k_max): # birth step 
+                    next_k, next_spins, error = rjmcmc.birth_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
                                                        coherence_data, exp_params, k_max)
-                # print('birth')
-            else: # death step
-                next_k, next_spins, error = rjmcmc.death_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
+                    proposed_birth += 1
+                    if next_k != current_k:
+                        accept_birth += 1
+                    # print('birth')
+                else: # death step
+                    next_k, next_spins, error = rjmcmc.death_step(current_k, current_spins, r, hf_df, hf_dist_mat, 
                                                        coherence_data, exp_params, k_max)
-                # print('death')
+                    proposed_death += 1
+                    if next_k != current_k:
+                        accept_death += 1
+                    # print('death')
+            else: # within model RWMH step, same k
+            
+                # print(f'current_k: {current_k}, k_max:{k_max}, False', flush=True)  
+                # this never happens the way it is set up now (if True)
+                next_spins, error = rjmcmc.within_model_step_RWMH(current_spins, r, hf_df, hf_dist_mat, 
+                                                       coherence_data, exp_params, sigma_sq)
         
             spin_samples.append(next_spins)
             error_samples.append(error)
@@ -359,17 +382,36 @@ def RJMCMC_RWMH_with_parallel_tempering(initial_spin_list, hf_df, hf_dist_mat, r
             count_rjmcmc += 1
          
         # parallel tempering steps
-        spin_samples_par, error_samples_par = rjmcmc.parallel_tempering_steps(spin_samples[count-1], hf_df, hf_dist_mat,
+        spin_samples_par, error_samples_par, proposed_swap_par, accept_swap_par, proposed_rwmh_step_par, accept_rwmh_step_par  = rjmcmc.parallel_tempering_steps(current_spins, hf_df, hf_dist_mat,
                                                                        exp_params,
                                                                    coherence_data, num_strands, num_parallel_steps,
-                                                                   r, beta)
-        for i in range(len(spin_samples_par)):
+                                                                   r, beta, sigma_sq=sigma_sq)
+        
+        proposed_swap += proposed_swap_par
+        accept_swap += accept_swap_par
+    
+        proposed_rwmh_step += proposed_rwmh_step_par[0][0]
+        accept_rwmh_step += accept_rwmh_step_par[0][0]
+        
+        # print(np.shape(spin_samples_par))
+        for i in range(1, len(spin_samples_par[0])): # first spin in parallel tempering is exact same as last spin in rjmcmc
             spin_samples.append(spin_samples_par[0][i])
             error_samples.append(error_samples_par[0][i])
             k_samples.append(len(spin_samples_par[0][i]))
             count += 1
+
+    accept_rate_dict = {}
+    accept_rate_dict['accept_birth'] = accept_birth
+    accept_rate_dict['proposed_birth'] = proposed_birth
+    accept_rate_dict['accept_death'] = accept_death
+    accept_rate_dict['proposed_death'] = proposed_death
+    accept_rate_dict['accept_swap'] = accept_swap
+    accept_rate_dict['proposed_swap'] = proposed_swap
+    accept_rate_dict['proposed_rwmh_step'] = proposed_rwmh_step
+    accept_rate_dict['accept_rwmh_step'] = accept_rwmh_step
+
     
-    return k_samples, spin_samples, error_samples
+    return k_samples, spin_samples, error_samples, accept_rate_dict
 
 
 def rjmcmc_with_parallel_tempering_look_at_noise(HF_FILE, HF_DIST_MAT_FILE, HF_THRESH_HIGH, HF_THRESH_LOW, 
@@ -523,3 +565,66 @@ def rjmcmc_with_parallel_tempering_trials(HF_FILE, HF_DIST_MAT_FILE, COHERENCE_S
 
     print("finished")
     return 0
+
+
+def fit_exp_data_rjmcmc_fixed_hf_df(HF_FILE, HF_DIST_MAT_FILE, LOWER_THRESH, NOISE_8,
+                        NOISE_16, K_MAX, NUM_TRIALS, NUM_STRANDS, BETA, R, NUM_ENSEMBLES, DATA_PATH_8, DATA_PATH_16,
+                        NV_NUM, NUM_RJMCMC_STEPS, NUM_PAR_STEPS):
+    
+    # info from experimental data
+    data_csv_8 = pd.read_csv(DATA_PATH_8, sep='\t', header=None)
+    data_csv_16 = pd.read_csv(DATA_PATH_16, sep='\t', header=None)
+    data_dict_8 = rjmcmc.get_dict_data(data_csv_8, 8, NV_NUM)
+    data_dict_16 = rjmcmc.get_dict_data(data_csv_16, 16, NV_NUM)
+    data_8 = data_dict_8['rescaled_data']
+    data_16 = data_dict_16['rescaled_data']
+    
+    _, _, _, TIME_8 = rjmcmc.get_specific_exp_parameters(8)
+    _, _, _, TIME_16 = rjmcmc.get_specific_exp_parameters(16)
+    
+    num_experiments = 2
+    num_pulses = [8, 16]
+    mag_field = [311, 311]
+    noise_exp_param = [np.sqrt(np.linalg.norm(NOISE_8**2/len(TIME_8))),
+             np.sqrt(np.linalg.norm(NOISE_16**2/len(TIME_16)))]
+    time = [TIME_8, TIME_16]
+    exp_params = rjmcmc.make_exp_params_dict(num_experiments,
+                                      num_pulses,
+                                      mag_field,
+                                      noise_exp_param,
+                                      time)
+
+    coherence_signals = []
+    coherence_signals.append(data_8)
+    coherence_signals.append(data_16)
+    
+    # ab initio hf data and bootstrap df
+    noise = NOISE_8 + NOISE_16
+    
+    hf_df = rjmcmc.make_df_from_Ivady_file(HF_FILE, 200, LOWER_THRESH)
+
+    hf_dist_mat = pkl.load(open(HF_DIST_MAT_FILE, 'rb'))
+   
+    
+    ensembles = []
+    num_ensembles = 0
+    while num_ensembles < NUM_ENSEMBLES:
+        print(num_ensembles)
+        ensemble_dict = {}
+        num_spins_initial = np.random.choice(range(1, K_MAX+1))
+        spin_indices = np.arange(len(hf_df))
+        spin_list_initial = np.random.choice(spin_indices, size=num_spins_initial, replace=False)
+    
+        k_trials, spin_trials, error_trials, accept_dict = RJMCMC_RWMH_with_parallel_tempering(spin_list_initial, 
+                                                                                               hf_df, hf_dist_mat, R,
+                                                              exp_params, coherence_signals, NUM_TRIALS, 
+                                                                      K_MAX, NUM_STRANDS, BETA, NUM_RJMCMC_STEPS, NUM_PAR_STEPS)
+        ensemble_dict['initial_spins'] = spin_list_initial
+        ensemble_dict['k_trials'] = k_trials
+        ensemble_dict['spin_trials'] = spin_trials
+        ensemble_dict['error_trials'] = error_trials
+        ensemble_dict['accept_dict'] = accept_dict
+        ensembles.append(ensemble_dict)
+        num_ensembles += 1
+    
+    return ensembles, exp_params, coherence_signals, hf_df

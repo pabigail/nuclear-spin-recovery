@@ -530,6 +530,45 @@ def get_proposal_spins_within_model_step_RWMH_one_spin(current_spins, hf_dist_ma
     return prop_spins
 
 
+def within_model_step_RWMH_one_spin(current_spins, r, hf_df, hf_dist_mat, 
+                           coherence_data, exp_params, sigma_sq=None, beta_k=None, spin_ind=None):
+    '''
+    input:
+        current_spins (1d numpy array of ints of length current_k): indices of current spins
+        r (float): radius for random walk
+        hf_df (dataframe): dataframe containing hyperfine couplings and location of 
+        all nuclear spins
+        hf_dist_mat (2d numpy array of floats): distance (A) between spins i and j
+        coherence_data (1d numpy array of floats): coherence data 
+        exp_params (list of dicts): containing number of pulses, time points taken, amount of noise,
+        and magnetic field for each experiment resulting in coherence data
+    output:
+        next_spins (1d numpy array of ints of length current_k): indices of spins for next step
+        in RWMH algorithm
+        error (float): L2 error between coherence data and next_spins
+    '''
+    if beta_k == None:
+        beta_k = 1
+        
+    if spin_ind == None:
+        spin_ind = random.randint(0, len(current_spins)-1)
+    
+    proposed_spins = get_proposal_spins_within_model_step_RWMH_one_spin(current_spins, hf_dist_mat, r, spin_ind)
+    
+    log_a = get_log_accept_prob_within_model_step_RWMH(current_spins, proposed_spins, exp_params,
+                                                 coherence_data, r, hf_df, hf_dist_mat, sigma_sq,
+                                                       beta_k)
+    u = np.random.uniform(0, 1)
+    if np.log(u) < log_a:
+        next_spins = proposed_spins
+        error = get_error_spin_data(coherence_data, next_spins, exp_params, hf_df)
+    else:
+        next_spins = current_spins
+        error = get_error_spin_data(coherence_data, next_spins, exp_params, hf_df)
+    
+    return next_spins, error
+
+
 def remove_elements(original_list, elements_to_remove):
     return [element for element in original_list if element not in elements_to_remove]
 
@@ -557,6 +596,36 @@ def get_proposal_spins_within_model_step_RWMH(current_spins, hf_dist_mat, r):
         prop_spins.append(prop_spin)
     
     return prop_spins
+
+
+def get_proposal_spins_within_model_step_RWMH_one_spin(current_spins, hf_dist_mat, r, spin_ind):
+    '''
+    input:
+        current_spins (1d numpy array of ints of length current_k): indices of current spins
+        hf_dist_mat (2d numpy array of floats): distance (A) between spins i and j
+        r (float): radius of neighbors we are considering
+    output:
+        proposal_spins(1d numpy array of ints of length current_k): indices of proposed spins
+    '''
+    
+    # get neighbors for spin want to change
+    neighbors = get_spins_in_neighborhood(current_spins[spin_ind], r, hf_dist_mat)
+    # remove spin to propose from current list
+    prop_spins = [spin for i, spin in enumerate(current_spins) if i != spin_ind]
+    # filter neighbors for current spins
+    filtered_neighbors = remove_elements(neighbors, prop_spins)
+    
+    # choose proposal spin
+    if len(filtered_neighbors) == 0:
+        raise IndexError('neighbors are empty, radius may be too small')
+    else:
+        prop_spin = random.choice(filtered_neighbors)
+    
+    # add proposal spin to list
+    prop_spins.append(prop_spin)
+    
+    return prop_spins
+
 
 
 def get_proposal_spins_birth_step(current_spins, hf_dist_mat):
@@ -975,7 +1044,7 @@ def parallel_tempering_steps(current_spins, hf_df, hf_dist_mat, exp_params, cohe
         count += 1
         
     return spin_samples, error_samples, proposed_swap, accept_swap, proposed_rwmh_step, accept_rwmh_step
-                                 
+
 
 
                                  

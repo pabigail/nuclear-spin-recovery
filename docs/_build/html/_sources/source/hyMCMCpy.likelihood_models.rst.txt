@@ -6,5 +6,5 @@ Module contents
 
 .. automodule:: hyMCMCpy.likelihood_models
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:

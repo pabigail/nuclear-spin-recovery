@@ -12,10 +12,21 @@ Subpackages
    hyMCMCpy.mcmc_algorithms
    hyMCMCpy.posterior_postprocessing
 
+Submodules
+----------
+
+hyMCMCpy.utilities module
+-------------------------
+
+.. automodule:: hyMCMCpy.utilities
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 
 .. automodule:: hyMCMCpy
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:

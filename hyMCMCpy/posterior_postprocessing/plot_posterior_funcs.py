@@ -24,7 +24,7 @@ def plot_error_trajectories(saved_data):
         plt.plot(ensembles[i]['error_trials'])
     plt.xlabel('steps')
     plt.ylabel('error')
-    plt.title(f'{i+1} ensembles from fitting {saved_data['exp_params']['num_experiments']} coherence signals')
+    plt.title(f"{i+1} ensembles from fitting {saved_data['exp_params']['num_experiments']} coherence signals")
     
     
 def plot_k_trajectories(saved_data):

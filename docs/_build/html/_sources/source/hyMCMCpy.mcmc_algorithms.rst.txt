@@ -9,21 +9,21 @@ hyMCMCpy.mcmc\_algorithms.rjmcmc module
 
 .. automodule:: hyMCMCpy.mcmc_algorithms.rjmcmc
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:
 
 hyMCMCpy.mcmc\_algorithms.rwmh\_implementations module
 ------------------------------------------------------
 
 .. automodule:: hyMCMCpy.mcmc_algorithms.rwmh_implementations
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:
 
 Module contents
 ---------------
 
 .. automodule:: hyMCMCpy.mcmc_algorithms
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:

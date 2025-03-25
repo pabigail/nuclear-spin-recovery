@@ -8,13 +8,15 @@ from mpl_toolkits.mplot3d import Axes3D
 
 def make_df_from_Ivady_file(file_path, strong_thresh, weak_thresh):
     '''
-    input:
+    
+    Args:
         file_path (string): location of text file with hyperfine couplings (MHz) and locations (A) 
         of nuclear spins
         strong_thresh, weak_thresh (floats): kHz thresholds to remove all hyperfine couplings 
         with a component stronger than strong_thresh and with both couplings weaker than weak_thresh
     
-    output:
+    
+    Returns:
         hf_df: dataframe with hyperfine couplings (kHz) and locations (A) of all
         nuclear spins in files
     '''
@@ -56,12 +58,12 @@ def make_df_from_Ivady_file(file_path, strong_thresh, weak_thresh):
 
 def get_hf_limit(df_data, num_pulses, noise, confidence):
     '''
-    input:
+    Args:
         df_data (dataframe) : contains num_pulses, hf_thresh, confidence, and noise_tol columns
         num_pulses (int or string): right now, needs to be 8, 16, or 'joint'
         noise (float): amount of noise from experiment (np.linalg.norm(uncertainty of each data point based on photon noise distribution)
         confidence (float): right now needs to be 0.5, 0.75, 0.9, 0.95, 0.99, or 0.999
-    output:
+    Returns:
         hf_detect (float): based on bootstrapping, or np.nan if cannot find based on available data
     '''
 
@@ -95,10 +97,10 @@ def get_hf_limit(df_data, num_pulses, noise, confidence):
 
 def calc_distance_two_atoms(hf_df, row_index_1, row_index_2):
     '''
-    input:
+    Args:
         hf_df: data frame of hyperfines, locations of spins 
         row_index_1, row_index_2: integers in [0, len(hf_df)]
-    output:
+    Returns:
         distance (float): L2 distance of cartesian coordinates
         corresponding to nuclear spins corresponding to row indices
     '''
@@ -116,9 +118,9 @@ def calc_distance_two_atoms(hf_df, row_index_1, row_index_2):
 
 def get_distance_matrix(hf_df):
     '''
-    input:
+    Args:
         hf_df (dataframe): contains hyperfines, locations of spins
-    output:
+    Returns:
         dist_matrix (numpy array): a symmetric matrix where each entry 
         [i,j] = [j,i] is the distance between spins i and j in hf_df
     '''

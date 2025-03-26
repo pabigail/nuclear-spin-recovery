@@ -1,25 +1,26 @@
 import numpy as np
 
+
 class Params(np.ndarray):
-    """
-    Subclass of ``ndarray`` containing information about the parameters in the system
+    """A subclass of `ndarray` for storing system parameters.
 
-    The subclass has fixed structured datatype::
+    This class provides a structured `ndarray` with a fixed datatype to store
+    parameter names, values, and whether they belong to a discrete or continuous domain.
 
-        _dtype_params = np.dtype([('name', np.unicode_)
-                                  ('val', np.float64),
-                                  ('discrete', np.bool_)])
+    Attributes:
+        _dtype_params (np.dtype): The structured data type of the array, which includes:
+            - `name` (str): The name of the parameter.
+            - `val` (float): The numerical value of the parameter.
+            - `discrete` (bool): Whether the parameter is from a discrete domain (`True`)
+              or a continuous domain (`False`).
 
     Args:
-        name (array-like): 
-            Array of names of parameters
-
-        val (array-like):
-            Array of the current values of the parameters
-
-        discrete (array-like):
-            Boolean array if the parameter comes from a discrete (True) or continuous (False) domain
-            
+        names (array-like): An array of parameter names (strings).
+        vals (array-like): An array of parameter values (floats).
+        discrete (array-like): A boolean array indicating whether each parameter is discrete.
+    
+    Raises:
+        ValueError: If the input arrays have inconsistent lengths.
     """
 
     _dtype_params = np.dtype([('name', np.unicode_, 50), # max string length 50

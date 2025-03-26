@@ -9,9 +9,9 @@ from hyMCMCpy.params.params import Params
 
 # Initialize Params with example data
 params = Params(
-    names=['alpha', 'beta', 'gamma'],
-    vals=[0.5, 1.2, -3.7],
-    discrete=[False, True, False]
+    names=['lambda'],
+    vals=[0.5],
+    discrete=[False]
 )
 
 # Print the parameters
@@ -21,3 +21,4 @@ print(params)
 print("\nParameter Names:", params['name'])
 print("Parameter Values:", params['val'])
 print("Discrete Flags:", params['discrete'])
+print("first param:", params[0])

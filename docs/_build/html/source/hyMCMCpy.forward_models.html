@@ -50,6 +50,7 @@
 <li class="toctree-l4 current"><a class="current reference internal" href="#">hyMCMCpy.forward_models package</a></li>
 <li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.likelihood_models.html">hyMCMCpy.likelihood_models package</a></li>
 <li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.mcmc_algorithms.html">hyMCMCpy.mcmc_algorithms package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.params.html">hyMCMCpy.params package</a></li>
 <li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.posterior_postprocessing.html">hyMCMCpy.posterior_postprocessing package</a></li>
 </ul>
 </li>
@@ -90,6 +91,38 @@
              
   <section id="hymcmcpy-forward-models-package">
 <h1>hyMCMCpy.forward_models package<a class="headerlink" href="#hymcmcpy-forward-models-package" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="module-hyMCMCpy.forward_models.forward_models">
+<span id="hymcmcpy-forward-models-forward-models-module"></span><h2>hyMCMCpy.forward_models.forward_models module<a class="headerlink" href="#module-hyMCMCpy.forward_models.forward_models" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="hyMCMCpy.forward_models.forward_models.ForwardModel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hyMCMCpy.forward_models.forward_models.</span></span><span class="sig-name descname"><span class="pre">ForwardModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hyMCMCpy/forward_models/forward_models.html#ForwardModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hyMCMCpy.forward_models.forward_models.ForwardModel" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>This abstract class is takes in Params and other arguments to return data-like output.
+Should not be initialized directly (use an implemented subclass)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>Params</em>) – the parameter that seek to recover using MCMC methods</p></li>
+<li><p><strong>**kwargs</strong> (<em>dict</em>) – specific parameters that are unchanging across instatiations</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="hyMCMCpy.forward_models.forward_models.ForwardModel.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hyMCMCpy/forward_models/forward_models.html#ForwardModel.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hyMCMCpy.forward_models.forward_models.ForwardModel.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hyMCMCpy.forward_models.forward_models.ForwardModel.forward_model">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">forward_model</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hyMCMCpy/forward_models/forward_models.html#ForwardModel.forward_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hyMCMCpy.forward_models.forward_models.ForwardModel.forward_model" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
 <section id="module-hyMCMCpy.forward_models">
 <span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-hyMCMCpy.forward_models" title="Link to this heading"></a></h2>
 </section>

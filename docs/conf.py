@@ -32,6 +32,13 @@ extensions = [
         'sphinx.ext.napoleon',
 ]
 
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': True,
+    'special-members': '__new__,__init__',
+    'show-inheritance': True,
+        }
+
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 

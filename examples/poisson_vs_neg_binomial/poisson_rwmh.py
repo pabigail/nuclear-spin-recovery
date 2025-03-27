@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 # Import the Params class
-from hymcmcpy.params.params import Params
+from hymcmcpy.params import Params
 
 # Initialize Params with example data
 params = Params(

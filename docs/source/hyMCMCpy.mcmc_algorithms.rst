@@ -4,18 +4,10 @@ hyMCMCpy.mcmc\_algorithms package
 Submodules
 ----------
 
-hyMCMCpy.mcmc\_algorithms.rjmcmc\_old module
---------------------------------------------
+hyMCMCpy.mcmc\_algorithms.steps module
+--------------------------------------
 
-.. automodule:: hyMCMCpy.mcmc_algorithms.rjmcmc_old
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-hyMCMCpy.mcmc\_algorithms.rwmh\_implementations\_old module
------------------------------------------------------------
-
-.. automodule:: hyMCMCpy.mcmc_algorithms.rwmh_implementations_old
+.. automodule:: hyMCMCpy.mcmc_algorithms.steps
    :members:
    :undoc-members:
    :show-inheritance:

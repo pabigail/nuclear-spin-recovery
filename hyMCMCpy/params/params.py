@@ -9,9 +9,9 @@ class Params(np.ndarray):
 
     Attributes:
         _dtype_params (np.dtype): The structured data type of the array, which includes:
-            - `name` (str): The name of the parameter.
-            - `val` (float): The numerical value of the parameter.
-            - `discrete` (bool): Whether the parameter is from a discrete domain (`True`)
+        - `name` (str): The name of the parameter.
+        - `val` (float): The numerical value of the parameter.
+        - `discrete` (bool): Whether the parameter is from a discrete domain (`True`)
               or a continuous domain (`False`).
 
     Args:
@@ -21,9 +21,10 @@ class Params(np.ndarray):
     
     Raises:
         ValueError: If the input arrays have inconsistent lengths.
+        
     """
 
-    _dtype_params = np.dtype([('name', np.unicode_, 50), # max string length 50
+    _dtype_params = np.dtype([('name', np.str_, 50), # max string length 50
                               ('val', np.float64),
                               ('discrete', np.bool_)])
 

@@ -1,4 +1,4 @@
-hyMCMCpy package
+hymcmcpy package
 ================
 
 Subpackages
@@ -7,19 +7,19 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   hyMCMCpy.forward_models
-   hyMCMCpy.likelihood_models
-   hyMCMCpy.mcmc_algorithms
-   hyMCMCpy.params
-   hyMCMCpy.posterior_postprocessing
+   hymcmcpy.forward_models
+   hymcmcpy.likelihood_models
+   hymcmcpy.mcmc_algorithms
+   hymcmcpy.params
+   hymcmcpy.posterior_postprocessing
 
 Submodules
 ----------
 
-hyMCMCpy.utilities module
+hymcmcpy.utilities module
 -------------------------
 
-.. automodule:: hyMCMCpy.utilities
+.. automodule:: hymcmcpy.utilities
    :members:
    :undoc-members:
    :show-inheritance:
@@ -27,7 +27,7 @@ hyMCMCpy.utilities module
 Module contents
 ---------------
 
-.. automodule:: hyMCMCpy
+.. automodule:: hymcmcpy
    :members:
    :undoc-members:
    :show-inheritance:

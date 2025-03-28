@@ -1,13 +1,13 @@
-hyMCMCpy.mcmc\_algorithms package
+hymcmcpy.mcmc\_algorithms package
 =================================
 
 Submodules
 ----------
 
-hyMCMCpy.mcmc\_algorithms.steps module
+hymcmcpy.mcmc\_algorithms.steps module
 --------------------------------------
 
-.. automodule:: hyMCMCpy.mcmc_algorithms.steps
+.. automodule:: hymcmcpy.mcmc_algorithms.steps
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,7 +15,7 @@ hyMCMCpy.mcmc\_algorithms.steps module
 Module contents
 ---------------
 
-.. automodule:: hyMCMCpy.mcmc_algorithms
+.. automodule:: hymcmcpy.mcmc_algorithms
    :members:
    :undoc-members:
    :show-inheritance:

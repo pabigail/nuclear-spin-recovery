@@ -1,10 +1,10 @@
-hyMCMCpy.likelihood\_models package
+hymcmcpy.likelihood\_models package
 ===================================
 
 Module contents
 ---------------
 
-.. automodule:: hyMCMCpy.likelihood_models
+.. automodule:: hymcmcpy.likelihood_models
    :members:
    :undoc-members:
    :show-inheritance:

@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>hyMCMCpy.mcmc_algorithms package &mdash; hyMCMCpy 0.0.1 documentation</title>
+  <title>hymcmcpy.mcmc_algorithms package &mdash; hyMCMCpy 0.0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
@@ -19,8 +19,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="hyMCMCpy.params package" href="hyMCMCpy.params.html" />
-    <link rel="prev" title="hyMCMCpy.likelihood_models package" href="hyMCMCpy.likelihood_models.html" /> 
+    <link rel="next" title="hymcmcpy.params package" href="hymcmcpy.params.html" />
+    <link rel="prev" title="hymcmcpy.likelihood_models package" href="hymcmcpy.likelihood_models.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -44,19 +44,19 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">hyMCMCpy</a><ul class="current">
-<li class="toctree-l2 current"><a class="reference internal" href="hyMCMCpy.html">hyMCMCpy package</a><ul class="current">
-<li class="toctree-l3 current"><a class="reference internal" href="hyMCMCpy.html#subpackages">Subpackages</a><ul class="current">
-<li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.forward_models.html">hyMCMCpy.forward_models package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.likelihood_models.html">hyMCMCpy.likelihood_models package</a></li>
-<li class="toctree-l4 current"><a class="current reference internal" href="#">hyMCMCpy.mcmc_algorithms package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.params.html">hyMCMCpy.params package</a></li>
-<li class="toctree-l4"><a class="reference internal" href="hyMCMCpy.posterior_postprocessing.html">hyMCMCpy.posterior_postprocessing package</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">hymcmcpy</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="hymcmcpy.html">hymcmcpy package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="hymcmcpy.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="hymcmcpy.forward_models.html">hymcmcpy.forward_models package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="hymcmcpy.likelihood_models.html">hymcmcpy.likelihood_models package</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">hymcmcpy.mcmc_algorithms package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="hymcmcpy.params.html">hymcmcpy.params package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="hymcmcpy.posterior_postprocessing.html">hymcmcpy.posterior_postprocessing package</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="hyMCMCpy.html#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="hyMCMCpy.html#module-hyMCMCpy.utilities">hyMCMCpy.utilities module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="hyMCMCpy.html#module-hyMCMCpy">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="hymcmcpy.html#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="hymcmcpy.html#module-hymcmcpy.utilities">hymcmcpy.utilities module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="hymcmcpy.html#module-hymcmcpy">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -77,11 +77,11 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="modules.html">hyMCMCpy</a></li>
-          <li class="breadcrumb-item"><a href="hyMCMCpy.html">hyMCMCpy package</a></li>
-      <li class="breadcrumb-item active">hyMCMCpy.mcmc_algorithms package</li>
+          <li class="breadcrumb-item"><a href="modules.html">hymcmcpy</a></li>
+          <li class="breadcrumb-item"><a href="hymcmcpy.html">hymcmcpy package</a></li>
+      <li class="breadcrumb-item active">hymcmcpy.mcmc_algorithms package</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="../_sources/source/hyMCMCpy.mcmc_algorithms.rst.txt" rel="nofollow"> View page source</a>
+            <a href="../_sources/source/hymcmcpy.mcmc_algorithms.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -90,15 +90,15 @@
            <div itemprop="articleBody">
              
   <section id="hymcmcpy-mcmc-algorithms-package">
-<h1>hyMCMCpy.mcmc_algorithms package<a class="headerlink" href="#hymcmcpy-mcmc-algorithms-package" title="Link to this heading"></a></h1>
+<h1>hymcmcpy.mcmc_algorithms package<a class="headerlink" href="#hymcmcpy-mcmc-algorithms-package" title="Link to this heading"></a></h1>
 <section id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
 </section>
-<section id="module-hyMCMCpy.mcmc_algorithms.steps">
-<span id="hymcmcpy-mcmc-algorithms-steps-module"></span><h2>hyMCMCpy.mcmc_algorithms.steps module<a class="headerlink" href="#module-hyMCMCpy.mcmc_algorithms.steps" title="Link to this heading"></a></h2>
+<section id="module-hymcmcpy.mcmc_algorithms.steps">
+<span id="hymcmcpy-mcmc-algorithms-steps-module"></span><h2>hymcmcpy.mcmc_algorithms.steps module<a class="headerlink" href="#module-hymcmcpy.mcmc_algorithms.steps" title="Link to this heading"></a></h2>
 </section>
-<section id="module-hyMCMCpy.mcmc_algorithms">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-hyMCMCpy.mcmc_algorithms" title="Link to this heading"></a></h2>
+<section id="module-hymcmcpy.mcmc_algorithms">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-hymcmcpy.mcmc_algorithms" title="Link to this heading"></a></h2>
 </section>
 </section>
 
@@ -106,8 +106,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="hyMCMCpy.likelihood_models.html" class="btn btn-neutral float-left" title="hyMCMCpy.likelihood_models package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="hyMCMCpy.params.html" class="btn btn-neutral float-right" title="hyMCMCpy.params package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="hymcmcpy.likelihood_models.html" class="btn btn-neutral float-left" title="hymcmcpy.likelihood_models package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="hymcmcpy.params.html" class="btn btn-neutral float-right" title="hymcmcpy.params package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

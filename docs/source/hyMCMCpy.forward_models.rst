@@ -1,13 +1,13 @@
-hyMCMCpy.forward\_models package
+hymcmcpy.forward\_models package
 ================================
 
 Submodules
 ----------
 
-hyMCMCpy.forward\_models.forward\_models module
+hymcmcpy.forward\_models.forward\_models module
 -----------------------------------------------
 
-.. automodule:: hyMCMCpy.forward_models.forward_models
+.. automodule:: hymcmcpy.forward_models.forward_models
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,7 +15,7 @@ hyMCMCpy.forward\_models.forward\_models module
 Module contents
 ---------------
 
-.. automodule:: hyMCMCpy.forward_models
+.. automodule:: hymcmcpy.forward_models
    :members:
    :undoc-members:
    :show-inheritance:

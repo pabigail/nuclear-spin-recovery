@@ -1,7 +1,7 @@
-hyMCMCpy
+hymcmcpy
 ========
 
 .. toctree::
    :maxdepth: 4
 
-   hyMCMCpy
+   hymcmcpy

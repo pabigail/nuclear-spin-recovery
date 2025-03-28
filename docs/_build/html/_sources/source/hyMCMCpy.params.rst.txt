@@ -1,13 +1,13 @@
-hyMCMCpy.params package
+hymcmcpy.params package
 =======================
 
 Submodules
 ----------
 
-hyMCMCpy.params.params module
+hymcmcpy.params.params module
 -----------------------------
 
-.. automodule:: hyMCMCpy.params.params
+.. automodule:: hymcmcpy.params.params
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,7 +15,7 @@ hyMCMCpy.params.params module
 Module contents
 ---------------
 
-.. automodule:: hyMCMCpy.params
+.. automodule:: hymcmcpy.params
    :members:
    :undoc-members:
    :show-inheritance:

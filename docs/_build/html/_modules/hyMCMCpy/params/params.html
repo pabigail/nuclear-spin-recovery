@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>hyMCMCpy.params.params &mdash; hyMCMCpy 0.0.1 documentation</title>
+  <title>hymcmcpy.params.params &mdash; hyMCMCpy 0.0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
@@ -41,7 +41,7 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../source/modules.html">hyMCMCpy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/modules.html">hymcmcpy</a></li>
 </ul>
 
         </div>
@@ -59,7 +59,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">hyMCMCpy.params.params</li>
+      <li class="breadcrumb-item active">hymcmcpy.params.params</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -68,12 +68,12 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for hyMCMCpy.params.params</h1><div class="highlight"><pre>
+  <h1>Source code for hymcmcpy.params.params</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 
 <div class="viewcode-block" id="Params">
-<a class="viewcode-back" href="../../../source/hyMCMCpy.params.html#hyMCMCpy.params.params.Params">[docs]</a>
+<a class="viewcode-back" href="../../../source/hyMCMCpy.params.html#hymcmcpy.params.params.Params">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Params</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A subclass of `ndarray` for storing system parameters.</span>
 
@@ -101,8 +101,6 @@
                               <span class="p">(</span><span class="s1">&#39;val&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
                               <span class="p">(</span><span class="s1">&#39;discrete&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)])</span>
 
-<div class="viewcode-block" id="Params.__new__">
-<a class="viewcode-back" href="../../../source/hyMCMCpy.params.html#hyMCMCpy.params.params.Params.__new__">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">names</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="n">discrete</span><span class="p">):</span>
        
         <span class="c1"># ensure inputs are numpy arrays and have same shape</span>
@@ -120,7 +118,6 @@
         <span class="n">obj</span><span class="p">[</span><span class="s1">&#39;discrete&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">discrete</span>
 
         <span class="k">return</span> <span class="n">obj</span></div>
-</div>
 
 
 

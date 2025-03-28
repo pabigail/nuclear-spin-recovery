@@ -1,10 +1,10 @@
-hyMCMCpy.posterior\_postprocessing package
+hymcmcpy.posterior\_postprocessing package
 ==========================================
 
 Module contents
 ---------------
 
-.. automodule:: hyMCMCpy.posterior_postprocessing
+.. automodule:: hymcmcpy.posterior_postprocessing
    :members:
    :undoc-members:
    :show-inheritance:

@@ -16,7 +16,7 @@ class ForwardModel(ABC):
         self.params = params
 
     @abstractmethod
-    def forward_model(self):
+    def compute(self):
         pass
 
 

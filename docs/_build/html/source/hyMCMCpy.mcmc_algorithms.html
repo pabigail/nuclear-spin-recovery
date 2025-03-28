@@ -96,6 +96,138 @@
 </section>
 <section id="module-hymcmcpy.mcmc_algorithms.steps">
 <span id="hymcmcpy-mcmc-algorithms-steps-module"></span><h2>hymcmcpy.mcmc_algorithms.steps module<a class="headerlink" href="#module-hymcmcpy.mcmc_algorithms.steps" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.MCMCStep">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hymcmcpy.mcmc_algorithms.steps.</span></span><span class="sig-name descname"><span class="pre">MCMCStep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">likelihood_model</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/steps.html#MCMCStep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Abstract base class for performing a single step of an MCMC (Markov Chain Monte Carlo) algorithm.</p>
+<p>This class defines the structure for MCMC steps, where each subclass must implement the <cite>one_step()</cite>
+method to perform a single iteration of the algorithm, including proposing new parameters and deciding
+whether to accept or reject them.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>array-like</em>) – Observed data against which proposed parameters and forward model will be compared</p></li>
+<li><p><strong>params</strong> (<a class="reference internal" href="hymcmcpy.params.html#hymcmcpy.params.params.Params" title="hymcmcpy.params.params.Params"><em>Params</em></a>) – The current parameters (of type <cite>Params</cite>) for the system.</p></li>
+<li><p><strong>forward_model</strong> (<a class="reference internal" href="hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel" title="hymcmcpy.forward_models.forward_models.ForwardModel"><em>ForwardModel</em></a>) – A forward model used to generate predictions or simulations.</p></li>
+<li><p><strong>likelihood_model</strong> (<a class="reference internal" href="hymcmcpy.likelihood_models.html#hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel" title="hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel"><em>LikelihoodModel</em></a>) – A likelihood model used to evaluate the likelihood of the observed data.</p></li>
+<li><p><strong>**kwargs</strong> – Additional fixed arguments for the step (optional).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.MCMCStep.params">
+<span class="sig-name descname"><span class="pre">params</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep.params" title="Link to this definition"></a></dt>
+<dd><p>The current system parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="hymcmcpy.params.html#hymcmcpy.params.params.Params" title="hymcmcpy.params.params.Params">Params</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.MCMCStep.forward_model">
+<span class="sig-name descname"><span class="pre">forward_model</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep.forward_model" title="Link to this definition"></a></dt>
+<dd><p>The forward model used in the step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel" title="hymcmcpy.forward_models.forward_models.ForwardModel">ForwardModel</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.MCMCStep.likelihood_model">
+<span class="sig-name descname"><span class="pre">likelihood_model</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep.likelihood_model" title="Link to this definition"></a></dt>
+<dd><p>The likelihood model used to evaluate the likelihood of the data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="hymcmcpy.likelihood_models.html#hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel" title="hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel">LikelihoodModel</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.MCMCStep.one_step">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">one_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/steps.html#MCMCStep.one_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep.one_step" title="Link to this definition"></a></dt>
+<dd><p>Perform one step of the MCMC algorithm, which involves proposing new parameters and
+deciding whether to accept or reject them based on the model and the likelihood.</p>
+<p>This method should return the proposed new parameters and a boolean indicating whether
+the new parameters were accepted.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>params</strong> (<a class="reference internal" href="hymcmcpy.params.html#hymcmcpy.params.params.Params" title="hymcmcpy.params.params.Params"><em>Params</em></a>) – The current parameters (of type <cite>Params</cite></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>A tuple containing the proposed new parameters and a boolean indicating</dt><dd><p>whether the proposal was accepted (True) or rejected (False).</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hymcmcpy.mcmc_algorithms.steps.</span></span><span class="sig-name descname"><span class="pre">RWMHContinuousStep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">likelihood_model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma_sq</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/steps.html#RWMHContinuousStep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep" title="hymcmcpy.mcmc_algorithms.steps.MCMCStep"><code class="xref py py-class docutils literal notranslate"><span class="pre">MCMCStep</span></code></a></p>
+<p>A subclass of MCMCStep implementing one step of the Random Walk Metropolis-Hastings (RWMH) algorithm.</p>
+<p>In this step, the new parameter is proposed by adding Gaussian noise to the current parameter,
+and the acceptance decision is based on the difference in log-likelihoods.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<a class="reference internal" href="hymcmcpy.params.html#hymcmcpy.params.params.Params" title="hymcmcpy.params.params.Params"><em>Params</em></a>) – Current parameters of the system, should be a single continuous parameter.</p></li>
+<li><p><strong>forward_model</strong> (<a class="reference internal" href="hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel" title="hymcmcpy.forward_models.forward_models.ForwardModel"><em>ForwardModel</em></a>) – The forward model used for generating predictions.</p></li>
+<li><p><strong>likelihood_model</strong> (<a class="reference internal" href="hymcmcpy.likelihood_models.html#hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel" title="hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel"><em>LikelihoodModel</em></a>) – The likelihood model used to evaluate the log-likelihood.</p></li>
+<li><p><strong>sigma_sq</strong> (<em>float</em>) – The variance of the Gaussian noise used to propose new parameters.</p></li>
+<li><p><strong>**kwargs</strong> – Additional fixed arguments (optional).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.sigma_sq">
+<span class="sig-name descname"><span class="pre">sigma_sq</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.sigma_sq" title="Link to this definition"></a></dt>
+<dd><p>The variance of the Gaussian noise used for proposing new parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.one_step">
+<span class="sig-name descname"><span class="pre">one_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">current_params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/steps.html#RWMHContinuousStep.one_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.one_step" title="Link to this definition"></a></dt>
+<dd><p>Perform one step of the Random Walk Metropolis-Hastings (RWMH) algorithm using log-likelihood.</p>
+<p>In this method, a new parameter is proposed by adding Gaussian noise to the current parameter.
+The new parameter is accepted or rejected based on the difference in log-likelihoods.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>current_params</strong> (<a class="reference internal" href="hymcmcpy.params.html#hymcmcpy.params.params.Params" title="hymcmcpy.params.params.Params"><em>Params</em></a>) – The current parameters (of type <cite>Params</cite></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>A tuple containing the proposed new parameter as a new <cite>Params</cite> object and a boolean indicating</dt><dd><p>whether the proposal was accepted (True) or rejected (False).</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 <section id="module-hymcmcpy.mcmc_algorithms">
 <span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-hymcmcpy.mcmc_algorithms" title="Link to this heading"></a></h2>

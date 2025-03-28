@@ -111,9 +111,49 @@ Should not be initialized directly (use an implemented subclass)</p>
 </dd>
 </dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="hymcmcpy.forward_models.forward_models.ForwardModel.forward_model">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">forward_model</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/forward_models/forward_models.html#ForwardModel.forward_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.forward_models.forward_models.ForwardModel.forward_model" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="hymcmcpy.forward_models.forward_models.ForwardModel.compute">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/forward_models/forward_models.html#ForwardModel.compute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.forward_models.forward_models.ForwardModel.compute" title="Link to this definition"></a></dt>
+<dd><p>Generates data-like output given specific parameters.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="hymcmcpy.forward_models.forward_models.PoissonForwardModel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hymcmcpy.forward_models.forward_models.</span></span><span class="sig-name descname"><span class="pre">PoissonForwardModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/forward_models/forward_models.html#PoissonForwardModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.forward_models.forward_models.PoissonForwardModel" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#hymcmcpy.forward_models.forward_models.ForwardModel" title="hymcmcpy.forward_models.forward_models.ForwardModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForwardModel</span></code></a></p>
+<p>Forward model for the Poisson distribution, using the rate parameter (lambda) from the <cite>Params</cite> class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<a class="reference internal" href="hymcmcpy.params.html#hymcmcpy.params.params.Params" title="hymcmcpy.params.params.Params"><em>Params</em></a>) – An instance of the <cite>Params</cite> class, which should contain one entry
+with the name “lambda” representing the rate parameter for the Poisson distribution.</p></li>
+<li><p><strong>**kwargs</strong> – Additional fixed parameters (optional).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <cite>params</cite> does not contain an entry with the name “lambda”.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="hymcmcpy.forward_models.forward_models.PoissonForwardModel.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">k</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/forward_models/forward_models.html#PoissonForwardModel.compute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.forward_models.forward_models.PoissonForwardModel.compute" title="Link to this definition"></a></dt>
+<dd><p>Compute the Poisson probability mass function (PMF) at a given k.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>k</strong> (<em>array-like</em><em> or </em><em>scalar</em>) – The observed count or counts.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The Poisson PMF evaluated at k.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float or array-like</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <cite>params</cite> does not contain a valid “lambda” entry.</p>
+</dd>
+</dl>
+</dd></dl>
 
 </dd></dl>
 

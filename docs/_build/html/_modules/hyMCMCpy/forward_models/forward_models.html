@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>hyMCMCpy.forward_models.forward_models &mdash; hyMCMCpy 0.0.1 documentation</title>
+  <title>hymcmcpy.forward_models.forward_models &mdash; hyMCMCpy 0.0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
@@ -41,7 +41,7 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../source/modules.html">hyMCMCpy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/modules.html">hymcmcpy</a></li>
 </ul>
 
         </div>
@@ -59,7 +59,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">hyMCMCpy.forward_models.forward_models</li>
+      <li class="breadcrumb-item active">hymcmcpy.forward_models.forward_models</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -68,13 +68,15 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for hyMCMCpy.forward_models.forward_models</h1><div class="highlight"><pre>
+  <h1>Source code for hymcmcpy.forward_models.forward_models</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">poisson</span><span class="p">,</span> <span class="n">nbinom</span>
 
+
+
 <div class="viewcode-block" id="ForwardModel">
-<a class="viewcode-back" href="../../../source/hyMCMCpy.forward_models.html#hyMCMCpy.forward_models.forward_models.ForwardModel">[docs]</a>
+<a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">ForwardModel</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This abstract class is takes in Params and other arguments to return data-like output. </span>
@@ -85,19 +87,67 @@
 <span class="sd">        **kwargs (dict): specific parameters that are unchanging across instatiations</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-<div class="viewcode-block" id="ForwardModel.__init__">
-<a class="viewcode-back" href="../../../source/hyMCMCpy.forward_models.html#hyMCMCpy.forward_models.forward_models.ForwardModel.__init__">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span>
 
-
-<div class="viewcode-block" id="ForwardModel.forward_model">
-<a class="viewcode-back" href="../../../source/hyMCMCpy.forward_models.html#hyMCMCpy.forward_models.forward_models.ForwardModel.forward_model">[docs]</a>
+<div class="viewcode-block" id="ForwardModel.compute">
+<a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel.compute">[docs]</a>
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">forward_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates data-like output given specific parameters.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">pass</span></div>
 </div>
 
+
+
+
+<span class="c1">###----------Generic Examples----------###</span>
+
+<div class="viewcode-block" id="PoissonForwardModel">
+<a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.PoissonForwardModel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PoissonForwardModel</span><span class="p">(</span><span class="n">ForwardModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Forward model for the Poisson distribution, using the rate parameter (lambda) from the `Params` class.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        params (Params): An instance of the `Params` class, which should contain one entry </span>
+<span class="sd">                         with the name &quot;lambda&quot; representing the rate parameter for the Poisson distribution.</span>
+<span class="sd">        **kwargs: Additional fixed parameters (optional).</span>
+<span class="sd">    </span>
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If `params` does not contain an entry with the name &quot;lambda&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="PoissonForwardModel.compute">
+<a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.PoissonForwardModel.compute">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the Poisson probability mass function (PMF) at a given k.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            k (array-like or scalar): The observed count or counts.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            float or array-like: The Poisson PMF evaluated at k.</span>
+<span class="sd">        </span>
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If `params` does not contain a valid &quot;lambda&quot; entry.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Ensure the params contain a valid &quot;lambda&quot; entry</span>
+        <span class="k">if</span> <span class="s2">&quot;lambda&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;params must contain one entry with the name &#39;lambda&#39;.&quot;</span><span class="p">)</span>
+        
+        <span class="c1"># Extract lambda value from params</span>
+        <span class="n">lambda_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;val&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Return Poisson PMF</span>
+        <span class="k">return</span> <span class="n">poisson</span><span class="o">.</span><span class="n">pmf</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">lambda_val</span><span class="p">)</span></div>
+</div>
 
 
 

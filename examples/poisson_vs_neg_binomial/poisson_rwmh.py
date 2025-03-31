@@ -46,7 +46,7 @@ poisson_log_likelihood = PoissonLogLikelihood(forward_model_poisson,
 total_iterations = 10
 sigma_sq = 0.5
 
-schedule = [(RWMHContinuousStep, total_iterations)]
+schedule = [(RWMHContinuousStep, "lambda", total_iterations)]
 
 runner = PoissonMCMCRunner(poisson_data,
                            poisson_log_likelihood,

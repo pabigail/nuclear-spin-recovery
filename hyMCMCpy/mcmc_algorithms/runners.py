@@ -13,11 +13,13 @@ class MCMCIterations(np.ndarray):
     Attributes:
         _dtype_params (np.dtype): Structured dtype with fields:
             - 'algorithm' (str): The MCMC algorithm used at each step.
+            - 'param_name' (str): The name of the parameter that the algorithm acts upon.
             - 'accept' (bool): Whether the proposed step was accepted.
             - 'params' (Params): The parameter values at each iteration.
 
     Args:
         algorithms (array-like): A list or array of algorithm names (strings) used in each iteration.
+        param_name (array-like): A list or array of parameters names (strings) that was acted upon in each iteration
         accepts (array-like): A boolean array indicating whether each proposed step was accepted.
         params (array-like): An array of `Params` objects representing the system parameters at each step.
 
@@ -30,13 +32,15 @@ class MCMCIterations(np.ndarray):
 
 
     _dtype_params = np.dtype([('algorithm', np.str_, 50),
+                              ('param_name', np.str_, 50),
                               ('accept', np.bool_),
                               ('params', Params)])
 
-    def __new__(cls, algorithms, accepts, params):
+    def __new__(cls, algorithms, param_names, accepts, params):
 
         # ensure inputs are array-like and have same shape
         algorithms = np.asarray(algorithms, dtype='U50').reshape(-1)
+        param_names = np.asarray(param_names, dtype='U50').reshape(-1)
         accepts = np.asarray(accepts, dtype=bool).reshape(-1)
         params = np.asarray(params, dtype=Params).reshape(-1)
 
@@ -45,6 +49,7 @@ class MCMCIterations(np.ndarray):
 
         obj = np.empty(len(algorithms), dtype=cls._dtype_params).view(cls)
         obj['algorithm'] = algorithms
+        obj['param_name'] = param_names
         obj['accept'] = accepts
         obj['params'] = params
 
@@ -60,8 +65,8 @@ class MCMCRunner(ABC):
         data (array-like): Observed data against which proposed parameters and forward model will be compared.
         likelihood_model (LikelihoodModel): A likelihood model used to evaluate the likelihood of the observed data.
         initial_params (Params): The initial parameters for the MCMC run.
-        schedule (list of tuples): A list of (MCMCStep algorithm, int num_iterations) tuples defining the
-            sequence of algorithms and their respective iteration counts.
+        schedule (list of tuples): A list of (MCMCStep algorithm, param_name, int num_iterations) tuples defining the
+            sequence of algorithms, the name of the parameter that they act upon, and their respective iteration counts.
         total_iterations (int): The total number of MCMC iterations to perform.
         existing_iterations (MCMC_iterations, optional): An existing MCMC_iterations object to append new results.
 
@@ -107,6 +112,7 @@ class MCMCRunner(ABC):
         """
         current_params = self.initial_params if self.initial_params is not None else self.existing_iterations['params'][-1]
         algorithms = []
+        param_names = []
         accepts = []
         params_list = []
 
@@ -115,18 +121,20 @@ class MCMCRunner(ABC):
             accepts.extend(self.existing_iterations['accept'])
             params_list.extend(self.existing_iterations['params'])
 
-        for algorithm, num_iter in self.schedule:
+        # TO DO: Make instantiation so create an instatiation for each version of the alg that will be needed
+        for algorithm, param_name, num_iter in self.schedule:
             step = self.instantiation_step(algorithm, **self.kwargs)
             
             for _ in range(num_iter):
                 new_params, accepted = step.one_step(current_params)
                 algorithms.append(algorithm.nickname)
+                param_names.append(param_name)
                 accepts.append(accepted)
                 params_list.append(new_params)
                 
                 if accepted:
                     current_params = new_params
 
-        return MCMCIterations(algorithms, accepts, params_list)
+        return MCMCIterations(algorithms, param_names, accepts, params_list)
 
 

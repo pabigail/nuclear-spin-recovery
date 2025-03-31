@@ -70,11 +70,13 @@
              
   <h1>Source code for hymcmcpy.mcmc_algorithms.runners</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hymcmcpy.params</span><span class="w"> </span><span class="kn">import</span> <span class="n">Params</span>
 
-<div class="viewcode-block" id="MCMC_iterations">
-<a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.runners.MCMC_iterations">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">MCMC_iterations</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+
+<div class="viewcode-block" id="MCMCIterations">
+<a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.runners.MCMCIterations">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MCMCIterations</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A structured NumPy array to store parameter values at different iterations of a hybrid MCMC walker.</span>
 
@@ -120,6 +122,96 @@
         <span class="n">obj</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">params</span>
 
         <span class="k">return</span> <span class="n">obj</span></div>
+
+
+
+<div class="viewcode-block" id="MCMCRunner">
+<a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.runners.MCMCRunner">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MCMCRunner</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract base class for running a hybrid MCMC algorithm given an initial parameter set,</span>
+<span class="sd">    a sequence of algorithms, and a total number of iterations.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data (array-like): Observed data against which proposed parameters and forward model will be compared.</span>
+<span class="sd">        likelihood_model (LikelihoodModel): A likelihood model used to evaluate the likelihood of the observed data.</span>
+<span class="sd">        initial_params (Params): The initial parameters for the MCMC run.</span>
+<span class="sd">        schedule (list of tuples): A list of (MCMCStep algorithm, int num_iterations) tuples defining the</span>
+<span class="sd">            sequence of algorithms and their respective iteration counts.</span>
+<span class="sd">        total_iterations (int): The total number of MCMC iterations to perform.</span>
+<span class="sd">        existing_iterations (MCMC_iterations, optional): An existing MCMC_iterations object to append new results.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        MCMC_iterations: A structured array storing MCMC step details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="n">schedule</span><span class="p">,</span> <span class="n">total_iterations</span><span class="p">,</span> <span class="n">initial_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">existing_iterations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">initial_params</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">existing_iterations</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either intial_params or existing_iterations must be provided&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">initial_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">existing_iterations</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only one of intial_params or existing_iterations can be provided&quot;</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span> <span class="o">=</span> <span class="n">likelihood_model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initial_params</span> <span class="o">=</span> <span class="n">initial_params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span> <span class="o">=</span> <span class="n">schedule</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_iterations</span> <span class="o">=</span> <span class="n">total_iterations</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">existing_iterations</span> <span class="o">=</span> <span class="n">existing_iterations</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span> <span class="o">=</span> <span class="n">kwargs</span>
+    
+<div class="viewcode-block" id="MCMCRunner.instantiation_step">
+<a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.runners.MCMCRunner.instantiation_step">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">instantiation_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">algorithm</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Instantiate an MCMCStep subclass based on the given algorithm nickname and additional parameters.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            algorithm_nickname (str): The nickname of the MCMC algorithm to instantiate.</span>
+<span class="sd">            **kwargs: Additional parameters required for the specific MCMC algorithm.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            MCMCStep: An instance of the corresponding MCMC algorithm.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+
+<div class="viewcode-block" id="MCMCRunner.run">
+<a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.runners.MCMCRunner.run">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute the MCMC sequence as per the defined schedule.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            MCMC_iterations: A structured array storing the params, whether accepted, </span>
+<span class="sd">            and the algorithm at each step of the MCMC iterations.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">current_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">initial_params</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initial_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">existing_iterations</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">algorithms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">accepts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">params_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">existing_iterations</span><span class="p">:</span>
+            <span class="n">algorithms</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">existing_iterations</span><span class="p">[</span><span class="s1">&#39;algorithm&#39;</span><span class="p">])</span>
+            <span class="n">accepts</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">existing_iterations</span><span class="p">[</span><span class="s1">&#39;accept&#39;</span><span class="p">])</span>
+            <span class="n">params_list</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">existing_iterations</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])</span>
+
+        <span class="k">for</span> <span class="n">algorithm</span><span class="p">,</span> <span class="n">num_iter</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">:</span>
+            <span class="n">step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">instantiation_step</span><span class="p">(</span><span class="n">algorithm</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">)</span>
+            
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_iter</span><span class="p">):</span>
+                <span class="n">new_params</span><span class="p">,</span> <span class="n">accepted</span> <span class="o">=</span> <span class="n">step</span><span class="o">.</span><span class="n">one_step</span><span class="p">(</span><span class="n">current_params</span><span class="p">)</span>
+                <span class="n">algorithms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">algorithm</span><span class="o">.</span><span class="n">nickname</span><span class="p">)</span>
+                <span class="n">accepts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">accepted</span><span class="p">)</span>
+                <span class="n">params_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_params</span><span class="p">)</span>
+                
+                <span class="k">if</span> <span class="n">accepted</span><span class="p">:</span>
+                    <span class="n">current_params</span> <span class="o">=</span> <span class="n">new_params</span>
+
+        <span class="k">return</span> <span class="n">MCMCIterations</span><span class="p">(</span><span class="n">algorithms</span><span class="p">,</span> <span class="n">accepts</span><span class="p">,</span> <span class="n">params_list</span><span class="p">)</span></div>
+</div>
+
+
 
 </pre></div>
 

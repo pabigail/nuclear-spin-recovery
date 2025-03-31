@@ -97,15 +97,15 @@
 <section id="module-hymcmcpy.mcmc_algorithms.runners">
 <span id="hymcmcpy-mcmc-algorithms-runners-module"></span><h2>hymcmcpy.mcmc_algorithms.runners module<a class="headerlink" href="#module-hymcmcpy.mcmc_algorithms.runners" title="Link to this heading"></a></h2>
 <dl class="py class">
-<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMC_iterations">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hymcmcpy.mcmc_algorithms.runners.</span></span><span class="sig-name descname"><span class="pre">MCMC_iterations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">algorithms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">accepts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/runners.html#MCMC_iterations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMC_iterations" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMCIterations">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hymcmcpy.mcmc_algorithms.runners.</span></span><span class="sig-name descname"><span class="pre">MCMCIterations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">algorithms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">accepts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/runners.html#MCMCIterations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMCIterations" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></p>
 <p>A structured NumPy array to store parameter values at different iterations of a hybrid MCMC walker.</p>
 <p>This class tracks the parameters, the algorithm used for each step, and whether the proposed step was accepted.
 It ensures that all input arrays have the same length and stores them as a structured NumPy array.</p>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMC_iterations._dtype_params">
-<span class="sig-name descname"><span class="pre">_dtype_params</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMC_iterations._dtype_params" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMCIterations._dtype_params">
+<span class="sig-name descname"><span class="pre">_dtype_params</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMCIterations._dtype_params" title="Link to this definition"></a></dt>
 <dd><p>Structured dtype with fields:
 - ‘algorithm’ (str): The MCMC algorithm used at each step.
 - ‘accept’ (bool): Whether the proposed step was accepted.
@@ -132,9 +132,71 @@ It ensures that all input arrays have the same length and stores them as a struc
 <dd class="field-odd"><p>A structured array storing MCMC step details.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference internal" href="#hymcmcpy.mcmc_algorithms.runners.MCMC_iterations" title="hymcmcpy.mcmc_algorithms.runners.MCMC_iterations">MCMC_iterations</a></p>
+<dd class="field-even"><p>MCMC_iterations</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMCRunner">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hymcmcpy.mcmc_algorithms.runners.</span></span><span class="sig-name descname"><span class="pre">MCMCRunner</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">likelihood_model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schedule</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total_iterations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">existing_iterations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/runners.html#MCMCRunner"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMCRunner" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Abstract base class for running a hybrid MCMC algorithm given an initial parameter set,
+a sequence of algorithms, and a total number of iterations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>array-like</em>) – Observed data against which proposed parameters and forward model will be compared.</p></li>
+<li><p><strong>likelihood_model</strong> (<a class="reference internal" href="hymcmcpy.likelihood_models.html#hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel" title="hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel"><em>LikelihoodModel</em></a>) – A likelihood model used to evaluate the likelihood of the observed data.</p></li>
+<li><p><strong>initial_params</strong> (<a class="reference internal" href="hymcmcpy.params.html#hymcmcpy.params.params.Params" title="hymcmcpy.params.params.Params"><em>Params</em></a>) – The initial parameters for the MCMC run.</p></li>
+<li><p><strong>schedule</strong> (<em>list</em><em> of </em><em>tuples</em>) – A list of (MCMCStep algorithm, int num_iterations) tuples defining the
+sequence of algorithms and their respective iteration counts.</p></li>
+<li><p><strong>total_iterations</strong> (<em>int</em>) – The total number of MCMC iterations to perform.</p></li>
+<li><p><strong>existing_iterations</strong> (<em>MCMC_iterations</em><em>, </em><em>optional</em>) – An existing MCMC_iterations object to append new results.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A structured array storing MCMC step details.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>MCMC_iterations</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMCRunner.instantiation_step">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">instantiation_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">algorithm</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/runners.html#MCMCRunner.instantiation_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMCRunner.instantiation_step" title="Link to this definition"></a></dt>
+<dd><p>Instantiate an MCMCStep subclass based on the given algorithm nickname and additional parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>algorithm_nickname</strong> (<em>str</em>) – The nickname of the MCMC algorithm to instantiate.</p></li>
+<li><p><strong>**kwargs</strong> – Additional parameters required for the specific MCMC algorithm.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An instance of the corresponding MCMC algorithm.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep" title="hymcmcpy.mcmc_algorithms.steps.MCMCStep">MCMCStep</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMCRunner.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/runners.html#MCMCRunner.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMCRunner.run" title="Link to this definition"></a></dt>
+<dd><p>Execute the MCMC sequence as per the defined schedule.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A structured array storing the params, whether accepted,
+and the algorithm at each step of the MCMC iterations.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>MCMC_iterations</p>
+</dd>
+</dl>
+</dd></dl>
+
 </dd></dl>
 
 </section>

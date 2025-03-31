@@ -4,6 +4,14 @@ hymcmcpy.mcmc\_algorithms package
 Submodules
 ----------
 
+hymcmcpy.mcmc\_algorithms.runners module
+----------------------------------------
+
+.. automodule:: hymcmcpy.mcmc_algorithms.runners
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 hymcmcpy.mcmc\_algorithms.steps module
 --------------------------------------
 

@@ -94,6 +94,50 @@
 <section id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
 </section>
+<section id="module-hymcmcpy.mcmc_algorithms.runners">
+<span id="hymcmcpy-mcmc-algorithms-runners-module"></span><h2>hymcmcpy.mcmc_algorithms.runners module<a class="headerlink" href="#module-hymcmcpy.mcmc_algorithms.runners" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMC_iterations">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">hymcmcpy.mcmc_algorithms.runners.</span></span><span class="sig-name descname"><span class="pre">MCMC_iterations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">algorithms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">accepts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/hymcmcpy/mcmc_algorithms/runners.html#MCMC_iterations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMC_iterations" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></p>
+<p>A structured NumPy array to store parameter values at different iterations of a hybrid MCMC walker.</p>
+<p>This class tracks the parameters, the algorithm used for each step, and whether the proposed step was accepted.
+It ensures that all input arrays have the same length and stores them as a structured NumPy array.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.runners.MCMC_iterations._dtype_params">
+<span class="sig-name descname"><span class="pre">_dtype_params</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.runners.MCMC_iterations._dtype_params" title="Link to this definition"></a></dt>
+<dd><p>Structured dtype with fields:
+- ‘algorithm’ (str): The MCMC algorithm used at each step.
+- ‘accept’ (bool): Whether the proposed step was accepted.
+- ‘params’ (Params): The parameter values at each iteration.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.dtype</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>algorithms</strong> (<em>array-like</em>) – A list or array of algorithm names (strings) used in each iteration.</p></li>
+<li><p><strong>accepts</strong> (<em>array-like</em>) – A boolean array indicating whether each proposed step was accepted.</p></li>
+<li><p><strong>params</strong> (<em>array-like</em>) – An array of <cite>Params</cite> objects representing the system parameters at each step.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If input arrays do not have the same length.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A structured array storing MCMC step details.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#hymcmcpy.mcmc_algorithms.runners.MCMC_iterations" title="hymcmcpy.mcmc_algorithms.runners.MCMC_iterations">MCMC_iterations</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
 <section id="module-hymcmcpy.mcmc_algorithms.steps">
 <span id="hymcmcpy-mcmc-algorithms-steps-module"></span><h2>hymcmcpy.mcmc_algorithms.steps module<a class="headerlink" href="#module-hymcmcpy.mcmc_algorithms.steps" title="Link to this heading"></a></h2>
 <dl class="py class">

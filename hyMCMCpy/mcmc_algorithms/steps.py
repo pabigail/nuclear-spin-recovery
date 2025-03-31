@@ -20,12 +20,33 @@ class MCMCStep(ABC):
     Attributes:
         params (Params): The current system parameters.
         forward_model (ForwardModel): The forward model used in the step.
+        nickname (str): String to refer to algorithm
         likelihood_model (LikelihoodModel): The likelihood model used to evaluate the likelihood of the data.
     """
 
     def __init__(self, data, likelihood_model, **kwargs):
         self.data = data
         self.likelihood_model = likelihood_model
+
+    @property
+    @abstractmethod
+    def nickname(self):
+        """Get the unique identifier nickname for the algorithm.
+
+        Each subclass must define a unique `nickname`, which is a string 
+        used to identify the algorithm.
+
+        Returns:
+            str: The unique nickname of the algorithm.
+        """
+        pass
+
+
+    def __setattr(self, key, value):
+        """Prevent modification of 'nickname' after instantiation."""
+        if key == "nickname":
+            raise AttributeError("Cannot modify 'nickname' after instantiation")
+        super().__setattr__(key, value)
 
     @abstractmethod
     def one_step(self, params):
@@ -68,6 +89,11 @@ class RWMHContinuousStep(MCMCStep):
     def __init__(self, data, likelihood_model, sigma_sq, **kwargs):
         super().__init__(data, likelihood_model, **kwargs)
         self.sigma_sq = sigma_sq
+
+    # set nickname
+    nickname = "rwmh_continuous"
+
+
 
     def one_step(self, current_params):
         """

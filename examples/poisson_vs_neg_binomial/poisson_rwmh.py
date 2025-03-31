@@ -46,6 +46,8 @@ second_params, accept_1 = rwmh_step.one_step(params)
 
 third_params, accept_2 = rwmh_step.one_step(second_params)
 
+print(rwmh_step.nickname)
+
 # Print the parameters
 print("Initialized Parameters:")
 print(params)

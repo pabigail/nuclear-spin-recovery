@@ -138,12 +138,39 @@ whether to accept or reject them.</p>
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.MCMCStep.nickname">
+<span class="sig-name descname"><span class="pre">nickname</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep.nickname" title="Link to this definition"></a></dt>
+<dd><p>String to refer to algorithm</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.MCMCStep.likelihood_model">
 <span class="sig-name descname"><span class="pre">likelihood_model</span></span><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.MCMCStep.likelihood_model" title="Link to this definition"></a></dt>
 <dd><p>The likelihood model used to evaluate the likelihood of the data.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="hymcmcpy.likelihood_models.html#hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel" title="hymcmcpy.likelihood_models.likelihood_models.LikelihoodModel">LikelihoodModel</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="id0">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nickname</span></span><a class="headerlink" href="#id0" title="Link to this definition"></a></dt>
+<dd><p>Get the unique identifier nickname for the algorithm.</p>
+<p>Each subclass must define a unique <cite>nickname</cite>, which is a string
+used to identify the algorithm.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The unique nickname of the algorithm.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
 </dd>
 </dl>
 </dd></dl>
@@ -202,6 +229,11 @@ and the acceptance decision is based on the difference in log-likelihoods.</p>
 </dd>
 </dl>
 </dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.nickname">
+<span class="sig-name descname"><span class="pre">nickname</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'rwmh_continuous'</span></em><a class="headerlink" href="#hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.nickname" title="Link to this definition"></a></dt>
+<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.one_step">

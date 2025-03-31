@@ -93,12 +93,33 @@
 <span class="sd">    Attributes:</span>
 <span class="sd">        params (Params): The current system parameters.</span>
 <span class="sd">        forward_model (ForwardModel): The forward model used in the step.</span>
+<span class="sd">        nickname (str): String to refer to algorithm</span>
 <span class="sd">        likelihood_model (LikelihoodModel): The likelihood model used to evaluate the likelihood of the data.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span> <span class="o">=</span> <span class="n">likelihood_model</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nickname</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the unique identifier nickname for the algorithm.</span>
+
+<span class="sd">        Each subclass must define a unique `nickname`, which is a string </span>
+<span class="sd">        used to identify the algorithm.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: The unique nickname of the algorithm.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prevent modification of &#39;nickname&#39; after instantiation.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;nickname&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;Cannot modify &#39;nickname&#39; after instantiation&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
 
 <div class="viewcode-block" id="MCMCStep.one_step">
 <a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.steps.MCMCStep.one_step">[docs]</a>
@@ -147,6 +168,11 @@
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="n">sigma_sq</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sigma_sq</span> <span class="o">=</span> <span class="n">sigma_sq</span>
+
+    <span class="c1"># set nickname</span>
+    <span class="n">nickname</span> <span class="o">=</span> <span class="s2">&quot;rwmh_continuous&quot;</span>
+
+
 
 <div class="viewcode-block" id="RWMHContinuousStep.one_step">
 <a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.steps.RWMHContinuousStep.one_step">[docs]</a>

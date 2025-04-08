@@ -34,7 +34,11 @@ class Params(np.ndarray):
         names = np.asarray(names, dtype='U50').reshape(-1)
         vals = np.asarray(vals, dtype=np.float64).reshape(-1)
         discrete = np.asarray(discrete, dtype=bool).reshape(-1)
-
+        
+        # make sure arrays are not empty
+        if len(names) == 0 or len(vals) == 0 or len(discrete) == 0:
+            raise ValueError("Input arrays must not be empty")
+        
         # make sure lengths are the same
         if not (len(names) == len(vals) == len(discrete)):
             raise ValueError("All input arrays must be same length")

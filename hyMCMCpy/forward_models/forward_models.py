@@ -11,14 +11,24 @@ class ForwardModel(ABC):
 
     Args:
         params (Params): the parameter that seek to recover using MCMC methods
-        **kwargs (dict): specific parameters that are unchanging across instatiations
+        subset_param_names (list[str]): Names of parameters used by this model.
+        **kwargs (dict): specific parameters that are unchanging across instatiations (and not varying during MCMC or inference)
 
     """
-    def __init__(self, params, **kwargs):
+    def __init__(self, params, subset_param_names, **kwargs):
         self.params = params
+        self.subset_param_names = subset_param_names
+
+        # check that subset_param_names is a subset of param["name"]
+        all_names = set(params["name"])
+        subset_names = set(subset_param_names)
+
+        if not subset_names.issubset(all_names):
+            raise ValueError("subset_param_names must be a subset of params['name'].")
+
 
     @abstractmethod
-    def compute(self):
+    def compute(self, *args, **kwargs):
         """
         Generates data-like output given specific parameters.
         """
@@ -33,15 +43,19 @@ class PoissonForwardModel(ForwardModel):
     Forward model for the Poisson distribution, using the rate parameter (lambda) from the `Params` class.
 
     Args:
-        params (Params): An instance of the `Params` class, which should contain one entry 
-                         with the name "lambda" representing the rate parameter for the Poisson distribution.
+        params (Params): An instance of the `Params` class
+        subset_param_names (list[str]): Name of the parameter for PoissonForwardModel to act upon (must be length 1)
         **kwargs: Additional fixed parameters (optional).
     
     Raises:
         ValueError: If `params` does not contain an entry with the name "lambda".
     """
-    def __init__(self, params, **kwargs):
-        super().__init__(params, **kwargs)
+    def __init__(self, params, subset_param_names, **kwargs):
+        if len(subset_param_names) != 1:
+            raise ValueError("PoissonForwardModel requires exactly one parameter to act upon (given by subset_param_name)")
+
+        super().__init__(params, subset_param_names, **kwargs)
+        self.param_name = subset_param_names[0]
 
 
     def compute(self, k):
@@ -57,12 +71,13 @@ class PoissonForwardModel(ForwardModel):
         Raises:
             ValueError: If `params` does not contain a valid "lambda" entry.
         """
-        # Ensure the params contain a valid "lambda" entry
-        if "lambda" not in self.params["name"]:
-            raise ValueError("params must contain one entry with the name 'lambda'.")
-        
+        # get index of specified parameter
+        idx = np.where(self.params["name"] == self.param_name)[0]
+        if len(idx) == 0:
+            raise ValueError(f"Parameter '{self.param_name}' note found in params.")
+
         # Extract lambda value from params
-        lambda_val = self.params["val"][0]
+        lambda_val = self.params["val"][idx[0]]
 
         # Return Poisson PMF
         return poisson.pmf(k, lambda_val)

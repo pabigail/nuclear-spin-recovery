@@ -84,16 +84,26 @@
 
 <span class="sd">    Args:</span>
 <span class="sd">        params (Params): the parameter that seek to recover using MCMC methods</span>
-<span class="sd">        **kwargs (dict): specific parameters that are unchanging across instatiations</span>
+<span class="sd">        subset_param_names (list[str]): Names of parameters used by this model.</span>
+<span class="sd">        **kwargs (dict): specific parameters that are unchanging across instatiations (and not varying during MCMC or inference)</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">subset_param_names</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">subset_param_names</span> <span class="o">=</span> <span class="n">subset_param_names</span>
+
+        <span class="c1"># check that subset_param_names is a subset of param[&quot;name&quot;]</span>
+        <span class="n">all_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">])</span>
+        <span class="n">subset_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">subset_param_names</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">subset_names</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">all_names</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;subset_param_names must be a subset of params[&#39;name&#39;].&quot;</span><span class="p">)</span>
+
 
 <div class="viewcode-block" id="ForwardModel.compute">
 <a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel.compute">[docs]</a>
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generates data-like output given specific parameters.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -109,41 +119,51 @@
 <a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.PoissonForwardModel">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">PoissonForwardModel</span><span class="p">(</span><span class="n">ForwardModel</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Forward model for the Poisson distribution, using the rate parameter (lambda) from the `Params` class.</span>
+<span class="sd">    Forward model for the Poisson distribution using a single parameter from `Params`.</span>
+
+<span class="sd">    This model uses the specified parameter (given in `subset_param_names`) as the </span>
+<span class="sd">    rate parameter (λ) for the Poisson distribution.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        params (Params): An instance of the `Params` class, which should contain one entry </span>
-<span class="sd">                         with the name &quot;lambda&quot; representing the rate parameter for the Poisson distribution.</span>
-<span class="sd">        **kwargs: Additional fixed parameters (optional).</span>
-<span class="sd">    </span>
-<span class="sd">    Raises:</span>
-<span class="sd">        ValueError: If `params` does not contain an entry with the name &quot;lambda&quot;.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<span class="sd">        params (Params): An instance of the `Params` class containing all system parameters.</span>
+<span class="sd">        subset_param_names (list[str]): A list with a single parameter name to be used </span>
+<span class="sd">                                        as the Poisson rate (must have length 1).</span>
+<span class="sd">        **kwargs: Optional additional fixed parameters.</span>
 
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If `subset_param_names` does not contain exactly one parameter name.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">subset_param_names</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">subset_param_names</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;PoissonForwardModel requires exactly one parameter to act upon (given by subset_param_name)&quot;</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">subset_param_names</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_name</span> <span class="o">=</span> <span class="n">subset_param_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
 <div class="viewcode-block" id="PoissonForwardModel.compute">
 <a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.PoissonForwardModel.compute">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Compute the Poisson probability mass function (PMF) at a given k.</span>
+<span class="sd">        Compute the Poisson probability mass function (PMF) at the given count(s) `k`.</span>
+
+<span class="sd">        The model evaluates the PMF using the value of the parameter specified in</span>
+<span class="sd">        `subset_param_names`, treating it as the Poisson rate λ.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            k (array-like or scalar): The observed count or counts.</span>
-<span class="sd">        </span>
+<span class="sd">            k (array-like or scalar): The observed count(s) at which to evaluate the PMF.</span>
+
 <span class="sd">        Returns:</span>
-<span class="sd">            float or array-like: The Poisson PMF evaluated at k.</span>
-<span class="sd">        </span>
+<span class="sd">            float or array-like: The value(s) of the Poisson PMF evaluated at `k`.</span>
+
 <span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If `params` does not contain a valid &quot;lambda&quot; entry.</span>
+<span class="sd">            ValueError: If the specified parameter is not found in `params`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Ensure the params contain a valid &quot;lambda&quot; entry</span>
-        <span class="k">if</span> <span class="s2">&quot;lambda&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;params must contain one entry with the name &#39;lambda&#39;.&quot;</span><span class="p">)</span>
-        
+        <span class="c1"># get index of specified parameter</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_name</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
         <span class="c1"># Extract lambda value from params</span>
-        <span class="n">lambda_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;val&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">lambda_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;val&quot;</span><span class="p">][</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
 
         <span class="c1"># Return Poisson PMF</span>
         <span class="k">return</span> <span class="n">poisson</span><span class="o">.</span><span class="n">pmf</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">lambda_val</span><span class="p">)</span></div>

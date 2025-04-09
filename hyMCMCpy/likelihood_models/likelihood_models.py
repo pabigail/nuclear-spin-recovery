@@ -52,6 +52,16 @@ class PoissonLogLikelihood(LikelihoodModel):
 
     def __init__(self, forward_model, data, **kwargs):
         super().__init__(forward_model, data, **kwargs)
+        k_data = np.asarray(data)
+
+        if np.any(k_data < 0) or not np.all(np.equal(np.mod(k_data, 1), 0)):
+            raise ValueError("Poisson data must be non-negative integers.")
+        
+        self.data = k_data  # Store validated data
+
+        if len(self.forward_model.subset_param_names) != 1:
+            raise ValueError("PoissonLogLikelihood requires exactly one subset parameter name.")
+
 
     def log_likelihood(self):
         """

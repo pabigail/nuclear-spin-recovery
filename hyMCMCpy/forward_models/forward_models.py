@@ -40,16 +40,21 @@ class ForwardModel(ABC):
 
 class PoissonForwardModel(ForwardModel):
     """
-    Forward model for the Poisson distribution, using the rate parameter (lambda) from the `Params` class.
+    Forward model for the Poisson distribution using a single parameter from `Params`.
+
+    This model uses the specified parameter (given in `subset_param_names`) as the 
+    rate parameter (λ) for the Poisson distribution.
 
     Args:
-        params (Params): An instance of the `Params` class
-        subset_param_names (list[str]): Name of the parameter for PoissonForwardModel to act upon (must be length 1)
-        **kwargs: Additional fixed parameters (optional).
-    
+        params (Params): An instance of the `Params` class containing all system parameters.
+        subset_param_names (list[str]): A list with a single parameter name to be used 
+                                        as the Poisson rate (must have length 1).
+        **kwargs: Optional additional fixed parameters.
+
     Raises:
-        ValueError: If `params` does not contain an entry with the name "lambda".
+        ValueError: If `subset_param_names` does not contain exactly one parameter name.
     """
+
     def __init__(self, params, subset_param_names, **kwargs):
         if len(subset_param_names) != 1:
             raise ValueError("PoissonForwardModel requires exactly one parameter to act upon (given by subset_param_name)")
@@ -57,24 +62,24 @@ class PoissonForwardModel(ForwardModel):
         super().__init__(params, subset_param_names, **kwargs)
         self.param_name = subset_param_names[0]
 
-
     def compute(self, k):
         """
-        Compute the Poisson probability mass function (PMF) at a given k.
+        Compute the Poisson probability mass function (PMF) at the given count(s) `k`.
+
+        The model evaluates the PMF using the value of the parameter specified in
+        `subset_param_names`, treating it as the Poisson rate λ.
 
         Args:
-            k (array-like or scalar): The observed count or counts.
-        
+            k (array-like or scalar): The observed count(s) at which to evaluate the PMF.
+
         Returns:
-            float or array-like: The Poisson PMF evaluated at k.
-        
+            float or array-like: The value(s) of the Poisson PMF evaluated at `k`.
+
         Raises:
-            ValueError: If `params` does not contain a valid "lambda" entry.
+            ValueError: If the specified parameter is not found in `params`.
         """
         # get index of specified parameter
         idx = np.where(self.params["name"] == self.param_name)[0]
-        if len(idx) == 0:
-            raise ValueError(f"Parameter '{self.param_name}' note found in params.")
 
         # Extract lambda value from params
         lambda_val = self.params["val"][idx[0]]

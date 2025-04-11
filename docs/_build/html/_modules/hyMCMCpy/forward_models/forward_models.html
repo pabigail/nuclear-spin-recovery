@@ -79,26 +79,24 @@
 <a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">ForwardModel</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    This abstract class is takes in Params and other arguments to return data-like output. </span>
-<span class="sd">    Should not be initialized directly (use an implemented subclass)</span>
+<span class="sd">    Abstract base class for forward models that map parameter sets to simulated data-like output.</span>
+
+<span class="sd">    This class should not be instantiated directly. Subclasses are responsible for defining how</span>
+<span class="sd">    named parameters in a `Params` object map to internal model variables used in the computation.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        params (Params): the parameter that seek to recover using MCMC methods</span>
-<span class="sd">        subset_param_names (list[str]): Names of parameters used by this model.</span>
-<span class="sd">        **kwargs (dict): specific parameters that are unchanging across instatiations (and not varying during MCMC or inference)</span>
-
+<span class="sd">        params (Params): The parameter set to be used in the forward model (typically to be inferred via MCMC).</span>
+<span class="sd">        **kwargs (dict): Additional fixed model configuration parameters. These remain constant across model instances and </span>
+<span class="sd">                         are not varied during MCMC or inference. Subclasses should use these to specify how to interpret</span>
+<span class="sd">                         parameters from the `Params` object.</span>
+<span class="sd">    </span>
+<span class="sd">    Notes:</span>
+<span class="sd">        Subclasses must define how variables from `params[&quot;name&quot;]` are used internally in the model&#39;s logic. This allows</span>
+<span class="sd">        flexible reuse of the forward model code with different parameter configurations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">subset_param_names</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">subset_param_names</span> <span class="o">=</span> <span class="n">subset_param_names</span>
-
-        <span class="c1"># check that subset_param_names is a subset of param[&quot;name&quot;]</span>
-        <span class="n">all_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">])</span>
-        <span class="n">subset_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">subset_param_names</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">subset_names</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">all_names</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;subset_param_names must be a subset of params[&#39;name&#39;].&quot;</span><span class="p">)</span>
-
 
 <div class="viewcode-block" id="ForwardModel.compute">
 <a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.ForwardModel.compute">[docs]</a>
@@ -119,27 +117,31 @@
 <a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.PoissonForwardModel">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">PoissonForwardModel</span><span class="p">(</span><span class="n">ForwardModel</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Forward model for the Poisson distribution using a single parameter from `Params`.</span>
+<span class="sd">    Forward model for computing the Poisson probability mass function (PMF) </span>
+<span class="sd">    using a parameter from the `Params` object as the Poisson rate (λ).</span>
 
-<span class="sd">    This model uses the specified parameter (given in `subset_param_names`) as the </span>
-<span class="sd">    rate parameter (λ) for the Poisson distribution.</span>
+<span class="sd">    This model allows flexible specification of which parameter to treat as the rate</span>
+<span class="sd">    by passing the name of the parameter in `Params`. This decouples the internal</span>
+<span class="sd">    logic of the forward model from the specific naming used in parameter sets.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        params (Params): An instance of the `Params` class containing all system parameters.</span>
-<span class="sd">        subset_param_names (list[str]): A list with a single parameter name to be used </span>
-<span class="sd">                                        as the Poisson rate (must have length 1).</span>
-<span class="sd">        **kwargs: Optional additional fixed parameters.</span>
+<span class="sd">        params (Params): An instance of the `Params` class containing parameter names and values.</span>
+<span class="sd">        lambda_param (str): The name of the parameter in `Params[&quot;name&quot;]` to use as the Poisson rate λ.</span>
 
 <span class="sd">    Raises:</span>
-<span class="sd">        ValueError: If `subset_param_names` does not contain exactly one parameter name.</span>
+<span class="sd">        TypeError: If `lambda_param` is not a string.</span>
+<span class="sd">        ValueError: If `lambda_param` is not found in `Params[&quot;name&quot;]`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">lambda_param</span><span class="o">=</span><span class="s2">&quot;lambda&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">lambda_param</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;`lambda_param` must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">lambda_param</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">subset_param_names</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">subset_param_names</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;PoissonForwardModel requires exactly one parameter to act upon (given by subset_param_name)&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lambda_param</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;`lambda_param` &#39;</span><span class="si">{</span><span class="n">lambda_param</span><span class="si">}</span><span class="s2">&#39; not found in Params[&#39;name&#39;]&quot;</span><span class="p">)</span>
 
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">subset_param_names</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">param_name</span> <span class="o">=</span> <span class="n">subset_param_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">lambda_param</span><span class="o">=</span><span class="n">lambda_param</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lambda_param</span> <span class="o">=</span> <span class="n">lambda_param</span>
+
 
 <div class="viewcode-block" id="PoissonForwardModel.compute">
 <a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.PoissonForwardModel.compute">[docs]</a>
@@ -160,7 +162,7 @@
 <span class="sd">            ValueError: If the specified parameter is not found in `params`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># get index of specified parameter</span>
-        <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_name</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">lambda_param</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
         <span class="c1"># Extract lambda value from params</span>
         <span class="n">lambda_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;val&quot;</span><span class="p">][</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
@@ -170,6 +172,66 @@
 </div>
 
 
+
+<div class="viewcode-block" id="NegativeBinomialForwardModel">
+<a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.NegativeBinomialForwardModel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NegativeBinomialForwardModel</span><span class="p">(</span><span class="n">ForwardModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Forward model for computing the Negative Binomial probability mass function (PMF) </span>
+<span class="sd">    using parameters from the `Params` object.</span>
+
+<span class="sd">    The model interprets two parameters from `Params`: one as the number of failures `r` </span>
+<span class="sd">    and one as the success probability `p`. These can be flexibly specified via their </span>
+<span class="sd">    names in the `Params` array.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        params (Params): An instance of the `Params` class containing parameter names and values.</span>
+<span class="sd">        r_param (str): The name of the parameter to be used as the number of failures `r`.</span>
+<span class="sd">        p_param (str): The name of the parameter to be used as the success probability `p`.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        TypeError: If `r_param` or `p_param` are not strings.</span>
+<span class="sd">        ValueError: If either parameter name is not found in `Params[&quot;name&quot;]`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">r_param</span><span class="o">=</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">p_param</span><span class="o">=</span><span class="s2">&quot;p&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r_param</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;`r_param` must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">r_param</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p_param</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;`p_param` must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">p_param</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">r_param</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;`r_param` &#39;</span><span class="si">{</span><span class="n">r_param</span><span class="si">}</span><span class="s2">&#39; not found in Params[&#39;name&#39;]&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p_param</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;`p_param` &#39;</span><span class="si">{</span><span class="n">p_param</span><span class="si">}</span><span class="s2">&#39; not found in Params[&#39;name&#39;]&quot;</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">r_param</span><span class="o">=</span><span class="n">r_param</span><span class="p">,</span> <span class="n">p_param</span><span class="o">=</span><span class="n">p_param</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">r_param</span> <span class="o">=</span> <span class="n">r_param</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p_param</span> <span class="o">=</span> <span class="n">p_param</span>
+
+<div class="viewcode-block" id="NegativeBinomialForwardModel.compute">
+<a class="viewcode-back" href="../../../source/hymcmcpy.forward_models.html#hymcmcpy.forward_models.forward_models.NegativeBinomialForwardModel.compute">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the Negative Binomial PMF at count(s) `k`.</span>
+
+<span class="sd">        The model uses the values from `Params` corresponding to `r_param` and `p_param` </span>
+<span class="sd">        as the number of failures and success probability, respectively.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            k (int or array-like): Observed count(s) at which to evaluate the PMF.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            float or array-like: PMF value(s) evaluated at `k`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">idx_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">r_param</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">idx_p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_param</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">r_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;val&quot;</span><span class="p">][</span><span class="n">idx_r</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="n">p_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;val&quot;</span><span class="p">][</span><span class="n">idx_p</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+
+        <span class="k">return</span> <span class="n">nbinom</span><span class="o">.</span><span class="n">pmf</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">r_val</span><span class="p">,</span> <span class="n">p_val</span><span class="p">)</span></div>
+</div>
 
 </pre></div>
 

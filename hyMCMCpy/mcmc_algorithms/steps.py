@@ -88,8 +88,8 @@ class RWMHContinuousStep(MCMCStep):
         sigma_sq (float): The variance of the Gaussian noise used for proposing new parameters.
     """
     
-    def __init__(self, data, likelihood_model, param_names, sigma_sq, **kwargs):
-        super().__init__(data, likelihood_model, param_names, **kwargs)
+    def __init__(self, data, likelihood_model, param_names, sigma_sq):
+        super().__init__(data, likelihood_model, param_names)
         self.sigma_sq = sigma_sq
 
     # set nickname

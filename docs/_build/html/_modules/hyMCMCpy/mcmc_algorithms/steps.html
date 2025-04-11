@@ -88,6 +88,7 @@
 <span class="sd">        params (Params): The current parameters (of type `Params`) for the system.</span>
 <span class="sd">        forward_model (ForwardModel): A forward model used to generate predictions or simulations.</span>
 <span class="sd">        likelihood_model (LikelihoodModel): A likelihood model used to evaluate the likelihood of the observed data.</span>
+<span class="sd">        param_names (str or list of str): The name(s) of the parameter(s) to act upon during this step.</span>
 <span class="sd">        **kwargs: Additional fixed arguments for the step (optional).</span>
 
 <span class="sd">    Attributes:</span>
@@ -97,9 +98,10 @@
 <span class="sd">        likelihood_model (LikelihoodModel): The likelihood model used to evaluate the likelihood of the data.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="n">param_names</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span> <span class="o">=</span> <span class="n">likelihood_model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_names</span> <span class="o">=</span> <span class="n">param_names</span>
 
     <span class="nd">@property</span>
     <span class="nd">@abstractmethod</span>
@@ -124,7 +126,7 @@
 <div class="viewcode-block" id="MCMCStep.one_step">
 <a class="viewcode-back" href="../../../source/hymcmcpy.mcmc_algorithms.html#hymcmcpy.mcmc_algorithms.steps.MCMCStep.one_step">[docs]</a>
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">one_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">one_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">current_params</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Perform one step of the MCMC algorithm, which involves proposing new parameters and</span>
 <span class="sd">        deciding whether to accept or reject them based on the model and the likelihood.</span>
@@ -165,8 +167,8 @@
 <span class="sd">        sigma_sq (float): The variance of the Gaussian noise used for proposing new parameters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="n">sigma_sq</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="n">param_names</span><span class="p">,</span> <span class="n">sigma_sq</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">likelihood_model</span><span class="p">,</span> <span class="n">param_names</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sigma_sq</span> <span class="o">=</span> <span class="n">sigma_sq</span>
 
     <span class="c1"># set nickname</span>
@@ -190,28 +192,35 @@
 <span class="sd">            tuple: A tuple containing the proposed new parameter as a new `Params` object and a boolean indicating </span>
 <span class="sd">                   whether the proposal was accepted (True) or rejected (False).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Current parameter value</span>
-        <span class="n">current_param</span> <span class="o">=</span> <span class="n">current_params</span><span class="p">[</span><span class="s1">&#39;val&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-        
+        <span class="c1"># Identify the parameter name from subset_param_names</span>
+        <span class="n">subset_param_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span><span class="o">.</span><span class="n">forward_model</span><span class="o">.</span><span class="n">subset_param_names</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">subset_param_names</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;RWMH_continuous requires exactly one subset parameter name.&quot;</span><span class="p">)</span>
+
+        <span class="n">param_name</span> <span class="o">=</span> <span class="n">subset_param_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Extract the current parameter value based on the subset_param_name</span>
+        <span class="n">current_param</span> <span class="o">=</span> <span class="n">current_params</span><span class="p">[</span><span class="n">param_name</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
         <span class="c1"># Propose new parameter using Gaussian noise</span>
         <span class="n">proposed_param</span> <span class="o">=</span> <span class="n">current_param</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma_sq</span><span class="p">))</span>
-        
+
         <span class="c1"># Create a new Params object with the proposed parameter value</span>
         <span class="n">proposed_params</span> <span class="o">=</span> <span class="n">Params</span><span class="p">(</span><span class="n">current_params</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="p">[</span><span class="n">proposed_param</span><span class="p">],</span> <span class="n">current_params</span><span class="p">[</span><span class="s1">&#39;discrete&#39;</span><span class="p">])</span>
-        
+
         <span class="c1"># Compute the log-likelihood for the current and proposed parameters</span>
         <span class="n">current_log_likelihood</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span><span class="o">.</span><span class="n">log_likelihood</span><span class="p">()</span>
-        
+
         <span class="c1"># Update the forward model with proposed parameters and compute the log-likelihood for the new parameters</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span><span class="o">.</span><span class="n">forward_model</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">proposed_params</span>
         <span class="n">proposed_log_likelihood</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span><span class="o">.</span><span class="n">log_likelihood</span><span class="p">()</span>
-        
+
         <span class="c1"># Compute the acceptance ratio using log-likelihood difference</span>
         <span class="n">log_acceptance_ratio</span> <span class="o">=</span> <span class="n">proposed_log_likelihood</span> <span class="o">-</span> <span class="n">current_log_likelihood</span>
-        
+
         <span class="c1"># Accept the new parameter with probability min(1, exp(log_acceptance_ratio))</span>
         <span class="n">accepted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">()</span> <span class="o">&lt;</span> <span class="nb">min</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_acceptance_ratio</span><span class="p">))</span>
-        
+
         <span class="k">if</span> <span class="n">accepted</span><span class="p">:</span>
             <span class="c1"># Return the new proposed parameters if accepted</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_model</span><span class="o">.</span><span class="n">forward_model</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">proposed_params</span>

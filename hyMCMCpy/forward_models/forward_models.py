@@ -6,26 +6,24 @@ from scipy.stats import poisson, nbinom
 
 class ForwardModel(ABC):
     """
-    This abstract class is takes in Params and other arguments to return data-like output. 
-    Should not be initialized directly (use an implemented subclass)
+    Abstract base class for forward models that map parameter sets to simulated data-like output.
+
+    This class should not be instantiated directly. Subclasses are responsible for defining how
+    named parameters in a `Params` object map to internal model variables used in the computation.
 
     Args:
-        params (Params): the parameter that seek to recover using MCMC methods
-        subset_param_names (list[str]): Names of parameters used by this model.
-        **kwargs (dict): specific parameters that are unchanging across instatiations (and not varying during MCMC or inference)
-
+        params (Params): The parameter set to be used in the forward model (typically to be inferred via MCMC).
+        **kwargs (dict): Additional fixed model configuration parameters. These remain constant across model instances and 
+                         are not varied during MCMC or inference. Subclasses should use these to specify how to interpret
+                         parameters from the `Params` object.
+    
+    Notes:
+        Subclasses must define how variables from `params["name"]` are used internally in the model's logic. This allows
+        flexible reuse of the forward model code with different parameter configurations.
     """
-    def __init__(self, params, subset_param_names, **kwargs):
+    
+    def __init__(self, params, **kwargs):
         self.params = params
-        self.subset_param_names = subset_param_names
-
-        # check that subset_param_names is a subset of param["name"]
-        all_names = set(params["name"])
-        subset_names = set(subset_param_names)
-
-        if not subset_names.issubset(all_names):
-            raise ValueError("subset_param_names must be a subset of params['name'].")
-
 
     @abstractmethod
     def compute(self, *args, **kwargs):
@@ -40,27 +38,31 @@ class ForwardModel(ABC):
 
 class PoissonForwardModel(ForwardModel):
     """
-    Forward model for the Poisson distribution using a single parameter from `Params`.
+    Forward model for computing the Poisson probability mass function (PMF) 
+    using a parameter from the `Params` object as the Poisson rate (λ).
 
-    This model uses the specified parameter (given in `subset_param_names`) as the 
-    rate parameter (λ) for the Poisson distribution.
+    This model allows flexible specification of which parameter to treat as the rate
+    by passing the name of the parameter in `Params`. This decouples the internal
+    logic of the forward model from the specific naming used in parameter sets.
 
     Args:
-        params (Params): An instance of the `Params` class containing all system parameters.
-        subset_param_names (list[str]): A list with a single parameter name to be used 
-                                        as the Poisson rate (must have length 1).
-        **kwargs: Optional additional fixed parameters.
+        params (Params): An instance of the `Params` class containing parameter names and values.
+        lambda_param (str): The name of the parameter in `Params["name"]` to use as the Poisson rate λ.
 
     Raises:
-        ValueError: If `subset_param_names` does not contain exactly one parameter name.
+        TypeError: If `lambda_param` is not a string.
+        ValueError: If `lambda_param` is not found in `Params["name"]`.
     """
+    def __init__(self, params, lambda_param="lambda"):
+        if not isinstance(lambda_param, str):
+            raise TypeError(f"`lambda_param` must be a string, got {type(lambda_param).__name__}")
 
-    def __init__(self, params, subset_param_names, **kwargs):
-        if len(subset_param_names) != 1:
-            raise ValueError("PoissonForwardModel requires exactly one parameter to act upon (given by subset_param_name)")
+        if lambda_param not in params["name"]:
+            raise ValueError(f"`lambda_param` '{lambda_param}' not found in Params['name']")
 
-        super().__init__(params, subset_param_names, **kwargs)
-        self.param_name = subset_param_names[0]
+        super().__init__(params, lambda_param=lambda_param)
+        self.lambda_param = lambda_param
+
 
     def compute(self, k):
         """
@@ -79,7 +81,7 @@ class PoissonForwardModel(ForwardModel):
             ValueError: If the specified parameter is not found in `params`.
         """
         # get index of specified parameter
-        idx = np.where(self.params["name"] == self.param_name)[0]
+        idx = np.where(self.params["name"] == self.lambda_param)[0]
 
         # Extract lambda value from params
         lambda_val = self.params["val"][idx[0]]
@@ -87,4 +89,59 @@ class PoissonForwardModel(ForwardModel):
         # Return Poisson PMF
         return poisson.pmf(k, lambda_val)
 
+
+class NegativeBinomialForwardModel(ForwardModel):
+    """
+    Forward model for computing the Negative Binomial probability mass function (PMF) 
+    using parameters from the `Params` object.
+
+    The model interprets two parameters from `Params`: one as the number of failures `r` 
+    and one as the success probability `p`. These can be flexibly specified via their 
+    names in the `Params` array.
+
+    Args:
+        params (Params): An instance of the `Params` class containing parameter names and values.
+        r_param (str): The name of the parameter to be used as the number of failures `r`.
+        p_param (str): The name of the parameter to be used as the success probability `p`.
+
+    Raises:
+        TypeError: If `r_param` or `p_param` are not strings.
+        ValueError: If either parameter name is not found in `Params["name"]`.
+    """
+
+    def __init__(self, params, r_param="r", p_param="p"):
+        if not isinstance(r_param, str):
+            raise TypeError(f"`r_param` must be a string, got {type(r_param).__name__}")
+        if not isinstance(p_param, str):
+            raise TypeError(f"`p_param` must be a string, got {type(p_param).__name__}")
+
+        if r_param not in params["name"]:
+            raise ValueError(f"`r_param` '{r_param}' not found in Params['name']")
+        if p_param not in params["name"]:
+            raise ValueError(f"`p_param` '{p_param}' not found in Params['name']")
+
+        super().__init__(params, r_param=r_param, p_param=p_param)
+        self.r_param = r_param
+        self.p_param = p_param
+
+    def compute(self, k):
+        """
+        Compute the Negative Binomial PMF at count(s) `k`.
+
+        The model uses the values from `Params` corresponding to `r_param` and `p_param` 
+        as the number of failures and success probability, respectively.
+
+        Args:
+            k (int or array-like): Observed count(s) at which to evaluate the PMF.
+
+        Returns:
+            float or array-like: PMF value(s) evaluated at `k`.
+        """
+        idx_r = np.where(self.params["name"] == self.r_param)[0]
+        idx_p = np.where(self.params["name"] == self.p_param)[0]
+
+        r_val = self.params["val"][idx_r[0]]
+        p_val = self.params["val"][idx_p[0]]
+
+        return nbinom.pmf(k, r_val, p_val)
 

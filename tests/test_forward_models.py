@@ -2,10 +2,10 @@ import sys
 from pathlib import Path
 import numpy as np
 import pytest
-from scipy.stats import poisson
+from scipy.stats import poisson, nbinom
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from hymcmcpy.params import Params
-from hymcmcpy.forward_models import ForwardModel, PoissonForwardModel
+from hymcmcpy.forward_models import ForwardModel, PoissonForwardModel, NegativeBinomialForwardModel
 
 ###----------ForwardModel----------###
 
@@ -16,98 +16,96 @@ class DummyModel(ForwardModel):
 
 def test_forward_model_is_abstract():
     params = Params(['a'], [1.0], [False])
-    subset_param_names = ['a']
     with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-        ForwardModel(params, subset_param_names)
+        ForwardModel(params)
 
 
-def test_valid_subset_param_names_does_not_raise():
-    params = Params(['a', 'b'], [1.0, 2.0], [False, False])
-    subset = ['a']
-    model = DummyModel(params, subset)
+def test_valid_param_names_length_2():
+    params = Params(['a', 'b'], [1.0, 2.0], [False, True])
+    model = DummyModel(params)
     assert model.params['name'][0] == 'a'
-    assert model.subset_param_names == ['a']
+    assert model.params['name'][1] == 'b'
+    assert model.params['val'][0] == 1.0
+    assert model.params['val'][1] == 2.0
+    assert model.params['discrete'][0] == False
+    assert model.params['discrete'][1] == True
     assert model.compute() == "ok"
 
 
-def test_entire_param_list_is_valid_subset():
-    names = ['x', 'y']
-    vals = [1.0, 2.0]
-    discrete = [False, True]
-    params = Params(names, vals, discrete)
-
-    model = DummyModel(params, subset_param_names=names)
-    assert set(model.subset_param_names) == set(names)
-
-
-def test_invalid_subset_param_names_raises():
-    params = Params(['a', 'b'], [1.0, 2.0], [False, False])
-    subset = ['c']  # Not in params["name"]
-    with pytest.raises(ValueError, match="subset_param_names must be a subset of params\\['name'\\]"):
-        DummyModel(params, subset)
+###----------Fixtures----------###
+@pytest.fixture
+def simple_params():
+    names = ['lambda', 'r', 'p']
+    vals = [3.0, 5.0, 0.4]
+    discrete = [False, True, False]
+    return Params(names, vals, discrete)
 
 
 ###----------PoissonForwardModel----------###
 
-def test_valid_instantiation_and_compute_scalar():
-    params = Params(['rate'], [4.0], [False])
-    model = PoissonForwardModel(params, subset_param_names=['rate'])
-    result = model.compute(2)
-    expected = poisson.pmf(2, 4.0)
+def test_poisson_forward_model_valid(simple_params):
+    model = PoissonForwardModel(simple_params, lambda_param='lambda')
+    result = model.compute(k=2)
+    expected = poisson.pmf(2, mu=3.0)
     assert np.isclose(result, expected)
 
 
-def test_valid_instantiation_and_compute_array():
-    params = Params(['lambda'], [3.0], [False])
-    model = PoissonForwardModel(params, subset_param_names=['lambda'])
-    result = model.compute([0, 1, 2])
-    expected = poisson.pmf([0, 1, 2], 3.0)
-    np.testing.assert_allclose(result, expected)
+def test_poisson_invalid_param_name(simple_params):
+    with pytest.raises(ValueError):
+        PoissonForwardModel(simple_params, lambda_param='not_in_params')
 
 
-def test_invalid_subset_length():
-    params = Params(['lambda'], [3.0], [False])
-    with pytest.raises(ValueError, match="PoissonForwardModel requires exactly one parameter"):
-        PoissonForwardModel(params, subset_param_names=['lambda', 'extra'])
+def test_poisson_invalid_param_type(simple_params):
+    with pytest.raises(TypeError):
+        PoissonForwardModel(simple_params, lambda_param=123)  # not a string
 
 
-def test_subset_param_name_not_in_params():
-    params = Params(['theta'], [2.0], [True])
-    subset_param_names=['lambda']  # Not present
-    with pytest.raises(ValueError, match="subset_param_names must be a subset of params\\['name'\\]"):
-        PoissonForwardModel(params, subset_param_names)
+def test_two_poisson_models_same_params():
+    # Create shared Params object with two rate parameters
+    names = ['lambda_1', 'lambda_2']
+    vals = [2.0, 5.0]
+    discrete = [False, False]
+    params = Params(names, vals, discrete)
+
+    # Create two models, each using a different lambda
+    model1 = PoissonForwardModel(params, lambda_param='lambda_1')
+    model2 = PoissonForwardModel(params, lambda_param='lambda_2')
+
+    # Compute PMF at k=3
+    result1 = model1.compute(k=3)
+    result2 = model2.compute(k=3)
+
+    # Expected values using SciPy directly
+    expected1 = poisson.pmf(3, mu=2.0)
+    expected2 = poisson.pmf(3, mu=5.0)
+
+    # Assert that results match expected values
+    assert np.isclose(result1, expected1), "Model 1 did not return expected value"
+    assert np.isclose(result2, expected2), "Model 2 did not return expected value"
+    assert not np.isclose(result1, result2), "Models should not return the same result"
 
 
-def test_compute_uses_correct_param_value():
-    # We test that the correct param is used even when other params exist
-    params = Params(['alpha', 'rate', 'beta'], [1.0, 5.0, 2.0], [False, False, False])
-    model = PoissonForwardModel(params, subset_param_names=['rate'])
-    result = model.compute(3)
-    expected = poisson.pmf(3, 5.0)
+###----------NegativeBinomialForwardModel----------###
+def test_negative_binomial_forward_model_valid(simple_params):
+    model = NegativeBinomialForwardModel(simple_params, r_param='r', p_param='p')
+    result = model.compute(k=3)
+    expected = nbinom.pmf(3, n=5.0, p=0.4)
     assert np.isclose(result, expected)
 
 
-def test_multiple_instantiations_with_different_subset_param_names():
-    # Create a Params object with multiple parameters
-    params = Params(['rate', 'lambda', 'scale'], [3.0, 5.0, 2.0], [False, False, False])
-    
-    # Instantiate two PoissonForwardModel objects with different subset_param_names
-    model1 = PoissonForwardModel(params, subset_param_names=['rate'])
-    model2 = PoissonForwardModel(params, subset_param_names=['lambda'])
-    
-    # Compute the Poisson PMF for each model, using different observed counts (k)
-    result1 = model1.compute(2)
-    result2 = model2.compute(3)
+def test_negative_binomial_invalid_r_name(simple_params):
+    with pytest.raises(ValueError):
+        NegativeBinomialForwardModel(simple_params, r_param='nope', p_param='p')
 
-    # Check if each model computes with the correct parameter
-    expected1 = poisson.pmf(2, 3.0)  # model1 should use "rate"
-    expected2 = poisson.pmf(3, 5.0)  # model2 should use "lambda"
 
-    # Ensure the results match expectations
-    assert np.isclose(result1, expected1), f"Expected {expected1}, got {result1}"
-    assert np.isclose(result2, expected2), f"Expected {expected2}, got {result2}"
+def test_negative_binomial_invalid_p_name(simple_params):
+    with pytest.raises(ValueError):
+        NegativeBinomialForwardModel(simple_params, r_param='r', p_param='nope')
 
-    # Verify that the parameters in `params` haven't been modified unexpectedly
-    assert np.isclose(params['val'][0], 3.0), "Parameter 'rate' should remain 3.0"
-    assert np.isclose(params['val'][1], 5.0), "Parameter 'lambda' should remain 5.0"
-    assert np.isclose(params['val'][2], 2.0), "Parameter 'scale' should remain 2.0"
+
+def test_negative_binomial_invalid_param_types(simple_params):
+    with pytest.raises(TypeError):
+        NegativeBinomialForwardModel(simple_params, r_param=3, p_param='p')
+
+    with pytest.raises(TypeError):
+        NegativeBinomialForwardModel(simple_params, r_param='r', p_param=None)

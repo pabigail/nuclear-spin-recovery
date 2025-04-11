@@ -88,12 +88,12 @@ class MCMCRunner(ABC):
         self.kwargs = kwargs
     
     @abstractmethod
-    def instantiation_step(self, algorithm, **kwargs):
+    def instantiation_step(self, algorithm_list, **kwargs):
         """
         Instantiate an MCMCStep subclass based on the given algorithm nickname and additional parameters.
 
         Args:
-            algorithm_nickname (str): The nickname of the MCMC algorithm to instantiate.
+            algorithm_list [(str)]: The list of nicknames of the MCMC algorithm to instantiate.
             **kwargs: Additional parameters required for the specific MCMC algorithm.
 
         Returns:
@@ -103,38 +103,41 @@ class MCMCRunner(ABC):
 
 
     def run(self):
-        """
-        Execute the MCMC sequence as per the defined schedule.
-
-        Returns:
-            MCMC_iterations: A structured array storing the params, whether accepted, 
-            and the algorithm at each step of the MCMC iterations.
-        """
+         # Start with initial parameters or the last parameters from existing_iterations
         current_params = self.initial_params if self.initial_params is not None else self.existing_iterations['params'][-1]
+        
+        # Containers for MCMC step data
         algorithms = []
         param_names = []
         accepts = []
         params_list = []
 
+        # Add any existing iterations if provided
         if self.existing_iterations:
             algorithms.extend(self.existing_iterations['algorithm'])
             accepts.extend(self.existing_iterations['accept'])
             params_list.extend(self.existing_iterations['params'])
 
-        # TO DO: Make instantiation so create an instatiation for each version of the alg that will be needed
+        # Loop through the schedule and execute MCMC steps
         for algorithm, param_name, num_iter in self.schedule:
+            # For each parameter in the schedule, instantiate the corresponding MCMC step
             step = self.instantiation_step(algorithm, **self.kwargs)
-            
+
             for _ in range(num_iter):
+
+
+                # Perform one step of the MCMC algorithm
                 new_params, accepted = step.one_step(current_params)
+                
+                # Log the step data
                 algorithms.append(algorithm.nickname)
                 param_names.append(param_name)
                 accepts.append(accepted)
                 params_list.append(new_params)
                 
+                # If the step is accepted, update the current parameters
                 if accepted:
                     current_params = new_params
 
+        # Return the results of the MCMC iterations
         return MCMCIterations(algorithms, param_names, accepts, params_list)
-
-

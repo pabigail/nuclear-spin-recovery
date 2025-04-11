@@ -90,3 +90,59 @@ def test_negative_binomial_log_likelihood_invalid_data():
             NegativeBinomialForwardModel(params, r_param="r", p_param="p"),
             data=[-1, 1.5, 2]
         )
+
+
+###----------Test different likelihood models together----------###
+
+def test_shared_params_across_likelihood_models():
+    # Create Params with all needed variables
+    param_names = ["lambda", "r", "p"]
+    param_vals = [3.0, 5.0, 0.4]
+    discrete = [False, False, False]
+    params = Params(param_names, param_vals, discrete)
+
+    # Observed count data
+    data = np.array([0, 1, 2, 3, 4])
+
+    # ----------------- Poisson -----------------
+    pfm = PoissonForwardModel(params, lambda_param="lambda")
+    pll = PoissonLogLikelihood(pfm, data, lambda_param="lambda")
+    expected_poisson_ll = np.sum(poisson.logpmf(data, mu=3.0))
+    computed_poisson_ll = pll.log_likelihood()
+    assert np.isclose(computed_poisson_ll, expected_poisson_ll), "Poisson log-likelihood mismatch"
+
+    # ----------------- Negative Binomial -----------------
+    nbfm = NegativeBinomialForwardModel(params, r_param="r", p_param="p")
+    nbll = NegativeBinomialLogLikelihood(nbfm, data, r_param="r", p_param="p")
+    expected_nb_ll = np.sum(nbinom.logpmf(data, n=5.0, p=0.4))
+    computed_nb_ll = nbll.log_likelihood()
+    assert np.isclose(computed_nb_ll, expected_nb_ll), "Negative Binomial log-likelihood mismatch"
+
+
+def test_poisson_and_nb_models_on_same_param():
+    # One shared parameter: interpret as lambda for Poisson, r for NB
+    param_names = ["shared_param"]
+    param_vals = [4.0]  # λ or r
+    discrete = [False]
+    params = Params(param_names, param_vals, discrete)
+
+    # For NB we'll need to add another param for 'p'
+    params = Params(
+        names=["shared_param", "p"],
+        vals=[4.0, 0.6],  # shared_param = λ or r
+        discrete=[False, False]
+    )
+
+    data = np.array([0, 1, 2, 3])
+
+    # Poisson model using 'shared_param' as λ
+    pfm = PoissonForwardModel(params, lambda_param="shared_param")
+    pll = PoissonLogLikelihood(pfm, data, lambda_param="shared_param")
+    expected_poisson_ll = np.sum(poisson.logpmf(data, mu=4.0))
+    assert np.isclose(pll.log_likelihood(), expected_poisson_ll), "Poisson likelihood mismatch"
+
+    # Negative Binomial model using 'shared_param' as r and 'p' as is
+    nbfm = NegativeBinomialForwardModel(params, r_param="shared_param", p_param="p")
+    nbll = NegativeBinomialLogLikelihood(nbfm, data, r_param="shared_param", p_param="p")
+    expected_nb_ll = np.sum(nbinom.logpmf(data, n=4.0, p=0.6))
+    assert np.isclose(nbll.log_likelihood(), expected_nb_ll), "Negative Binomial likelihood mismatch"

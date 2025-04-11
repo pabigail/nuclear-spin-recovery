@@ -144,4 +144,3 @@ class NegativeBinomialForwardModel(ForwardModel):
         p_val = self.params["val"][idx_p[0]]
 
         return nbinom.pmf(k, r_val, p_val)
-

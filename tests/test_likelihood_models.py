@@ -2,84 +2,91 @@ import sys
 from pathlib import Path
 import numpy as np
 import pytest 
-from scipy.stats import poisson
+from scipy.stats import poisson, nbinom
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from hymcmcpy.params import Params
-from hymcmcpy.forward_models import ForwardModel, PoissonForwardModel
-from hymcmcpy.likelihood_models import LikelihoodModel, PoissonLogLikelihood
+from hymcmcpy.forward_models import ForwardModel, PoissonForwardModel, NegativeBinomialForwardModel
+from hymcmcpy.likelihood_models import LikelihoodModel, PoissonLogLikelihood, NegativeBinomialLogLikelihood
 
 
 ###----------LikelihoodModel----------###
-@pytest.fixture
-def poisson_params():
-    """Params instance with one lambda parameter"""
-    names = ["lambda"]
-    vals = [4.0]
-    discrete = [False]
-    return Params(names, vals, discrete)
 
-@pytest.fixture
-def poisson_forward_model(poisson_params):
-    """PoissonForwardModel using the 'lambda' parameter"""
-    return PoissonForwardModel(poisson_params, subset_param_names=["lambda"])
-
-def test_likelihood_model_is_abstract(poisson_forward_model):
-    """Test that you cannot instantiate LikelihoodModel directly"""
+def test_likelihood_model_abstract_instantiation():
     with pytest.raises(TypeError):
-        LikelihoodModel(poisson_forward_model, [1, 2, 3])
+        LikelihoodModel(forward_model=None, data=[])
 
 
 ###----------PoissonLogLikelihood----------###
 
-@pytest.fixture
-def params():
-    names = ["lambda", "theta"]
-    vals = [4.0, 2.5]
+def test_poisson_log_likelihood_correctness():
+    # Params with two lambda values
+    param_names = ["lambda_1", "lambda_2"]
+    vals = [2.0, 5.0]
     discrete = [False, False]
-    return Params(names, vals, discrete)
+    params = Params(param_names, vals, discrete)
 
-@pytest.fixture
-def forward_model(params):
-    return PoissonForwardModel(params=params, subset_param_names=["lambda"])
+    # Observed data
+    data = np.array([0, 1, 2, 3])
 
-@pytest.fixture
-def data():
-    return np.array([2, 3, 4, 5])
+    # Forward model using lambda_1
+    fm1 = PoissonForwardModel(params, lambda_param="lambda_1")
+    pll1 = PoissonLogLikelihood(fm1, data, lambda_param="lambda_1")
+    expected_ll1 = np.sum(poisson.logpmf(data, mu=2.0))
+    assert np.isclose(pll1.log_likelihood(), expected_ll1)
 
-@pytest.fixture
-def likelihood(forward_model, data):
-    return PoissonLogLikelihood(forward_model, data)
+    # Forward model using lambda_2
+    fm2 = PoissonForwardModel(params, lambda_param="lambda_2")
+    pll2 = PoissonLogLikelihood(fm2, data, lambda_param="lambda_2")
+    expected_ll2 = np.sum(poisson.logpmf(data, mu=5.0))
+    assert np.isclose(pll2.log_likelihood(), expected_ll2)
 
+def test_poisson_log_likelihood_invalid_param():
+    params = Params(["lambda"], [3.0], [False])
+    data = [1, 2, 3]
 
-def test_valid_initialization(likelihood):
-    assert isinstance(likelihood, PoissonLogLikelihood)
-
-
-def test_invalid_data_negative(forward_model):
-    with pytest.raises(ValueError, match="Poisson data must be non-negative integers."):
-        PoissonLogLikelihood(forward_model, data=[2, -1, 3])
-
-
-def test_invalid_data_non_integer(forward_model):
-    with pytest.raises(ValueError, match="Poisson data must be non-negative integers."):
-        PoissonLogLikelihood(forward_model, data=[1.2, 2.5, 3])
+    with pytest.raises(ValueError):
+        PoissonLogLikelihood(PoissonForwardModel(params, lambda_param="lambda"), data, lambda_param="not_a_param")
 
 
-class DummyForwardModel(ForwardModel):
-    def __init__(self, params, subset_param_names):
-        super().__init__(params, subset_param_names)
-
-    def compute(self, *args, **kwargs):
-        return np.ones(len(args[0])) if args else np.ones(1)
+def test_poisson_log_likelihood_invalid_data():
+    params = Params(["lambda"], [3.0], [False])
+    with pytest.raises(ValueError):
+        PoissonLogLikelihood(PoissonForwardModel(params), data=[-1, 0.5, 2])
 
 
-def test_multiple_subset_params_invalid(params):
-    with pytest.raises(ValueError, match="PoissonLogLikelihood requires exactly one subset parameter name."):
-        bad_model = DummyForwardModel(params, subset_param_names=["lambda", "theta"])
-        PoissonLogLikelihood(bad_model, data=[2, 3])
+###----------NegativeBinomialLogLikelihood----------###
+
+def test_negative_binomial_log_likelihood_correctness():
+    # Parameters for r and p
+    param_names = ["r", "p"]
+    vals = [10.0, 0.25]
+    discrete = [False, False]
+    params = Params(param_names, vals, discrete)
+
+    # Observed count data
+    data = np.array([0, 1, 2, 5])
+
+    # Forward model
+    nb_fm = NegativeBinomialForwardModel(params, r_param="r", p_param="p")
+    nb_ll = NegativeBinomialLogLikelihood(nb_fm, data, r_param="r", p_param="p")
+
+    expected_ll = np.sum(nbinom.logpmf(data, n=10.0, p=0.25))
+    assert np.isclose(nb_ll.log_likelihood(), expected_ll)
 
 
-def test_log_likelihood_matches_scipy(likelihood, data, params):
-    lam = params["val"][params["name"] == "lambda"][0]
-    expected_log_likelihood = np.sum(poisson.logpmf(data, mu=lam))
-    assert np.isclose(likelihood.log_likelihood(), expected_log_likelihood)
+def test_negative_binomial_log_likelihood_invalid_params():
+    params = Params(["r"], [10.0], [False])
+    data = [0, 1, 2]
+
+    with pytest.raises(ValueError):
+        NegativeBinomialLogLikelihood(NegativeBinomialForwardModel(params, r_param="r", p_param="p"),
+                                      data, r_param="r", p_param="p")
+
+
+def test_negative_binomial_log_likelihood_invalid_data():
+    params = Params(["r", "p"], [10.0, 0.5], [False, False])
+    with pytest.raises(ValueError):
+        NegativeBinomialLogLikelihood(
+            NegativeBinomialForwardModel(params, r_param="r", p_param="p"),
+            data=[-1, 1.5, 2]
+        )

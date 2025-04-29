@@ -95,8 +95,6 @@ class RWMHContinuousStep(MCMCStep):
     # set nickname
     nickname = "rwmh_continuous"
 
-
-
     def one_step(self, current_params):
         """
         Perform one step of the Random Walk Metropolis-Hastings (RWMH) algorithm using log-likelihood.

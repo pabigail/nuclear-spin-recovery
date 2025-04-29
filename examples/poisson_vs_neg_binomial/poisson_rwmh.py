@@ -19,39 +19,40 @@ poisson_data = np.random.poisson(lambda_param, num_data)
 
 # Initialize Params with example data
 initial_params = Params(
-    names=['lambda_1', 'lambda_2'],
-    vals=[2.6, 3.5], # initial value
-    discrete=[False, True]
+    names=['lambda_1'],
+    vals=[2.6], # initial value
+    discrete=[False]
 )
 
 
-
-class PoissonMCMCRunner(MCMCRunner):
-    def instantiation_step(self, algorithm, **kwargs):
-        return RWMHContinuousStep(self.data, self.likelihood_model, **kwargs)
+# class PoissonMCMCRunner(MCMCRunner):
+#     def instantiation_step(self, algorithm, **kwargs):
+#         return RWMHContinuousStep(self.data, self.likelihood_model, **kwargs)
 
 
 
 # Initialize Forward model with example params
-forward_model_poisson_1 = PoissonForwardModel(initial_params, ['lambda_1'])
-forward_model_poisson_2 = PoissonForwardModel(initial_params, ['lambda_2'])
+forward_model_poisson_1 = PoissonForwardModel(initial_params, lambda_param='lambda_1')
+# forward_model_poisson_2 = PoissonForwardModel(initial_params, ['lambda_2'])
 # print("forward model:", forward_model_poisson.compute(k=10))
 
 
 # Initialize PoissonLogLikelhihood model
 poisson_log_likelihood_1 = PoissonLogLikelihood(forward_model_poisson_1,
-                                              poisson_data)
-poisson_log_likelihood_1 = PoissonLogLikelihood(forward_model_poisson_2,
-                                              poisson_data)
+                                                poisson_data,
+                                                lambda_param='lambda_1')
+# poisson_log_likelihood_1 = PoissonLogLikelihood(forward_model_poisson_2,
+#                                              poisson_data)
 
 # print("log likelihood:", poisson_log_likelihood.log_likelihood())
 
 total_iterations = 25
 sigma_sq = 0.5
 
-schedule = [(RWMHContinuousStep, "lambda_1", 5),
-            (RWMHContinuousStep, "lambda_2", 10)]
+schedule = [(RWMHContinuousStep, "lambda_1", 5)]
+#             (RWMHContinuousStep, "lambda_2", 10)]
 
+'''
 runner = PoissonMCMCRunner(poisson_data,
                            poisson_log_likelihood_1,
                            schedule,
@@ -62,6 +63,6 @@ runner = PoissonMCMCRunner(poisson_data,
 mcmc_results = runner.run()
 
 print(mcmc_results)
-
+'''
 
 

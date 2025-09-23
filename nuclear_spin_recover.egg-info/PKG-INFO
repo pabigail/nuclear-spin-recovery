@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: nuclear-spin-recover
+Version: 0.1.0
+Summary: Recover nuclear spin environments from coherence data
+Author: Your Name
+Requires-Python: >=3.8
+Requires-Dist: numpy
+Requires-Dist: pandas

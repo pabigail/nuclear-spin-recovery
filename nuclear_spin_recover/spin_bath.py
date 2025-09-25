@@ -55,11 +55,11 @@ class SpinBath:
     A collection of NuclearSpins with dataframe-like convenience
     and distance matrix computation.
     """
-    def __init__(self, spins=None, distance_matrix_file-None):
+    def __init__(self, spins=None, distance_matrix_file=None):
         self.spins = [] if spins is None else list(spins)
         self._distance_matrix = None
 
-        if distance_matrix_file is not None as os.path.exists(distance_matrix_file):
+        if distance_matrix_file is not None and os.path.exists(distance_matrix_file):
             with open(distance_matrix_file, "rb") as f:
                 self._distance_matrix = pickle.load(f)
 

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pycce as pc
+import pickle as pkl
 
 # pycce-compatible dtype
 _dtype_bath = np.dtype([
@@ -54,8 +55,13 @@ class SpinBath:
     A collection of NuclearSpins with dataframe-like convenience
     and distance matrix computation.
     """
-    def __init__(self, spins=None):
+    def __init__(self, spins=None, distance_matrix_file-None):
         self.spins = [] if spins is None else list(spins)
+        self._distance_matrix = None
+
+        if distance_matrix_file is not None as os.path.exists(distance_matrix_file):
+            with open(distance_matrix_file, "rb") as f:
+                self._distance_matrix = pickle.load(f)
 
     def add_spin(self, spin):
         assert isinstance(spin, NuclearSpin)
@@ -76,9 +82,11 @@ class SpinBath:
     @property
     def distance_matrix(self):
         """Compute pairwise distances between all spins."""
-        coords = np.array([s.xyz for s in self.spins])
-        diff = coords[:, None, :] - coords[None, :, :]
-        return np.linalg.norm(diff, axis=-1)
+        if self._distance_matrix is None:
+            coords = np.array([s.xyz for s in self.spins])
+            diff = coords[:, None, :] - coords[None, :, :]
+            self._distance_matrix = np.linalg.norm(diff, axis=-1)
+        return self._distance_matrix
 
     def to_numpy(self):
         """Convert bath to numpy structured array compatible with pycce.BathArray."""

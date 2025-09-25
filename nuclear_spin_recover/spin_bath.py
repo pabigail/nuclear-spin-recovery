@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pycce as pc
 import pickle as pkl
+import os
 
 # pycce-compatible dtype
 _dtype_bath = np.dtype([
@@ -11,32 +12,60 @@ _dtype_bath = np.dtype([
     ('Q', np.float64, (3, 3))     # quadrupole tensor
 ])
 
+import numpy as np
+
 class NuclearSpin:
     """
     Represents a single nuclear spin with coordinates, hyperfine couplings,
     and optional quadrupole tensor.
     """
-    def __init__(self, spin_type, x, y, z,
+
+    def __init__(self, spin_type, x=None, y=None, z=None,
                  A_par=None, A_perp=None,
                  A_xx=None, A_yy=None, A_zz=None,
                  A_xy=None, A_yz=None, A_xz=None,
                  w_L=None, Q=None):
 
+        # Validate required parameters
+        if spin_type is None:
+            raise ValueError("spin_type must be provided.")
+        if None in (x, y, z):
+            raise ValueError("All coordinates x, y, z must be provided.")
+        if w_L is None:
+            raise ValueError("w_L must be provided.")
+
+        # Determine hyperfine specification
+        has_cartesian = all(v is not None for v in (A_xx, A_yy, A_zz, A_xy, A_yz, A_xz))
+        has_axial = A_par is not None and A_perp is not None
+
+        if not (has_cartesian or has_axial):
+            raise ValueError(
+                "Hyperfine must be fully specified either via "
+                "A_xx, A_yy, A_zz, A_xy, A_yz, A_xz OR A_par and A_perp."
+            )
+
         self.spin_type = spin_type
         self.xyz = np.array([x, y, z], dtype=float)
         self.w_L = w_L
 
-        # Construct hyperfine tensor
-        if (A_xx is not None) or (A_yy is not None) or (A_zz is not None):
+        if has_cartesian:
             self.A = np.array([
-                [A_xx or 0.0, A_xy or 0.0, A_xz or 0.0],
-                [A_xy or 0.0, A_yy or 0.0, A_yz or 0.0],
-                [A_xz or 0.0, A_yz or 0.0, A_zz or 0.0]
+                [A_xx, A_xy, A_xz],
+                [A_xy, A_yy, A_yz],
+                [A_xz, A_yz, A_zz]
             ])
-        elif A_par is not None and A_perp is not None:
-            self.A = np.diag([A_perp, A_perp, A_par])
-        else:
-            self.A = np.zeros((3, 3))
+            # Compute axial parameters from Cartesian tensor
+            self.A_perp = np.sqrt(A_xz**2 + A_yz**2)
+            self.A_par = A_zz
+        else:  # has_axial
+            # Construct Cartesian tensor from axial parameters
+            self.A = np.array([
+                [0.0, 0.0, A_perp],
+                [0.0, 0.0, 0.0],
+                [A_perp, 0.0, A_par]
+            ])
+            self.A_par = A_par
+            self.A_perp = A_perp
 
         # Quadrupole tensor
         self.Q = Q if Q is not None else np.zeros((3, 3))
@@ -46,7 +75,8 @@ class NuclearSpin:
         return (self.spin_type, self.xyz, self.A, self.Q)
 
     def __repr__(self):
-        return f"NuclearSpin(type={self.spin_type}, xyz={self.xyz}, w_L={self.w_L})"
+        return (f"NuclearSpin(type={self.spin_type}, xyz={self.xyz}, "
+                f"w_L={self.w_L}, A_par={self.A_par}, A_perp={self.A_perp})")
 
 
 

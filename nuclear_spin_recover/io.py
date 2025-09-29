@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
+import os
+from pathlib import Path
 
 from .spin_bath import SpinBath, NuclearSpin
 
-def make_spinbath_from_Ivady_file(file_path, strong_thresh, weak_thresh, spin_type="C13"):
+def make_spinbath_from_Ivady_file(file_path, strong_thresh, weak_thresh):
     """
     Initialize a SpinBath from an Ivady-style file with hyperfine couplings and positions.
 
@@ -23,6 +25,9 @@ def make_spinbath_from_Ivady_file(file_path, strong_thresh, weak_thresh, spin_ty
     SpinBath
         A SpinBath containing NuclearSpin objects constructed from file data.
     """
+    spin_type = "C13"
+    w_L = 6.728285
+    
     # read file
     hf_data = pd.read_csv(file_path, sep=" ", header=None, names=[
         "distance",  # Å
@@ -58,8 +63,26 @@ def make_spinbath_from_Ivady_file(file_path, strong_thresh, weak_thresh, spin_ty
             row["x"], row["y"], row["z"],
             A_xx=row["A_xx"], A_yy=row["A_yy"], A_zz=row["A_zz"],
             A_xy=row["A_xy"], A_yz=row["A_yz"], A_xz=row["A_xz"],
-            A_par=row["A_par"], A_perp=row["A_perp"]
+            A_par=row["A_par"], A_perp=row["A_perp"], w_L=w_L
         )
         spins.append(spin)
 
-    return SpinBath(spins)
+     # Path to io_files inside the package
+    package_dir = Path(__file__).parent
+    io_dir = package_dir / "io_files"
+    io_dir.mkdir(exist_ok=True)
+    dist_file = io_dir / f"hf_dist_nv_low_{weak_thresh}_high_{strong_thresh}.pkl"
+
+    # Save only if the file does not already exist
+    save_flag = not dist_file.exists()
+
+    # Initialize SpinBath
+    bath = SpinBath(
+        spins,
+        distance_matrix_file=dist_file,
+        save_distance_matrix=save_flag,
+    )
+
+    _ = bath.distance_matrix # save if needed
+
+    return bath

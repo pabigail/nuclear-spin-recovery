@@ -1,6 +1,9 @@
 import pytest
 import numpy as np
 import pandas as pd
+import pickle as pkl
+import tempfile
+import os
 from nuclear_spin_recover import NuclearSpin, SpinBath  # replace with actual module name
 
 
@@ -279,3 +282,56 @@ def test_mixed_spin_add_and_update():
     # Update spin1
     updated = bath.update_spin([0.0, 0.0, 0.0], A_par=3.0)
     assert updated.A_par == 3.0
+
+@pytest.fixture
+def dummy_spins():
+    # Two spins along x-axis at 0 and 1 Å
+    return [
+        NuclearSpin("C13", 0.0, 0.0, 0.0, A_par=1.0, A_perp=0.5, w_L=2.0),
+        NuclearSpin("C13", 1.0, 0.0, 0.0, A_par=1.0, A_perp=0.5, w_L=2.0),
+    ]
+
+
+def test_no_file_no_save(dummy_spins):
+    bath = SpinBath(spins=dummy_spins)
+    dist = bath.distance_matrix
+    assert np.allclose(dist[0, 1], 1.0)
+    # should not write any file
+    assert bath._distance_matrix_file is None
+
+
+def test_no_file_with_save_raises(dummy_spins):
+    with pytest.raises(ValueError, match="Must provide `distance_matrix_file`"):
+        SpinBath(spins=dummy_spins, save_distance_matrix=True)
+
+
+def test_with_file_exists_and_loads(dummy_spins):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fname = os.path.join(tmpdir, "dist.pkl")
+
+        # Precompute and save distance matrix
+        coords = np.array([s.xyz for s in dummy_spins])
+        diff = coords[:, None, :] - coords[None, :, :]
+        dist = np.linalg.norm(diff, axis=-1)
+        with open(fname, "wb") as f:
+            pkl.dump(dist, f)
+
+        bath = SpinBath(spins=dummy_spins, distance_matrix_file=fname)
+        # should load from file without recomputation
+        assert np.allclose(bath.distance_matrix, dist)
+
+
+def test_with_file_and_save_new_file(dummy_spins):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fname = os.path.join(tmpdir, "dist.pkl")
+
+        # File does not exist initially
+        bath = SpinBath(spins=dummy_spins, distance_matrix_file=fname, save_distance_matrix=True)
+        dist = bath.distance_matrix
+        assert np.allclose(dist[0, 1], 1.0)
+
+        # Now file should exist
+        assert os.path.exists(fname)
+        with open(fname, "rb") as f:
+            loaded = pkl.load(f)
+        assert np.allclose(loaded, dist)

@@ -96,13 +96,32 @@ class SpinBath:
     A collection of NuclearSpins with dataframe-like convenience
     and distance matrix computation.
     """
-    def __init__(self, spins=None, distance_matrix_file=None):
+    def __init__(self, spins=None, distance_matrix_file=None, save_distance_matrix=False):
+        """
+        Parameters
+        ----------
+        spins : list of NuclearSpin, optional
+            Initial list of nuclear spins in the bath.
+        distance_matrix_file : str, optional
+            Path to a file containing a precomputed distance matrix.
+            If provided and exists, the distance matrix will be loaded
+            from this file.
+        save_distance_matrix : bool, default=False
+            - If False, do not save the computed distance matrix.
+            - If True, a valid `distance_matrix_file` must be provided,
+              otherwise an error is raised.
+        """
         self.spins = [] if spins is None else list(spins)
         self._distance_matrix = None
+        self._distance_matrix_file = distance_matrix_file
+        self._save_distance_matrix = save_distance_matrix
+
+        if self._save_distance_matrix and self._distance_matrix_file is None:
+            raise ValueError("Must provide `distance_matrix_file` when save_distance_matrix=True.")
 
         if distance_matrix_file is not None and os.path.exists(distance_matrix_file):
             with open(distance_matrix_file, "rb") as f:
-                self._distance_matrix = pickle.load(f)
+                self._distance_matrix = pkl.load(f)
 
     def add_spin(self, spin):
         assert isinstance(spin, NuclearSpin)
@@ -144,12 +163,10 @@ class SpinBath:
             "z": [s.xyz[2] for s in self.spins],
             "w_L": [s.w_L for s in self.spins],
             "A_par": [s.A_par for s in self.spins],
-            "A_perp": [s.A_perp for s in self.spins]
+            "A_perp": [s.A_perp for s in self.spins],
+            "uncertainty_par": [],
+            "uncertainty_perp": [],
         }
-
-        # Always provide uncertainty_par and uncertainty_perp
-        data["uncertainty_par"] = []
-        data["uncertainty_perp"] = []
 
         for s in self.spins:
             if s.uncertainty is None:
@@ -171,12 +188,18 @@ class SpinBath:
 
     @property
     def distance_matrix(self):
-        """Compute pairwise distances between all spins."""
+        """Compute (or load) the pairwise distances between all spins."""
         if self._distance_matrix is None:
             coords = np.array([s.xyz for s in self.spins])
             diff = coords[:, None, :] - coords[None, :, :]
             self._distance_matrix = np.linalg.norm(diff, axis=-1)
+
+            if self._save_distance_matrix:
+                with open(self._distance_matrix_file, "wb") as f:
+                    pkl.dump(self._distance_matrix, f)
+
         return self._distance_matrix
+
 
     def to_numpy(self):
         """Convert bath to numpy structured array compatible with pycce.BathArray."""

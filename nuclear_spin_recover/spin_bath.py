@@ -106,7 +106,33 @@ class SpinBath:
 
     def add_spin(self, spin):
         assert isinstance(spin, NuclearSpin)
+
+        # Check if there is already a spin at this position
+        for existing in self.spins:
+            if np.allclose(existing.xyz, spin.xyz, atol=1e-8):
+                raise ValueError(
+                    f"Position {spin.xyz} already occupied by {existing.spin_type}. "
+                    "Use `update_spin` to change the properties of an existing spin."
+                )
         self.spins.append(spin)
+
+    def update_spin(self, xyz, **kwargs):
+        """
+        Update parameters of the spin at lattice position `xyz`.
+        Allowed kwargs: A_par, A_perp, w_L, spin_type.
+        """
+        for spin in self.spins:
+            if np.allclose(spin.xyz, xyz, atol=1e-8):
+                if "A_par" in kwargs:
+                    spin.A_par = kwargs["A_par"]
+                if "A_perp" in kwargs:
+                    spin.A_perp = kwargs["A_perp"]
+                if "w_L" in kwargs:
+                    spin.w_L = kwargs["w_L"]
+                if "spin_type" in kwargs:
+                    spin.spin_type = kwargs["spin_type"]
+                return spin
+        raise ValueError(f"No spin found at position {xyz} to update.")
 
     @property
     def dataframe(self):
@@ -120,6 +146,27 @@ class SpinBath:
             "A_par": [s.A_par for s in self.spins],
             "A_perp": [s.A_perp for s in self.spins]
         }
+
+        # Always provide uncertainty_par and uncertainty_perp
+        data["uncertainty_par"] = []
+        data["uncertainty_perp"] = []
+
+        for s in self.spins:
+            if s.uncertainty is None:
+                data["uncertainty_par"].append(np.nan)
+                data["uncertainty_perp"].append(np.nan)
+            elif isinstance(s.uncertainty, (float, int)):
+                data["uncertainty_par"].append(float(s.uncertainty))
+                data["uncertainty_perp"].append(float(s.uncertainty))
+            elif isinstance(s.uncertainty, (list, np.ndarray)):
+                arr = np.array(s.uncertainty, dtype=float)
+                if arr.shape != (2,):
+                    raise ValueError("Uncertainty array must have length 2.")
+                data["uncertainty_par"].append(arr[0])
+                data["uncertainty_perp"].append(arr[1])
+            else:
+                raise TypeError("Uncertainty must be None, float, or array-like of length 2.")
+
         return pd.DataFrame(data)
 
     @property

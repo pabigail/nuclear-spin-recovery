@@ -73,3 +73,46 @@ def test_to_record_and_repr():
     rep = repr(spin)
     assert "C13" in rep and "w_L=5.0" in rep
 
+@pytest.mark.parametrize("uncertainty", [
+    None,
+    0.1,
+    [0.1, 0.2],
+    np.array([0.05, 0.15]),
+])
+def test_uncertainty_field_accepts_valid_inputs(uncertainty):
+    spin = NuclearSpin(
+        spin_type="13C",
+        x=0.0, y=0.0, z=1.0,
+        A_par=2.0, A_perp=0.5,
+        w_L=1.5,
+        uncertainty=uncertainty
+    )
+    # Check it is stored correctly
+    if uncertainty is None:
+        assert spin.uncertainty is None
+    elif isinstance(uncertainty, (list, np.ndarray)):
+        np.testing.assert_allclose(spin.uncertainty, uncertainty)
+    else:
+        assert spin.uncertainty == uncertainty
+
+
+def test_uncertainty_invalid_type():
+    with pytest.raises(TypeError, match="Uncertainty must be None, float, or array-like"):
+        NuclearSpin(
+            spin_type="13C",
+            x=0.0, y=0.0, z=1.0,
+            A_par=2.0, A_perp=0.5,
+            w_L=1.5,
+            uncertainty="not a number"
+        )
+
+
+def test_uncertainty_array_wrong_length():
+    with pytest.raises(ValueError, match="Uncertainty array must have length 2"):
+        NuclearSpin(
+            spin_type="13C",
+            x=0.0, y=0.0, z=1.0,
+            A_par=2.0, A_perp=0.5,
+            w_L=1.5,
+            uncertainty=[0.1, 0.2, 0.3]  # too long
+        )

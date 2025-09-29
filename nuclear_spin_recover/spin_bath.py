@@ -12,8 +12,6 @@ _dtype_bath = np.dtype([
     ('Q', np.float64, (3, 3))     # quadrupole tensor
 ])
 
-import numpy as np
-
 class NuclearSpin:
     """
     Represents a single nuclear spin with coordinates, hyperfine couplings,
@@ -24,7 +22,7 @@ class NuclearSpin:
                  A_par=None, A_perp=None,
                  A_xx=None, A_yy=None, A_zz=None,
                  A_xy=None, A_yz=None, A_xz=None,
-                 w_L=None, Q=None):
+                 w_L=None, Q=None, uncertainty=None):
 
         # Validate required parameters
         if spin_type is None:
@@ -32,7 +30,7 @@ class NuclearSpin:
         if None in (x, y, z):
             raise ValueError("All coordinates x, y, z must be provided.")
         if w_L is None:
-            raise ValueError("w_L must be provided.")
+            raise ValueError("Larmor frequency must be provided.")
 
         # Determine hyperfine specification
         has_cartesian = all(v is not None for v in (A_xx, A_yy, A_zz, A_xy, A_yz, A_xz))
@@ -70,14 +68,27 @@ class NuclearSpin:
         # Quadrupole tensor
         self.Q = Q if Q is not None else np.zeros((3, 3))
 
+        # Validate and set uncertainty
+        if uncertainty is None:
+            self.uncertainty = None
+        elif isinstance(uncertainty, (float, int)):
+            self.uncertainty = float(uncertainty)
+        elif isinstance(uncertainty, (list, np.ndarray)):
+            arr = np.array(uncertainty, dtype=float)
+            if arr.shape != (2,):
+                raise ValueError("Uncertainty array must have length 2 (for A_par and A_perp).")
+            self.uncertainty = arr
+        else:
+            raise TypeError("Uncertainty must be None, float, or array-like of length 2.")
+
     def to_record(self):
         """Return structured-array-compatible record (for pycce)."""
         return (self.spin_type, self.xyz, self.A, self.Q)
 
     def __repr__(self):
         return (f"NuclearSpin(type={self.spin_type}, xyz={self.xyz}, "
-                f"w_L={self.w_L}, A_par={self.A_par}, A_perp={self.A_perp})")
-
+                f"w_L={self.w_L}, A_par={self.A_par}, A_perp={self.A_perp}, "
+                f"uncertainty={self.uncertainty})")
 
 
 class SpinBath:
@@ -106,6 +117,8 @@ class SpinBath:
             "y": [s.xyz[1] for s in self.spins],
             "z": [s.xyz[2] for s in self.spins],
             "w_L": [s.w_L for s in self.spins],
+            "A_par": [s.A_par for s in self.spins],
+            "A_perp": [s.A_perp for s in self.spins]
         }
         return pd.DataFrame(data)
 

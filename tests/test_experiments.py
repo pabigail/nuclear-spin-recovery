@@ -10,7 +10,7 @@ def test_single_experiment_initialization():
         mag_field=100,
         noise=0.01,
         timepoints=[0, 1, 2],
-        T2=0.5
+        lambda_decoherence=0.5
     )
 
     assert len(exp) == 1
@@ -18,7 +18,7 @@ def test_single_experiment_initialization():
     assert np.all(exp.num_pulses == [4])
     assert np.allclose(exp.noise, [0.01])
     assert np.all(exp.timepoints[0] == np.array([0, 1, 2]))
-    assert np.allclose(exp.T2, [0.5])
+    assert np.allclose(exp.lambda_decoherence, [0.5])
 
 
 def test_multiple_experiment_initialization():
@@ -28,7 +28,7 @@ def test_multiple_experiment_initialization():
         mag_field=[100, 200],
         noise=[0.01, 0.02],
         timepoints=[[0, 1, 2], [0, 1, 2]],
-        T2=[0.5, 0.7]
+        lambda_decoherence=[0.5, 0.7]
     )
 
     assert len(exp) == 2
@@ -36,7 +36,7 @@ def test_multiple_experiment_initialization():
     assert np.all(exp.num_pulses == [4, 8])
     assert np.allclose(exp.noise, [0.01, 0.02])
     assert np.all(exp.timepoints[1] == np.array([0, 1, 2]))
-    assert np.allclose(exp.T2, [0.5, 0.7])
+    assert np.allclose(exp.lambda_decoherence, [0.5, 0.7])
 
 
 def test_getitem_returns_dict():
@@ -46,7 +46,7 @@ def test_getitem_returns_dict():
         mag_field=[100, 200],
         noise=[0.01, 0.02],
         timepoints=[[1, 2, 3], [4, 5, 6]],
-        T2=[0.5, 0.7]
+        lambda_decoherence=[0.5, 0.7]
     )
     first = exp[0]
     assert isinstance(first, dict)
@@ -63,18 +63,18 @@ def test_length_mismatch_raises():
             mag_field=[100, 200],
             noise=[0.01],  # wrong length
             timepoints=[[0, 1, 2], [0, 1, 2]],
-            T2=[0.5, 0.7]
+            lambda_decoherence=[0.5, 0.7]
         )
 
 
-def test_default_T2():
+def test_default_lambda_decoherence():
     exp = Experiment(
         num_exps=2,
         num_pulses=[4, 8],
         mag_field=[100, 200],
         noise=[0.01, 0.02],
         timepoints=[[0, 1, 2], [0, 1, 2]],
-        T2=None
+        lambda_decoherence=None
     )
-    assert np.all(exp.T2 == [1, 1])
+    assert np.all(exp.lambda_decoherence == [1, 1])
 

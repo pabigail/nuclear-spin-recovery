@@ -10,7 +10,7 @@ class Experiment:
     Stores parameters for one or more experiments.
     Each attribute is a numpy array where each entry corresponds to one experiment.
     """
-    def __init__(self, num_exps, num_pulses, mag_field, noise, timepoints, T2=None):
+    def __init__(self, num_exps, num_pulses, mag_field, noise, timepoints, lambda_decoherence=None):
         self.num_experiments = num_exps
 
         self.mag_field = np.array(mag_field) if is_array_like(mag_field) else np.array([mag_field])
@@ -23,10 +23,10 @@ class Experiment:
         else:
             self.timepoints = np.array([timepoints])
 
-        if T2 is None:
-            T2 = [1 for _ in range(len(self.mag_field))]
+        if lambda_decoherence is None:
+            lambda_decoherence = [1 for _ in range(len(self.mag_field))]
 
-        self.T2 = np.array(T2) if is_array_like(T2) else np.array([T2])
+        self.lambda_decoherence = np.array(lambda_decoherence) if is_array_like(lambda_decoherence) else np.array([lambda_decoherence])
 
         # Consistency check
         expected_len = self.num_experiments
@@ -35,7 +35,7 @@ class Experiment:
             ("noise", self.noise),
             ("num_pulses", self.num_pulses),
             ("timepoints", self.timepoints),
-            ("T2", self.T2),
+            ("lambda_decoherence", self.lambda_decoherence),
         ]:
             if len(arr) != expected_len:
                 raise ValueError(
@@ -53,7 +53,7 @@ class Experiment:
             "noise": self.noise[idx],
             "num_pulses": self.num_pulses[idx],
             "timepoints": self.timepoints[idx],
-            "T2": self.T2[idx],
+            "lambda_decoherence": self.lambda_decoherence[idx],
         }
 
     def __repr__(self):

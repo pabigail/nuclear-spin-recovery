@@ -22,14 +22,14 @@ class NuclearSpin:
                  A_par=None, A_perp=None,
                  A_xx=None, A_yy=None, A_zz=None,
                  A_xy=None, A_yz=None, A_xz=None,
-                 w_L=None, Q=None, uncertainty=None):
+                 gyro=None, Q=None, uncertainty=None):
 
         # Validate required parameters
         if spin_type is None:
             raise ValueError("spin_type must be provided.")
         if None in (x, y, z):
             raise ValueError("All coordinates x, y, z must be provided.")
-        if w_L is None:
+        if gyro is None:
             raise ValueError("Larmor frequency must be provided.")
 
         # Determine hyperfine specification
@@ -44,7 +44,7 @@ class NuclearSpin:
 
         self.spin_type = spin_type
         self.xyz = np.array([x, y, z], dtype=float)
-        self.w_L = w_L
+        self.gyro = gyro
 
         if has_cartesian:
             self.A = np.array([
@@ -87,7 +87,7 @@ class NuclearSpin:
 
     def __repr__(self):
         return (f"NuclearSpin(type={self.spin_type}, xyz={self.xyz}, "
-                f"w_L={self.w_L}, A_par={self.A_par}, A_perp={self.A_perp}, "
+                f"gyro={self.gyro}, A_par={self.A_par}, A_perp={self.A_perp}, "
                 f"uncertainty={self.uncertainty})")
 
 
@@ -138,7 +138,7 @@ class SpinBath:
     def update_spin(self, xyz, **kwargs):
         """
         Update parameters of the spin at lattice position `xyz`.
-        Allowed kwargs: A_par, A_perp, w_L, spin_type.
+        Allowed kwargs: A_par, A_perp, gyro, spin_type.
         """
         for spin in self.spins:
             if np.allclose(spin.xyz, xyz, atol=1e-8):
@@ -146,8 +146,8 @@ class SpinBath:
                     spin.A_par = kwargs["A_par"]
                 if "A_perp" in kwargs:
                     spin.A_perp = kwargs["A_perp"]
-                if "w_L" in kwargs:
-                    spin.w_L = kwargs["w_L"]
+                if "gyro" in kwargs:
+                    spin.gyro = kwargs["gyro"]
                 if "spin_type" in kwargs:
                     spin.spin_type = kwargs["spin_type"]
                 return spin
@@ -161,7 +161,7 @@ class SpinBath:
             "x": [s.xyz[0] for s in self.spins],
             "y": [s.xyz[1] for s in self.spins],
             "z": [s.xyz[2] for s in self.spins],
-            "w_L": [s.w_L for s in self.spins],
+            "gyro": [s.gyro for s in self.spins],
             "A_par": [s.A_par for s in self.spins],
             "A_perp": [s.A_perp for s in self.spins],
             "uncertainty_par": [],

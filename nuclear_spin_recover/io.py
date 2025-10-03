@@ -26,7 +26,7 @@ def make_spinbath_from_Ivady_file(file_path, strong_thresh, weak_thresh):
         A SpinBath containing NuclearSpin objects constructed from file data.
     """
     spin_type = "C13"
-    w_L = 6.728285
+    gyro = 6.728285
     
     # read file
     hf_data = pd.read_csv(file_path, sep=" ", header=None, names=[
@@ -63,7 +63,7 @@ def make_spinbath_from_Ivady_file(file_path, strong_thresh, weak_thresh):
             row["x"], row["y"], row["z"],
             A_xx=row["A_xx"], A_yy=row["A_yy"], A_zz=row["A_zz"],
             A_xy=row["A_xy"], A_yz=row["A_yz"], A_xz=row["A_xz"],
-            A_par=row["A_par"], A_perp=row["A_perp"], w_L=w_L
+            A_par=row["A_par"], A_perp=row["A_perp"], gyro=gyro
         )
         spins.append(spin)
 

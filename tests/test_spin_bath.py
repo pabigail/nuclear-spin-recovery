@@ -14,7 +14,7 @@ def test_cartesian_initialization():
         x=1.0, y=2.0, z=3.0,
         A_xx=0.1, A_yy=0.2, A_zz=0.3,
         A_xy=0.01, A_yz=0.02, A_xz=0.03,
-        w_L=5.0
+        gyro=5.0
     )
     # Check coordinates
     np.testing.assert_array_equal(spin.xyz, [1.0, 2.0, 3.0])
@@ -36,7 +36,7 @@ def test_axial_initialization():
         spin_type="N14",
         x=0.0, y=0.0, z=0.0,
         A_par=0.5, A_perp=0.1,
-        w_L=2.0
+        gyro=2.0
     )
     # Check coordinates
     np.testing.assert_array_equal(spin.xyz, [0.0, 0.0, 0.0])
@@ -54,13 +54,13 @@ def test_axial_initialization():
 def test_missing_required_parameters():
     # Missing coordinates
     with pytest.raises(ValueError):
-        NuclearSpin(spin_type="H1", x=0.0, y=1.0, w_L=1.0)
-    # Missing w_L
+        NuclearSpin(spin_type="H1", x=0.0, y=1.0, gyro=1.0)
+    # Missing gyro
     with pytest.raises(ValueError):
         NuclearSpin(spin_type="H1", x=0.0, y=1.0, z=2.0)
     # Missing hyperfine
     with pytest.raises(ValueError):
-        NuclearSpin(spin_type="H1", x=0.0, y=1.0, z=2.0, w_L=1.0)
+        NuclearSpin(spin_type="H1", x=0.0, y=1.0, z=2.0, gyro=1.0)
 
 def test_to_record_and_repr():
     spin = NuclearSpin(
@@ -68,7 +68,7 @@ def test_to_record_and_repr():
         x=1.0, y=2.0, z=3.0,
         A_xx=0.1, A_yy=0.2, A_zz=0.3,
         A_xy=0.01, A_yz=0.02, A_xz=0.03,
-        w_L=5.0
+        gyro=5.0
     )
     record = spin.to_record()
     assert record[0] == "C13"
@@ -77,7 +77,7 @@ def test_to_record_and_repr():
     np.testing.assert_allclose(record[3], spin.Q)
     # Check __repr__ contains key info
     rep = repr(spin)
-    assert "C13" in rep and "w_L=5.0" in rep
+    assert "C13" in rep and "gyro=5.0" in rep
 
 @pytest.mark.parametrize("uncertainty", [
     None,
@@ -90,7 +90,7 @@ def test_uncertainty_field_accepts_valid_inputs(uncertainty):
         spin_type="13C",
         x=0.0, y=0.0, z=1.0,
         A_par=2.0, A_perp=0.5,
-        w_L=1.5,
+        gyro=1.5,
         uncertainty=uncertainty
     )
     # Check it is stored correctly
@@ -108,7 +108,7 @@ def test_uncertainty_invalid_type():
             spin_type="13C",
             x=0.0, y=0.0, z=1.0,
             A_par=2.0, A_perp=0.5,
-            w_L=1.5,
+            gyro=1.5,
             uncertainty="not a number"
         )
 
@@ -119,7 +119,7 @@ def test_uncertainty_array_wrong_length():
             spin_type="13C",
             x=0.0, y=0.0, z=1.0,
             A_par=2.0, A_perp=0.5,
-            w_L=1.5,
+            gyro=1.5,
             uncertainty=[0.1, 0.2, 0.3]  # too long
         )
 
@@ -130,7 +130,7 @@ def make_spin(**kwargs):
         spin_type="13C",
         x=0.0, y=0.0, z=0.0,
         A_par=2.0, A_perp=0.5,
-        w_L=1.5,
+        gyro=1.5,
         uncertainty=None,
     )
     defaults.update(kwargs)
@@ -188,14 +188,14 @@ def test_len_and_getitem():
 
 def test_spinbath_mixed_uncertainty():
     # No uncertainty
-    s1 = NuclearSpin("C13", x=0.0, y=0.0, z=0.0, w_L=1.0, A_par=0.5, A_perp=0.2)
+    s1 = NuclearSpin("C13", x=0.0, y=0.0, z=0.0, gyro=1.0, A_par=0.5, A_perp=0.2)
 
     # Scalar uncertainty
-    s2 = NuclearSpin("N14", x=1.0, y=0.0, z=0.0, w_L=2.0, A_par=0.6, A_perp=0.3,
+    s2 = NuclearSpin("N14", x=1.0, y=0.0, z=0.0, gyro=2.0, A_par=0.6, A_perp=0.3,
                  uncertainty=0.1)
 
     # Tuple/array uncertainty
-    s3 = NuclearSpin("H1", x=0.0, y=1.0, z=0.0, w_L=3.0, A_par=0.7, A_perp=0.4,
+    s3 = NuclearSpin("H1", x=0.0, y=1.0, z=0.0, gyro=3.0, A_par=0.7, A_perp=0.4,
                  uncertainty=[0.05, 0.15])
     bath = SpinBath([s1, s2, s3])
     df = bath.dataframe
@@ -220,10 +220,10 @@ def test_spinbath_mixed_uncertainty():
     assert isinstance(df, pd.DataFrame)
     assert df.shape[0] == 3  # three spins
 
-def make_spin(x, y=0.0, z=0.0, spin_type="13C", A_par=1.0, A_perp=0.5, w_L=1.0, uncertainty=None):
+def make_spin(x, y=0.0, z=0.0, spin_type="13C", A_par=1.0, A_perp=0.5, gyro=1.0, uncertainty=None):
     """Helper to create a NuclearSpin with defaults overridden."""
     return NuclearSpin(spin_type=spin_type, x=x, y=y, z=z,
-                       A_par=A_par, A_perp=A_perp, w_L=w_L, uncertainty=uncertainty)
+                       A_par=A_par, A_perp=A_perp, gyro=gyro, uncertainty=uncertainty)
 
 
 def test_add_duplicate_spin_raises():
@@ -243,21 +243,21 @@ def test_add_duplicate_spin_raises():
 
 def test_update_existing_spin():
     bath = SpinBath()
-    spin = make_spin(0.0, 0.0, 0.0, spin_type="13C", A_par=1.0, A_perp=0.5, w_L=1.0)
+    spin = make_spin(0.0, 0.0, 0.0, spin_type="13C", A_par=1.0, A_perp=0.5, gyro=1.0)
     bath.add_spin(spin)
 
     # Update the spin
-    updated = bath.update_spin([0.0, 0.0, 0.0], A_par=2.0, A_perp=0.6, w_L=1.5, spin_type="14N")
+    updated = bath.update_spin([0.0, 0.0, 0.0], A_par=2.0, A_perp=0.6, gyro=1.5, spin_type="14N")
     assert updated.A_par == 2.0
     assert updated.A_perp == 0.6
-    assert updated.w_L == 1.5
+    assert updated.gyro == 1.5
     assert updated.spin_type == "14N"
 
     # Dataframe reflects update
     df = bath.dataframe
     assert df.loc[0, "A_par"] == 2.0
     assert df.loc[0, "A_perp"] == 0.6
-    assert df.loc[0, "w_L"] == 1.5
+    assert df.loc[0, "gyro"] == 1.5
     assert df.loc[0, "type"] == "14N"
 
 
@@ -287,8 +287,8 @@ def test_mixed_spin_add_and_update():
 def dummy_spins():
     # Two spins along x-axis at 0 and 1 Å
     return [
-        NuclearSpin("C13", 0.0, 0.0, 0.0, A_par=1.0, A_perp=0.5, w_L=2.0),
-        NuclearSpin("C13", 1.0, 0.0, 0.0, A_par=1.0, A_perp=0.5, w_L=2.0),
+        NuclearSpin("C13", 0.0, 0.0, 0.0, A_par=1.0, A_perp=0.5, gyro=2.0),
+        NuclearSpin("C13", 1.0, 0.0, 0.0, A_par=1.0, A_perp=0.5, gyro=2.0),
     ]
 
 

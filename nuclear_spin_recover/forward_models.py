@@ -2,6 +2,7 @@ import numpy as np
 import pycce as pc
 from abc import ABC, abstractmethod
 from .spin_bath import SpinBath, NuclearSpin
+from .experiments import Experiment
 
 
 class ForwardModel(ABC):
@@ -52,7 +53,7 @@ class ForwardModel(ABC):
 
 
 
-class AnalyticCoherence(ForwardModel):
+class AnalyticCoherenceModel(ForwardModel):
     """
     Analytic forward model for NV coherence using a closed-form expression
     for a single nuclear spin, extended to multiple spins with lambda_decoherence envelope.
@@ -107,6 +108,7 @@ class AnalyticCoherence(ForwardModel):
             for s_i, spin in enumerate(self.spins):
                 A_par = spin.A_par if A_par_list is None else A_par_list[s_i]
                 A_perp = spin.A_perp if A_perp_list is None else A_perp_list[s_i]
+                gyro = spin.gyro
 
                 spin_signal = self.coherence_one_spin(
                     t_i, A_par, A_perp, N, B_mag, gyro
@@ -119,22 +121,21 @@ class AnalyticCoherence(ForwardModel):
 
     def compute_coherence(self, A_par_list=None, A_perp_list=None):
         """
-        Compute coherence signals with T2 decay envelope.
-        Exactly mirrors `calculate_coherence_with_T2`.
+        Compute coherence signals with decay envelope.
         """
         # Step 1: raw coherence
         coherence_signals = self.calculate_coherence(A_par_list, A_perp_list)
 
-        # Step 2: apply T2 envelope
-        coherence_signals_with_T2 = []
+        # Step 2: apply lambda_decoherence envelope
+        coherence_signals_with_lambda_decoherence = []
 
         for index in range(len(self.experiment)):
             params = self.experiment[index]
-            T2 = params["T2"]
+            lambda_decoherence = params["lambda_decoherence"]
             time = params["timepoints"]
 
-            neg_exp = [np.exp(-t / T2) for t in time]
-            coherence_with_T2 = [L * e for L, e in zip(coherence_signals[index], neg_exp)]
-            coherence_signals_with_T2.append(np.array(coherence_with_T2))
+            neg_exp = [np.exp(-t / lambda_decoherence) for t in time]
+            coherence_with_lambda_decoherence = [L * e for L, e in zip(coherence_signals[index], neg_exp)]
+            coherence_signals_with_lambda_decoherence.append(np.array(coherence_with_lambda_decoherence))
 
-        return coherence_signals_with_T2
+        return coherence_signals_with_lambda_decoherence

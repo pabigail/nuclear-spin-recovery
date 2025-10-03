@@ -50,3 +50,44 @@ def test_multiple_spins_multiplicative(simple_experiment):
     signals_single = single_model.calculate_coherence()[0]
     # Multi-spin coherence should be smaller or equal in mag
 
+def test_one_spin_two_experiments():
+    exp = Experiment(
+        num_exps=2,
+        num_pulses=[1, 2],
+        mag_field=[100, 200],
+        noise=[0.0, 0.0],
+        timepoints=[[0.0, 1.0], [0.0, 1.0]],
+        lambda_decoherence=[1.0, 2.0],
+    )
+
+    # Mock spin with dummy hyperfine couplings
+    s2 = NuclearSpin("C13", x=1, y=0, z=0, A_par=7.0, A_perp=3.0, gyro=1.0)
+    spins = [s2]
+    model = AnalyticCoherenceModel(spins=spins, experiment=exp)
+
+    signals = model.compute_coherence()
+    assert isinstance(signals, list)
+    assert len(signals) == 2  # two experiments
+    assert all(isinstance(sig, np.ndarray) for sig in signals)
+
+def test_two_spins_two_experiments():
+    exp = Experiment(
+        num_exps=2,
+        num_pulses=[1, 2],
+        mag_field=[100, 200],
+        noise=[0.0, 0.0],
+        timepoints=[[0.0, 1.0], [0.0, 1.0]],
+        lambda_decoherence=[1.0, 2.0],
+    )
+
+    s1 = NuclearSpin("C13", x=0, y=0, z=1, A_par=10.0, A_perp=5.0, gyro=1.0)
+    s2 = NuclearSpin("C13", x=1, y=0, z=0, A_par=7.0, A_perp=3.0, gyro=1.0)
+    spins = [s1, s2]
+    model = AnalyticCoherenceModel(spins=spins, experiment=exp)
+
+    signals = model.compute_coherence()
+    assert isinstance(signals, list)
+    assert len(signals) == 2
+    assert all(isinstance(sig, np.ndarray) for sig in signals)
+    # At t=0, all signals should be exactly 1 (normalization check)
+    assert np.allclose([sig[0] for sig in signals], [1.0, 1.0])

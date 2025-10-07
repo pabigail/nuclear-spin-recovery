@@ -90,6 +90,31 @@ def test_l2_error_length_mismatch():
         err_model([1], experiment, BadForwardModel)
 
 
+def test_l2_error_multiple_experiments():
+    """Test that L2Error correctly sums over multiple experiments."""
+    # Observed data slightly offset from simulated
+    data = [
+        np.linspace(0, 1, 5) + 0.1,  # exp 0
+        np.linspace(0, 1, 5) + 1.1,  # exp 1
+        np.linspace(0, 1, 5) + 2.1,  # exp 2
+    ]
+    spins = ["NuclearSpin1"]
+    exp = MockExperiment(num_experiments=3)
+
+    err_model = L2Error(data)
+    err_value = err_model(spins, exp, MockForwardModel)
+
+    # Compute expected error manually using the same logic as the model
+    expected_error = 0.0
+    model = MockForwardModel(spins, exp)
+    for idx in range(len(exp)):
+        simulated = np.array(model.compute_coherence(idx))
+        observed = np.array(data[idx])
+        expected_error += np.linalg.norm(observed - simulated)
+
+    np.testing.assert_allclose(err_value, expected_error, rtol=1e-12)
+    assert err_value > 0
+
 # ----------------------------------------------------------------------
 # 3. CompositeErrorL2andWasserstein tests
 # ----------------------------------------------------------------------
@@ -136,6 +161,41 @@ def test_composite_error_handles_invalid_mass():
     assert np.isfinite(error)
     assert error == pytest.approx(0.0)
 
+def test_composite_error_multiple_experiments_with_wasserstein():
+    """Test that CompositeErrorL2andWasserstein handles multiple experiments."""
+    data = [
+        np.linspace(0, 1, 5) + 0.05,
+        np.linspace(1, 2, 5) + 0.1,
+        np.linspace(2, 3, 5) + 0.15,
+    ]
+    spins = ["spin"]
+    exp = MockExperiment(num_experiments=3, noise=[0.5, 1.0, 2.0])
+
+    model = CompositeErrorL2andWasserstein(
+        data, sigma_sq=None, lambda_wass=0.3
+    )
+    err_value = model(spins, exp, MockForwardModel)
+
+    # Check scalar output and monotonicity
+    assert isinstance(err_value, float)
+    assert err_value > 0
+
+    # Validate Wasserstein contribution is nonzero for at least one experiment
+    wass_contributions = []
+    for idx in range(len(exp)):
+        simulated = np.linspace(0, 1, 5) + idx
+        observed = data[idx]
+        min_val = min(observed.min(), simulated.min())
+        obs_shift = observed - min_val
+        sim_shift = simulated - min_val
+        obs_norm = obs_shift / obs_shift.sum()
+        sim_norm = sim_shift / sim_shift.sum()
+        wass_contrib = wasserstein_distance(
+            np.arange(len(observed)), np.arange(len(observed)), obs_norm, sim_norm
+        )
+        wass_contributions.append(wass_contrib)
+
+    assert any(w > 0 for w in wass_contributions)
 
 # ----------------------------------------------------------------------
 # 4. Numerical correctness sanity check

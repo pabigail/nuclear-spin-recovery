@@ -3,6 +3,7 @@ from .io import make_spinbath_from_Ivady_file
 from .experiments import Experiment
 from .forward_models import ForwardModel, AnalyticCoherenceModel
 from .error import ErrorModel, L2Error, CompositeErrorL2andWasserstein
+from .proposals import Proposal, DiscreteLatticeRWMHProposal
 
 __all__ = [
     "SpinBath",
@@ -13,5 +14,7 @@ __all__ = [
     "AnalyticCoherenceModel",
     "ErrorModel",
     "L2Error",
-    "CompositeErrorL2andWasserstein"
+    "CompositeErrorL2andWasserstein",
+    "Proposal",
+    "DiscreteLatticeRWMHProposal"
 ]

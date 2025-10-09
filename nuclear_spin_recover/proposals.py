@@ -40,23 +40,23 @@ class Proposal(ABC):
 
 
 
-class DiscreteLatticeRWMHProposal:
+class DiscreteLatticeRWMHProposal(Proposal):
     """
     Random-Walk Metropolis-Hastings (RWMH) proposal that selects
     a new discrete spin index within a local region of a SpinBath lattice.
     """
 
-    def __init__(self, spin_bath, r, spin_inds=None):
+    def __init__(self, spin_bath, r, spin_inds, params):
         """
         Parameters
         ----------
         spin_bath : SpinBath
-            The SpinBath containing all NuclearSpins.
+            The SpinBath containing all NuclearSpins in the Lattice
         r : float
             Radius (in Å or lattice units) defining the local neighborhood.
-        spin_inds : list[int], optional
-            Indices of spins already part of the current model (to avoid reuse).
         """
+        super().__init__(spin_inds, params)
+
         if not isinstance(spin_bath, SpinBath):
             raise TypeError("spin_bath must be a SpinBath instance.")
         if r <= 0:
@@ -64,7 +64,6 @@ class DiscreteLatticeRWMHProposal:
         
         self.spin_bath = spin_bath
         self.r = float(r)
-        self.spin_inds = [] if spin_inds is None else list(spin_inds)
 
     def propose(self, spin_index=None):
         """
@@ -86,15 +85,15 @@ class DiscreteLatticeRWMHProposal:
         ValueError
             If no valid candidate spins are found within radius r.
         """
-        n_spins = len(self.spin_bath)
+        n_spins = len(self.spin_inds)
         if n_spins == 0:
-            raise ValueError("SpinBath is empty — cannot propose a new spin.")
+            raise ValueError("NuclearSpins is empty — cannot propose a new spin.")
 
         # Choose reference spin index
         if spin_index is None:
-            spin_index = np.random.randint(0, n_spins)
-        elif not (0 <= spin_index < n_spins):
-            raise IndexError(f"spin_index {spin_index} out of range (0, {n_spins-1}).")
+            spin_index = np.random.choice(self.spin_inds)
+        elif spin_index not in self.spin_inds:
+            raise IndexError(f"spin_index {spin_index} is not in current spin_inds {self.spin_inds.tolist()}")
 
         # Compute neighborhood
         dist_row = self.spin_bath.distance_matrix[spin_index]

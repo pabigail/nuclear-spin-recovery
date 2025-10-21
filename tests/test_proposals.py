@@ -5,6 +5,7 @@ from nuclear_spin_recover import (
     SpinBath,
     DiscreteLatticeRWMHProposal,
     ContinuousBounded2dRWMHProposal,
+    ContinuousBounded1dRWMHProposal
 )
 
 # -------------------------------
@@ -163,3 +164,46 @@ def test_combined_mcmc_chain(simple_spin_bath, default_params, monkeypatch):
     disc_prop.accept_prop()
     assert new_spin in disc_prop.current_spins
 
+
+# -------------------------------
+# ContinuousBounded1dRWMHProposal Test
+# -------------------------------
+def test_proposal_initialization(default_params):
+    prop = ContinuousBounded1dRWMHProposal(params=default_params, radius=0.1)
+    assert np.isclose(prop.current_params["lambda_decoherence"], 0.5)
+    assert prop.radius == 0.1
+    assert prop.current_spins.size == 0  # no spins
+
+def test_proposal_reflection(default_params):
+    np.random.seed(0)
+    prop = ContinuousBounded1dRWMHProposal(params=default_params, radius=1.0)
+
+    # Propose multiple times to hit boundaries
+    for _ in range(100):
+        _, new_params = prop.propose()
+        val = new_params["lambda_decoherence"]
+        assert 0 < val <= 1, f"Value out of bounds: {val}"
+
+def test_proposal_reproducibility(default_params):
+    np.random.seed(123)
+    prop1 = ContinuousBounded1dRWMHProposal(params=default_params, radius=0.1)
+    _, p1 = prop1.propose()
+
+    np.random.seed(123)
+    prop2 = ContinuousBounded1dRWMHProposal(params=default_params, radius=0.1)
+    _, p2 = prop2.propose()
+
+    assert np.isclose(p1["lambda_decoherence"], p2["lambda_decoherence"])
+
+def test_accept_reject(default_params):
+    prop = ContinuousBounded1dRWMHProposal(params=default_params, radius=0.1)
+    _, p_new = prop.propose()
+    # Accept
+    prop.accept_prop()
+    assert np.isclose(prop.current_params["lambda_decoherence"], p_new["lambda_decoherence"])
+
+    # Propose again
+    _, p_new2 = prop.propose()
+    # Reject
+    prop.reject_prop()
+    assert np.isclose(prop.current_params["lambda_decoherence"], p_new["lambda_decoherence"])

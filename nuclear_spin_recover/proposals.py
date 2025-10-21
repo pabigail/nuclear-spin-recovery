@@ -2,6 +2,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 import random
 import copy
+from copy import deepcopy
 from nuclear_spin_recover import SpinBath, NuclearSpin
 
 
@@ -263,3 +264,45 @@ class ContinuousBounded2dRWMHProposal(Proposal):
                 f"eps={self.eps}, "
                 f"n_spins={len(self.current_spins)})"
             )
+
+class ContinuousBounded1dRWMHProposal(Proposal):
+    """
+    Proposes a single continuous parameter 'lambda_decoherence' in (0,1]
+    using a Gaussian random walk with reflection at boundaries.
+    """
+    def __init__(self, params, radius=0.1):
+        # No spins affected, just a free parameter
+        super().__init__(spin_inds=[], params=params)
+        self.radius = radius
+
+        # Initialize lambda_decoherence if None
+        if self.current_params.get("lambda_decoherence") is None:
+            self.current_params["lambda_decoherence"] = 1.0
+
+    def propose(self):
+        """
+        Propose a new lambda_decoherence by Gaussian random walk with reflection.
+        Returns:
+            prop_spins : np.ndarray
+                Empty array (no spins are affected)
+            prop_params : dict
+                Copy of current_params with updated lambda_decoherence
+        """
+        current_val = self.current_params["lambda_decoherence"]
+        prop_val = current_val + np.random.normal(0, self.radius)
+
+        # Reflect until within (0,1]
+        while not (0 < prop_val <= 1):
+            if prop_val > 1:
+                prop_val = 2 - prop_val
+            elif prop_val <= 0:
+                prop_val = -prop_val + 1e-8  # tiny offset to stay >0
+
+        # Build proposed params dict
+        self.prop_params = deepcopy(self.current_params)
+        self.prop_params["lambda_decoherence"] = prop_val
+
+        # No spins affected
+        self.prop_spins = np.array([])
+
+        return self.prop_spins.copy(), self.prop_params.copy()

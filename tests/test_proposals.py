@@ -1,11 +1,13 @@
 import numpy as np
 import pytest
+import random
 from nuclear_spin_recover import (
     NuclearSpin,
     SpinBath,
     DiscreteLatticeRWMHProposal,
     ContinuousBounded2dRWMHProposal,
-    ContinuousBounded1dRWMHProposal
+    ContinuousBounded1dRWMHProposal,
+    DiscreteRJMCMCProposal
 )
 
 # -------------------------------
@@ -207,3 +209,121 @@ def test_accept_reject(default_params):
     # Reject
     prop.reject_prop()
     assert np.isclose(prop.current_params["lambda_decoherence"], p_new["lambda_decoherence"])
+
+
+# -------------------------------
+# Helper comparisons
+# -------------------------------
+def spins_equal(a, b):
+    return np.array_equal(np.array(a), np.array(b))
+
+
+def params_equal(p1, p2):
+    for key in p1:
+        if key not in p2:
+            return False
+        v1, v2 = p1[key], p2[key]
+        if isinstance(v1, np.ndarray):
+            if not np.allclose(v1, v2):
+                return False
+        elif v1 != v2:
+            return False
+    return True
+
+
+# -------------------------------
+# Tests
+# -------------------------------
+def test_birth_proposal(simple_spin_bath, default_params):
+    spin_inds = np.array([0, 1, 2], dtype=int)
+    prop = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                  spin_inds=spin_inds, birth=True,
+                                  params=default_params)
+
+    spins_prop, params_prop = prop.propose()
+    assert len(spins_prop) == len(spin_inds) + 1
+    assert "lambda_decoherence" in params_prop
+    assert isinstance(params_prop["lambda_decoherence"], float)
+
+
+def test_death_proposal(simple_spin_bath, default_params):
+    spin_inds = np.array([0, 1, 2, 3], dtype=int)
+    prop = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                  spin_inds=spin_inds, birth=False,
+                                  params=default_params)
+    spins_prop, params_prop = prop.propose()
+
+    assert len(spins_prop) == len(spin_inds) - 1
+    assert "lambda_decoherence" in params_prop
+    assert isinstance(params_prop["lambda_decoherence"], float)
+
+
+def test_birth_when_at_max(simple_spin_bath, default_params):
+    spin_inds = np.arange(5)
+    prop = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                  spin_inds=spin_inds, birth=True,
+                                  params=default_params)
+    spins_prop, params_prop = prop.propose()
+
+    assert spins_equal(spins_prop, spin_inds)
+    assert params_equal(params_prop, default_params)
+
+
+def test_reproducible_birth_death(simple_spin_bath, default_params):
+    spin_inds = np.array([0, 1], dtype=int)
+    random.seed(123)
+    np.random.seed(123)
+    prop1 = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                   spin_inds=spin_inds, birth=None,
+                                   params=default_params)
+    spins1, params1 = prop1.propose()
+
+    random.seed(123)
+    np.random.seed(123)
+    prop2 = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                   spin_inds=spin_inds, birth=None,
+                                   params=default_params)
+    spins2, params2 = prop2.propose()
+
+    assert spins_equal(spins1, spins2)
+    assert params_equal(params1, params2)
+
+
+def test_reproducible_birth(simple_spin_bath, default_params):
+    spin_inds = np.array([0, 1], dtype=int)
+    random.seed(42)
+    np.random.seed(42)
+    prop1 = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                   spin_inds=spin_inds, birth=True,
+                                   params=default_params)
+    spins1, params1 = prop1.propose()
+
+    random.seed(42)
+    np.random.seed(42)
+    prop2 = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                   spin_inds=spin_inds, birth=True,
+                                   params=default_params)
+    spins2, params2 = prop2.propose()
+
+    assert spins_equal(spins1, spins2)
+    assert params_equal(params1, params2)
+
+
+def test_reproducible_death(simple_spin_bath, default_params):
+    spin_inds = np.array([0, 1, 2], dtype=int)
+    random.seed(99)
+    np.random.seed(99)
+    prop1 = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                   spin_inds=spin_inds, birth=False,
+                                   params=default_params)
+    spins1, params1 = prop1.propose()
+
+    random.seed(99)
+    np.random.seed(99)
+    prop2 = DiscreteRJMCMCProposal(simple_spin_bath, max_spins=5,
+                                   spin_inds=spin_inds, birth=False,
+                                   params=default_params)
+    spins2, params2 = prop2.propose()
+
+    assert spins_equal(spins1, spins2)
+    assert params_equal(params1, params2)

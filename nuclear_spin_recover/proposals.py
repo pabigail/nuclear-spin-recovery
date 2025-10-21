@@ -306,3 +306,89 @@ class ContinuousBounded1dRWMHProposal(Proposal):
         self.prop_spins = np.array([])
 
         return self.prop_spins.copy(), self.prop_params.copy()
+
+
+def remove_elements(original_list, elements_to_remove):
+    return [element for element in original_list if element not in elements_to_remove]
+
+
+class DiscreteRJMCMCProposal(Proposal):
+    """
+    Reversible-jump MCMC proposal for adding/removing nuclear spins.
+    """
+
+    def __init__(self, spin_bath, max_spins, spin_inds=None, birth=None, params=None):
+        """
+        Parameters
+        ----------
+        spin_bath : SpinBath
+            Spin bath containing all NuclearSpins.
+        max_spins : int
+            Maximum allowed number of spins in the model.
+        spin_inds : list[int], optional
+            Currently included spin indices.
+        birth : bool or None
+            If True, force birth; if False, force death; if None, 50/50 chance.
+        params : dict
+            Current model parameters.
+        """
+        if spin_inds is None:
+            spin_inds = []
+
+        super().__init__(spin_inds=spin_inds, params=params or {})
+
+        if not isinstance(spin_bath, SpinBath):
+            raise TypeError("spin_bath must be a SpinBath instance.")
+        self.spin_bath = spin_bath
+        self.max_spins = max_spins
+        self.birth = birth  # can be True, False, or None
+
+    def _get_birth_proposal(self):
+        all_spins = list(range(len(self.spin_bath.distance_matrix)))
+        available_spins = remove_elements(all_spins, self.current_spins)
+        if not available_spins:
+            return list(self.current_spins)
+        new_spin = random.choice(available_spins)
+        return list(self.current_spins) + [new_spin]
+
+    def _get_death_proposal(self):
+        if len(self.current_spins) == 0:
+            return np.array([], dtype=int)
+        spins_copy = list(self.current_spins)
+        idx_to_remove = random.randint(0, len(spins_copy) - 1)
+        spins_copy.pop(idx_to_remove)
+        return spins_copy
+
+    def propose(self):
+        """
+        Generate a proposed spin set using RJMCMC birth/death move.
+
+        Returns
+        -------
+        prop_spins : np.ndarray
+            Proposed spin indices.
+        prop_params : dict
+            Copy of current parameters (unchanged here).
+        """
+        # Decide birth or death
+        if self.birth is None:
+            birth_move = random.choice([True, False])
+        else:
+            birth_move = self.birth
+
+        n_spins = len(self.current_spins)
+
+        # If at boundaries, no valid move — return unchanged
+        if (birth_move and n_spins >= self.max_spins) or (not birth_move and n_spins == 0):
+            self.prop_spins = np.array(self.current_spins, dtype=int)
+            self.prop_params = deepcopy(self.current_params)
+            return self.prop_spins, self.prop_params
+
+        # Generate proposal
+        if birth_move:
+            self.prop_spins = np.array(self._get_birth_proposal(), dtype=int)
+        else:
+            self.prop_spins = np.array(self._get_death_proposal(), dtype=int)
+
+        self.prop_params = deepcopy(self.current_params)
+        return self.prop_spins, self.prop_params

@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Type, Union
 import numpy as np
-from nuclear_spin_recover import Experiments, ForwardModel, ErrorModel, Proposal
+from .experiments import Experiment
+from .forward_models import ForwardModel
+from .error import ErrorModel
+from .proposals import Proposal
 
 
 class AcceptProb(ABC):

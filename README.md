@@ -4,13 +4,13 @@
 
 ## Overview
 
-This package provides tools for simulating NV center coherence and reconstructing nuclear spin environments from experimental data.  
+This package provides tools reconstructing nuclear spin environments from experimental coherence data using hybrid MCMC techniques.  
 
 ## Dependencies
 
 To run this software, the following Python packages are required:
 
-- `python` (3.12 recommended)  
+- `python`  
 - `numpy`  
 - `pandas`  
 - `pycce`  

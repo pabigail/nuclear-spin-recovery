@@ -7,6 +7,15 @@ class ErrorModel(ABC):
     """
     Abstract base class for error (misfit) functions that compare
     simulated and observed NV coherence data.
+
+    The error model computes a scalar misfit between observed experimental
+    data and coherence signals simulated by a forward model. 
+
+    Attributes
+    ----------
+    data : np.ndarray
+        Observed coherence data for one or more experiments. Stored as an
+        object array where each entry corresponds to an experiment.
     """
 
     def __init__(self, data):
@@ -15,23 +24,24 @@ class ErrorModel(ABC):
         self.data = np.asarray(data, dtype=object)
 
     @abstractmethod
-    def __call__(self, spins, experiment, forward_model_cls):
+    def __call__(self, spins, forward_model):
         """
-        Compute a scalar error value.
+        Compute a scalar error value for the given nuclear spin configuration
+        using the provided forward model.
 
         Parameters
         ----------
         spins : list of NuclearSpin
-            Nuclear spin configuration.
-        experiment : Experiment
-            Experiment parameters.
-        forward_model_cls : type
-            A subclass of ForwardModel (not an instance), used to simulate coherence.
+            Nuclear spin configuration to simulate.
+        forward_model : ForwardModel
+            **Instance** of a concrete ForwardModel subclass, which contains
+            the experiment internally. The forward model is used to simulate
+            coherence signals.
 
         Returns
         -------
         float
-            Scalar error value.
+            Scalar error value comparing simulated and observed data.
         """
         pass
 
@@ -39,18 +49,27 @@ class ErrorModel(ABC):
         return f"<{self.__class__.__name__} with {len(self.data)} experiments>"
 
 
-
 class L2Error(ErrorModel):
     """
     Computes the total L2 norm error between observed and simulated coherence signals.
     """
 
-    def __call__(self, spins, experiment, forward_model_cls):
-        # Instantiate the model with spins and experiment
-        model = forward_model_cls(spins, experiment)
+    def __call__(self, spins, forward_model):
+    
+        # Check if the forward model class already has an experiment
+        if hasattr(forward_model, 'experiment'):
+            experiment = forward_model.experiment
+        else:
+            raise ValueError(
+                "Forward model must have an experiment stored internally. "
+                "Pass a concrete subclass of ForwardModel that contains experiment."
+            )
+
+        # instantiate model with spins and its internal experiment
+        model = type(forward_model)(spins, experiment)
 
         total_error = 0.0
-        for idx in range(len(experiment)):
+        for idx in range(len(model.experiment)):
             simulated = np.array(model.compute_coherence(idx))
             observed = np.array(self.data[idx])
 
@@ -73,17 +92,27 @@ class CompositeErrorL2andWasserstein(ErrorModel):
         self.sigma_sq = sigma_sq
         self.lambda_wass = lambda_wass
 
-    def __call__(self, spins, experiment, forward_model_cls):
+    def __call__(self, spins, forward_model):
+        # Check if the forward model class already has an experiment
+        if hasattr(forward_model, 'experiment'):
+            experiment = forward_model.experiment
+        else:
+            raise ValueError(
+                "Forward model must have an experiment stored internally. "
+                "Pass a concrete subclass of ForwardModel that contains experiment."
+            )
+
         # Create model instance
-        model = forward_model_cls(spins, experiment)
+        # instantiate model with spins and its internal experiment
+        model = type(forward_model)(spins, experiment)
 
         total_error = 0.0
-        for idx in range(len(experiment)):
+        for idx in range(len(model.experiment)):
             simulated = np.array(model.compute_coherence(idx))
             observed = np.array(self.data[idx])
 
             sigma_sq_eff = (
-                self.sigma_sq if self.sigma_sq is not None else experiment.noise[idx]
+                self.sigma_sq if self.sigma_sq is not None else model.experiment.noise[idx]
             )
 
             # ----------------------

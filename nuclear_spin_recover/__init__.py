@@ -8,7 +8,7 @@ from .proposals import (Proposal,
                         ContinuousBounded2dRWMHProposal, 
                         ContinuousBounded1dRWMHProposal,
                         DiscreteRJMCMCProposal)
-from .acceptance_probabilities import AcceptProb
+from .acceptance_probabilities import AcceptProb, AcceptProbRJMCMC
 
 __all__ = [
     "SpinBath",
@@ -27,5 +27,6 @@ __all__ = [
     "ContinuousBounded2dRWMHProposal",
     "ContinuousBounded1dRWMHProposal",
     "DiscreteRJMCMCProposal",
-    "AcceptProb"
+    "AcceptProb",
+    "AcceptProbRJMCMC"
 ]

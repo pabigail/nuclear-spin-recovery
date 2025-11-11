@@ -15,19 +15,13 @@ class AcceptProb(ABC):
     ----------
     forward_model : type
         Concrete subclass of ForwardModel (not abstract).
-    experiment : Experiment
-        Experiment containing observed data and conditions.
     error_model : ErrorModel
         Concrete instance of an ErrorModel subclass.
     proposal : Proposal
         Concrete instance of a Proposal subclass.
     """
 
-    def __init__(self, forward_model, experiment, error_model, proposal):
-        # Experiment can be any instance of Experiment
-        if not isinstance(experiment, Experiment):
-            raise TypeError(f"experiment must be an Experiment instance, got {type(experiment)}")
-        self.experiment = experiment
+    def __init__(self, forward_model, error_model, proposal):
 
         # Must be concrete subclass of ForwardModel
         if not inspect.isclass(forward_model) or not issubclass(forward_model, ForwardModel):
@@ -61,3 +55,7 @@ class AcceptProb(ABC):
             Acceptance probability between 0 and 1.
         """
         pass
+
+
+
+

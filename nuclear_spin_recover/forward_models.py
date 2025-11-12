@@ -93,8 +93,15 @@ class AnalyticCoherenceModel(ForwardModel):
     def calculate_coherence(self, A_par_list=None, A_perp_list=None):
         """
         Compute raw coherence signals (without lambda_decay envelope).
+        Handles arbitrary spin subsets.
         """
         signals = []
+
+        # If lists not provided, build from the spins themselves
+        if A_par_list is None:
+            A_par_list = [spin.A_par for spin in self.spins]
+        if A_perp_list is None:
+            A_perp_list = [spin.A_perp for spin in self.spins]
 
         for idx in range(len(self.experiment)):
             params = self.experiment[idx]
@@ -106,8 +113,8 @@ class AnalyticCoherenceModel(ForwardModel):
             total_signal = np.ones_like(t_i, dtype=float)
 
             for s_i, spin in enumerate(self.spins):
-                A_par = spin.A_par if A_par_list is None else A_par_list[s_i]
-                A_perp = spin.A_perp if A_perp_list is None else A_perp_list[s_i]
+                A_par = A_par_list[s_i]
+                A_perp = A_perp_list[s_i]
                 gyro = spin.gyro
 
                 spin_signal = self.coherence_one_spin(

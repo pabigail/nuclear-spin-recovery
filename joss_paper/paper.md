@@ -27,7 +27,15 @@ bibliography: paper.bib
 ---
 
 # Summary
-`nuclear-spin-recovery` is a Python package for hybrid markov chain Monte Carlo (MCMC) sampling to reconstruct nuclear spin baths from experimental coherence data. Key features of this Python package include the ability to sample from mixed-continuous parameter distributions jointly by interleaving different MCMC techniques. This Python package was designed for maximum extensibility in terms of the kinds of materials or spin-baths that can be modeled, the types of MCMC algorithms used for sampling, custom error and likelihood functions, and forward models based on different levels of cluster-correlation expansion theory, providing posterior distributions of different experimentally-relevant quantities that can be extracted even from ill-posed regimes, where multiple sets of parameters may have a high likelihood of producing some observed data. This software package is both a practical tool for experimentalists seeking to recover nuclear spin configurations from standard dynamical decoupling experiments and a numerical tool for non-linear, non-convex optimization for theorists in terms of inverse-design of pulse experiments for specific nuclear spin-bath configurations. 
+`nuclear-spin-recovery` is a Python package that uses hybrid Markov chain Monte Carlo (MCMC) methods to reconstruct the arrangement and properties of nuclear spins around point defects in solids based on experimentally-measured coherence data.
+In many quantum sensing and spin-physics experiments, these nuclear environments influence the beahvior of the spin in the point-defect, but they cannot be observed directly.
+Instead, researchers rely on indirect measurements through the coherence signal of a point-defect that make the detection of nuclear spins difficult, often with many different nuclear spin configurations capable of producing a coherence signal that has a high likelihood of producing the experimental coherence data, especially when the coherence data is noisy or sparse.
+
+This software package produces a flexible Bayesian framework for solving this inverse problem. 
+It combines several MCMC techniques to sample both continuous parameters (such as coupling interactions among spins) and discrete parameters (such as lattice positions of spins), as well as models of different dimensions (such as nuclear spin configurations with different numbers of nuclear spins). 
+The package is designed to be highly extensible: users can incorporate different forward models based on different levels of cluster-correlation expansion theory, choose among various sampling algorithms, and define custom likelihood or errorfunctions to suit their experimental setup. 
+
+By producing full posterior distributions rather than single best-fit values, `nuclear-spin-recovery` allows users to quantify uncertainty and explroe multiple plausible nuclear configurations, even in ill-posed regimes. The package serves both experimentalists, who can use it to reconstruct nuclear spin environments from common dynamical decoupling experiments, and theorists, who can apply it as a general tool for nonlineiear, non-convex optimization for designing pulse sequences and experiments tailored to different recovery criteria or to specific spin-bath structures.
 
 # Statement of need
 

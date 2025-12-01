@@ -39,8 +39,47 @@ By producing full posterior distributions rather than single best-fit values, `n
 
 # Statement of need
 
+Experimental characterization of nuclear spin environments around solid-state spin defects, such as NV centers in diamond, is a central problem in quantum sensing and quantum information science. Extracting the configuration of surrounding nuclear spins from measurements—typically dynamical decoupling or coherence experiments—is an inverse problem that is often ill-posed, with multiple configurations producing similar signals.
+
+Bayesian inference provides a natural framework for this task, but existing MCMC packages face limitations for nuclear spin bath reconstruction:
+
+- **Mixed discrete and continuous parameters:** Nuclear spin systems involve both continuous parameters (e.g., hyperfine couplings, nuclear positions) and discrete parameters (e.g., isotopic identity, number of spins). Whether a parameter is modeled as discrete or continuous depends on available knowledge: highly accurate ab initio calculations or measurements may justify discrete modeling, while poorly known parameters are better treated as continuous. Few general-purpose MCMC frameworks support such mixed spaces directly.
+
+- **Hybrid MCMC algorithm requirements:** Efficient sampling of complex, multi-modal posteriors often requires interleaving different MCMC techniques (e.g., Hamiltonian Monte Carlo for continuous parameters, Gibbs sampling or Random Walk Metropolis-Hastings for discrete parameters). Most existing packages make hybridization cumbersome or impractical.
+
+- **Domain-specific modeling needs:** Forward models for coherence simulations (e.g., cluster-correlation expansion) are computationally intensive and non-linear, and standard MCMC packages do not easily integrate physics-informed likelihoods or custom constraints.
+
+`nuclear-spin-recovery` addresses these gaps by providing a Python framework for hybrid MCMC sampling that:
+
+- Supports joint sampling of discrete and continuous parameters informed by domain knowledge.
+- Allows seamless hybridization of MCMC algorithms for different parameter types.
+- Integrates with physics-based forward models and custom likelihood functions.
+- Provides posterior distributions over experimentally relevant quantities, even in ill-posed regimes.
+- Is extensible to new materials, spin baths, and experimental protocols.
+
+This package enables both experimentalists and theorists to infer, quantify, and design nuclear spin environments effectively.
+
+### Comparison of Existing MCMC Packages
+
+| Package       | Continuous Parameters | Discrete Parameters | Mixed (Cont+Disc) | Easy Hybridization |
+|---------------|--------------------|-------------------|-----------------|-------------------------------------|
+| PyMC          | ✅                  | ✅                 | ❌               | ❌                             |
+| Stan          | ✅                  | ❌                 | ❌               | ❌                                   |
+| emcee         | ✅                  | ❌                 | ❌               | ❌                                   |
+| pymc3         | ✅                  | ✅                 | ❌               | ❌                                   |
+| TensorFlow Probability | ✅          | ✅                 | ❌               | ❌                                   |
+| nuclear-spin-recovery | ✅          | ✅                 | ✅               | ✅                                   |
+
+*Table notes:*  
+- “Mixed” indicates ability to sample continuous and discrete parameters jointly in the same framework.  
+- “Easy Hybridization” indicates whether it is straightforward to interleave different MCMC techniques for different parameters.
+
+
 
 # Software overview
+The software is designed with two goals:
+- allow experimentalists to reconstruct nuclear spin configurations from standard dynamical decoupling experiments quickly
+- allow theorists to design, implement, and integrate new forward models, MCMC algorithms, experiments, and error/likelihood functions.
 
 
 

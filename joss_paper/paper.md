@@ -24,11 +24,12 @@ affiliations:
     index: 4
 date: 1 December 2025
 bibliography: paper.bib
----
 
-\usepackage{xcolor}
-\newcommand{\cmark}{\textcolor{green}{\checkmark}}
-\newcommand{\xmark}{\textcolor{red}{\times}}
+header-includes:
+  - \usepackage{xcolor}
+  - \newcommand{\cmark}{\textcolor{green}{\checkmark}}
+  - \newcommand{\xmark}{\textcolor{red}{\times}}
+---
 
 # Summary
 We present a software package that implements a flexible Bayesian framework for ill-posed inverse problems and multi-modal optimization problems that arise in the analysis of coherence properties of spin defects in semiconductors in quantum sensing and spin-physics experiments.

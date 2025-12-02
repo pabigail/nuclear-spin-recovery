@@ -27,15 +27,8 @@ bibliography: paper.bib
 ---
 
 # Summary
-`nuclear-spin-recovery` is a Python package that uses hybrid Markov chain Monte Carlo (MCMC) methods to reconstruct the arrangement and properties of nuclear spins around point defects in solids based on experimentally-measured coherence data.
-In many quantum sensing and spin-physics experiments, these nuclear environments influence the beahvior of the spin in the point-defect, but they cannot be observed directly.
-Instead, researchers rely on indirect measurements through the coherence signal of a point-defect that make the detection of nuclear spins difficult, often with many different nuclear spin configurations capable of producing a coherence signal that has a high likelihood of producing the experimental coherence data, especially when the coherence data is noisy or sparse.
-
-This software package produces a flexible Bayesian framework for solving this inverse problem. 
-It combines several MCMC techniques to sample both continuous parameters (such as coupling interactions among spins) and discrete parameters (such as lattice positions of spins), as well as models of different dimensions (such as nuclear spin configurations with different numbers of nuclear spins). 
-The package is designed to be highly extensible: users can incorporate different forward models based on different levels of cluster-correlation expansion theory, choose among various sampling algorithms, and define custom likelihood or errorfunctions to suit their experimental setup. 
-
-By producing full posterior distributions rather than single best-fit values, `nuclear-spin-recovery` allows users to quantify uncertainty and explroe multiple plausible nuclear configurations, even in ill-posed regimes. The package serves both experimentalists, who can use it to reconstruct nuclear spin environments from common dynamical decoupling experiments, and theorists, who can apply it as a general tool for nonlineiear, non-convex optimization for designing pulse sequences and experiments tailored to different recovery criteria or to specific spin-bath structures.
+We present a software package that implements a flexible Bayesian framework for reconstructing and obtaining parameters in ill-posed inverse problems and multi-modal optimization problems arising in the analysis of coherence properties of nuclear spin baths surrounding individual spin defects in semiconductors (e.g., nitrogen-vacancy (NV) centers in diamond, divacancies in silicon carbide (SiC)) in quantum sensing and spin-physics experiments.
+Key features of our software package include joint sampling of continuous and discrete parameters, hybridization of several MCMC techniques include trans-dimensional model selection, modular forward-model interfaces to simulate coherence signals under a range of theoretical approaches, customizable error models and likelihood functions to support a range of experimental conditions and noise sources, and extensibility to arbitrary nuclear spin baths and semiconductors. This tool is designed for experimentalists seeking posterior distributions of nuclear spin baths from sparsely sampled standard coherence signals and for theorists developing optimized pulse sequences or adaptive data-assimilation schemes tailored to specific spin defects, nuclear baths, and experimental setups.  
 
 # Statement of need
 
@@ -61,20 +54,16 @@ This package enables both experimentalists and theorists to infer, quantify, and
 
 ### Comparison of Existing MCMC Packages
 
-| Package       | Continuous Parameters | Discrete Parameters | Mixed (Cont+Disc) | Easy Hybridization |
-|---------------|--------------------|-------------------|-----------------|-------------------------------------|
-| PyMC          | ✅                  | ✅                 | ❌               | ❌                             |
-| Stan          | ✅                  | ❌                 | ❌               | ❌                                   |
-| emcee         | ✅                  | ❌                 | ❌               | ❌                                   |
-| pymc3         | ✅                  | ✅                 | ❌               | ❌                                   |
-| TensorFlow Probability | ✅          | ✅                 | ❌               | ❌                                   |
-| nuclear-spin-recovery | ✅          | ✅                 | ✅               | ✅                                   |
+Table: Feature comparison of general MCMC software packages with `nuclear-spin-recovery`, highlighting support for continuous, discrete, mixed, hybrid, and transdimensional sampling.
 
-*Table notes:*  
-- “Mixed” indicates ability to sample continuous and discrete parameters jointly in the same framework.  
-- “Easy Hybridization” indicates whether it is straightforward to interleave different MCMC techniques for different parameters.
-
-
+| Package                   | Continuous Parameters | Discrete Parameters | Mixed (Cont+Disc) | Transdimensional MCMC | Easy Hybridization |
+|---------------------------|-----------------------|----------------------|--------------------|------------------------|---------------------|
+| PyMC                      | $\checkmark$          | $\checkmark$         | $\times$           | $\times$               | $\times$            |
+| Stan                      | $\checkmark$          | $\times$             | $\times$           | $\times$               | $\times$            |
+| emcee                     | $\checkmark$          | $\times$             | $\times$           | $\times$               | $\times$            |
+| pymc3                     | $\checkmark$          | $\checkmark$         | $\times$           | $\times$               | $\times$            |
+| TensorFlow Probability    | $\checkmark$          | $\checkmark$         | $\times$           | $\times$               | $\times$            |
+| nuclear-spin-recovery     | $\checkmark$          | $\checkmark$         | $\checkmark$       | $\checkmark$           | $\checkmark$        |
 
 # Software overview
 The software is designed with two goals:
@@ -85,13 +74,9 @@ The software is designed with two goals:
 
 # Acknowledgements
 
-We thank Mykyta Onizhuk, F. Joseph Heremans, Benjamin Pingault, Christopher Egerstrom,  
-Daniel Sanz-Alonso, and Nathan Waniorek for helpful conversations during the development of this project.
-
+We thank Mykyta Onizhuk, F. Joseph Heremans, Benjamin Pingault, Christopher Egerstrom, Daniel Sanz-Alonso, and Nathan Waniorek for helpful conversations during the development of this project.
 A.N.P acknowledges support from the DOE CSGF under Award No. DE-SC0022158 and AFOSR under ???.
-
 G.G. acknowledges support from the Midwest Integrated Center for Computational Materials (MICCoM) as a part of the Computational Materials Sciences Program funded by the U.S. Department of Energy.
-
 This research used resources of the University of Chicago Research Computing Center.
 
 # References

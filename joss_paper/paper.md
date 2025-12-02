@@ -27,6 +27,8 @@ bibliography: paper.bib
 csl: joss.csl
 
 header-includes:
+  - \usepackage{amssymb}
+  - \usepackage{amsmath}
   - \usepackage{xcolor}
   - \newcommand{\cmark}{\textcolor{green}{\checkmark}}
   - \newcommand{\xmark}{\textcolor{red}{\times}}
@@ -82,6 +84,7 @@ This package enables both experimentalists and theorists to infer, quantify, and
 \caption{Feature comparison of general open-source MCMC software packages with `nuclear-spin-recovery`, highlighting support for continuous, discrete, mixed, hybrid, and transdimensional sampling.}
 \label{mcmc-table}
 
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccc}
 \hline
 Package & Continuous Parameters & Discrete Parameters & Mixed (Cont+Disc) & Transdimensional MCMC & Easy Hybridization \\
@@ -93,8 +96,10 @@ pymc3 & \cmark & \cmark & \xmark & \xmark & \xmark \\
 TensorFlow Probability & \cmark & \cmark & \xmark & \xmark & \xmark \\
 nuclear-spin-recovery & \cmark & \cmark & \cmark & \cmark & \cmark \\
 \hline
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
+
 
 # Software overview
 The software is designed with two goals:

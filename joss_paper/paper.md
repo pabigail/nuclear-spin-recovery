@@ -81,20 +81,19 @@ This package enables both experimentalists and theorists to infer, quantify, and
 
 \begin{table}[ht]
 \centering
-\caption{Feature comparison of general open-source MCMC software packages with `nuclear-spin-recovery`, highlighting support for continuous, discrete, mixed, hybrid, and transdimensional sampling.}
+\caption{Feature comparison of general MCMC packages with `nuclear-spin-recovery`, highlighting continuous, discrete, mixed, hybrid, and transdimensional support.}
 \label{mcmc-table}
-
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccc}
 \hline
-Package & Continuous Parameters & Discrete Parameters & Mixed (Cont+Disc) & Transdimensional MCMC & Easy Hybridization \\
+Package & \shortstack{Continuous \\ Parameters} & \shortstack{Discrete \\ Parameters} & \shortstack{Mixed \\ (Cont+Disc)} & \shortstack{Transdimensional \\ MCMC} & \shortstack{Easy \\ Hybridization} \\
 \hline
-PyMC & \cmark & \cmark & \xmark & \xmark & \xmark \\
-Stan & \cmark & \xmark & \xmark & \xmark & \xmark \\
-emcee & \cmark & \xmark & \xmark & \xmark & \xmark \\
-pymc3 & \cmark & \cmark & \xmark & \xmark & \xmark \\
-TensorFlow Probability & \cmark & \cmark & \xmark & \xmark & \xmark \\
-nuclear-spin-recovery & \cmark & \cmark & \cmark & \cmark & \cmark \\
+PyMC & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
+Stan & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
+emcee & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
+pymc3 & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
+TensorFlow Probability & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
+nuclear-spin-recovery & $\cmark$ & $\cmark$ & $\cmark$ & $\cmark$ & $\cmark$ \\
 \hline
 \end{tabular}%
 }

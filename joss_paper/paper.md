@@ -24,6 +24,7 @@ affiliations:
     index: 4
 date: 1 December 2025
 bibliography: paper.bib
+csl: joss.csl
 
 header-includes:
   - \usepackage{xcolor}
@@ -40,7 +41,7 @@ Key features of our software package include joint sampling of continuous and di
 
 Experimental characterization of nuclear spin environments around solid-state spin defects, such as NV centers in diamond, is a central problem in quantum sensing and quantum information science. 
 On the one hand, these nuclear spins can be a main source of decoherence of quantum information for the spin-defect [@zhao2012decoherence; @seo2016quantum]. 
-On the other hand, these nuclear spins can serve as local quantum registers or quantum memories, provided that their spatial configuration and couplings to the spin-defect are known [@bradley2019ten; @bourassa2020entanglement]. 
+On the other hand, these nuclear spins can serve as local quantum registers or quantum memories, provided that their spatial configuration and couplings to the spin-defect are known [@bradley2019ten; @bourassa2020entanglement].
 
 While direct experimental characterization of the full nuclear spin environment is possible through, for example, correlated sensing [@van2024mapping], these experiments are time-consuming and labor-intensive.
 Often experimentalists do not require a full mapping of the nuclear spin environment but instead seek an initial rough characterization of the nuclear spin environment using standard dynamical decoupling experiments before deciding whether to use a specific spin-defect for further experiments [@poteshman2025high]. 
@@ -81,14 +82,14 @@ This package enables both experimentalists and theorists to infer, quantify, and
 \caption{Feature comparison of general open-source MCMC software packages with \texttt{nuclear-spin-recovery}, highlighting support for continuous, discrete, mixed, hybrid, and transdimensional sampling.}
 \label{mcmc-table}
 
-| Package                   | Continuous Parameters | Discrete Parameters | Mixed (Cont+Disc) | Transdimensional MCMC | Easy Hybridization |
-|---------------------------|-----------------------|----------------------|--------------------|------------------------|---------------------|
-| PyMC                      | $\cmark$              | $\cmark$            | $\xmark$           | $\xmark$               | $\xmark$            |
-| Stan                      | $\cmark$              | $\xmark$            | $\xmark$           | $\xmark$               | $\xmark$            |
-| emcee                     | $\cmark$              | $\xmark$            | $\xmark$           | $\xmark$               | $\xmark$            |
-| pymc3                     | $\cmark$              | $\cmark$            | $\xmark$           | $\xmark$               | $\xmark$            |
-| TensorFlow Probability    | $\cmark$              | $\cmark$            | $\xmark$           | $\xmark$               | $\xmark$            |
-| nuclear-spin-recovery     | $\cmark$              | $\cmark$            | $\cmark$           | $\cmark$               | $\cmark$            |
+| Package                | Continuous Parameters | Discrete Parameters | Mixed (Cont+Disc) | Transdimensional MCMC | Easy Hybridization |
+|------------------------|----------------------|-------------------|-----------------|----------------------|------------------|
+| PyMC                   | \cmark               | \cmark            | \xmark          | \xmark               | \xmark           |
+| Stan                   | \cmark               | \xmark            | \xmark          | \xmark               | \xmark           |
+| emcee                  | \cmark               | \xmark            | \xmark          | \xmark               | \xmark           |
+| pymc3                  | \cmark               | \cmark            | \xmark          | \xmark               | \xmark           |
+| TensorFlow Probability | \cmark               | \cmark            | \xmark          | \xmark               | \xmark           |
+| nuclear-spin-recovery  | \cmark               | \cmark            | \cmark          | \cmark               | \cmark           |
 
 \end{table}
 

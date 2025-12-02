@@ -77,22 +77,24 @@ This software package features domain-specific modular forward models that inter
 
 This package enables both experimentalists and theorists to infer, quantify, and design nuclear spin environments effectively.
 
-\begin{table}[!ht]
+\begin{table}[ht]
 \centering
-\caption{Feature comparison of general open-source MCMC software packages with \texttt{nuclear-spin-recovery}, highlighting support for continuous, discrete, mixed, hybrid, and transdimensional sampling.}
+\caption{Feature comparison of general open-source MCMC software packages with `nuclear-spin-recovery`, highlighting support for continuous, discrete, mixed, hybrid, and transdimensional sampling.}
 \label{mcmc-table}
 
-| Package                | Continuous Parameters | Discrete Parameters | Mixed (Cont+Disc) | Transdimensional MCMC | Easy Hybridization |
-|------------------------|----------------------|-------------------|-----------------|----------------------|------------------|
-| PyMC                   | \cmark               | \cmark            | \xmark          | \xmark               | \xmark           |
-| Stan                   | \cmark               | \xmark            | \xmark          | \xmark               | \xmark           |
-| emcee                  | \cmark               | \xmark            | \xmark          | \xmark               | \xmark           |
-| pymc3                  | \cmark               | \cmark            | \xmark          | \xmark               | \xmark           |
-| TensorFlow Probability | \cmark               | \cmark            | \xmark          | \xmark               | \xmark           |
-| nuclear-spin-recovery  | \cmark               | \cmark            | \cmark          | \cmark               | \cmark           |
-
+\begin{tabular}{lcccccc}
+\hline
+Package & Continuous Parameters & Discrete Parameters & Mixed (Cont+Disc) & Transdimensional MCMC & Easy Hybridization \\
+\hline
+PyMC & \cmark & \cmark & \xmark & \xmark & \xmark \\
+Stan & \cmark & \xmark & \xmark & \xmark & \xmark \\
+emcee & \cmark & \xmark & \xmark & \xmark & \xmark \\
+pymc3 & \cmark & \cmark & \xmark & \xmark & \xmark \\
+TensorFlow Probability & \cmark & \cmark & \xmark & \xmark & \xmark \\
+nuclear-spin-recovery & \cmark & \cmark & \cmark & \cmark & \cmark \\
+\hline
+\end{tabular}
 \end{table}
-
 
 # Software overview
 The software is designed with two goals:

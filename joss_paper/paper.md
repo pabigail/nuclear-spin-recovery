@@ -88,11 +88,11 @@ This package enables both experimentalists and theorists to infer, quantify, and
 \hline
 Package & \shortstack{Continuous \\ Parameters} & \shortstack{Discrete \\ Parameters} & \shortstack{Mixed \\ (Cont+Disc)} & \shortstack{Transdimensional \\ MCMC} & \shortstack{Straightforward \\ Hybridization} & Ref \\
 \hline
-PyMC & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & \cite{abril2023pymc} \\
-Stan & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & \cite{carpenter2017stan} \\
-emcee & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & \cite{foreman2013emcee} \\
-TensorFlow Probability & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & \cite{dillon2017tensorflow} \\
-pymcmcstat & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & \cite{miles2019pymcmcstat} \\
+PyMC & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@abril2023pymc] \\
+Stan & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@carpenter2017stan] \\
+emcee & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@foreman2013emcee] \\
+TensorFlow Probability & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@dillon2017tensorflow] \\
+pymcmcstat & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@miles2019pymcmcstat] \\
 nuclear-spin-recovery & $\cmark$ & $\cmark$ & $\cmark$ & $\cmark$ & $\cmark$ \\
 \hline
 \end{tabular}%

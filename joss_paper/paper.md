@@ -53,7 +53,7 @@ In such experiments, the inverse problem is ill-posed, where multiple nuclear sp
 While there have been direct machine learning approaches [@jung2021deep; @varona2024automatic] to this same inverse problem, a direct inverse mapping of coherence signal to nuclear spin environment requires an order of magnitude more experimental data than is practical or necessary for a rough characterization [@poteshman2025trans]. 
 We also note that approaches based on variational Bayesian inference have also been successfully applied to this inverse problem [@belliardo2025multi], but these approaches have not yet incorporated spatial nuclear information or flexible interfacing with different forward models to simulate coherence signals. 
 
-Bayesian inference provides a natural framework for this task, but existing general MCMC packages (\autoref{mcmc-table}) lack both statistical and domain-specific features necessary for nuclear spin bath reconstruction. 
+Bayesian inference provides a natural framework for this task, but existing general, open-source Python MCMC packages (\autoref{mcmc-table}) lack both statistical and domain-specific features necessary for nuclear spin bath reconstruction. 
 We need *joint sampling from mixed discrete and continuous parameters*, since a nuclear spin may be modeled as having both continuous parameters, such as hyperfine coupligns, and discrete parameters, such as discrete lattice positions. 
 Similarly, experimental settings may have continuous features, such as magnetic field, or discrete features, such as the number of $\pi$-pulses. 
 Whether specific parameters are modeled as continuous or discrete depends on the available prior knowledge or experimental setup. 
@@ -69,7 +69,7 @@ The standard approach to simulate coherence signals is based on the cluster corr
 These different levels of theory are implemented in `pyCCE` [@onizhuk2021pycce], and this software package is designed so that users can flexibly and interchangeably access different levels of theory in the forward model for the MCMC simulations.  
 This software package features domain-specific modular forward models that interface with `pyCCE` for easy switching between different levels of CCE theory.
 
-`nuclear-spin-recovery` addresses these shortocmings of these general open-source MCMC software packages by providing a domain-specific Python framework for hybrid MCMC sampling that:
+`nuclear-spin-recovery` addresses these shortocmings of these general, open-source Python MCMC software packages by providing a domain-specific Python framework for hybrid MCMC sampling that:
 
 - Supports joint sampling of discrete and continuous parameters informed by domain knowledge.
 - Allows seamless hybridization of MCMC algorithms for different parameter types.
@@ -81,18 +81,18 @@ This package enables both experimentalists and theorists to infer, quantify, and
 
 \begin{table}[ht]
 \centering
-\caption{Feature comparison of general MCMC packages with `nuclear-spin-recovery`, highlighting continuous, discrete, mixed, hybrid, and transdimensional support.}
+\caption{Feature comparison of general MCMC packages with \texttt{nuclear-spin-recovery}, highlighting suport for sampling from continuous parameter distributions, discrete parameter distributions, jointly sampling from mixed continuous-discrete parameter distributions, hybridizing MCMC algorithms (on the level of individual parameters), and transdimensional (e.g., reverse jump) MCMC methods.}
 \label{mcmc-table}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccccccc}
 \hline
-Package & \shortstack{Continuous \\ Parameters} & \shortstack{Discrete \\ Parameters} & \shortstack{Mixed \\ (Cont+Disc)} & \shortstack{Transdimensional \\ MCMC} & \shortstack{Easy \\ Hybridization} \\
+Package & \shortstack{Continuous \\ Parameters} & \shortstack{Discrete \\ Parameters} & \shortstack{Mixed \\ (Cont+Disc)} & \shortstack{Transdimensional \\ MCMC} & \shortstack{Straightforward \\ Hybridization} & Ref \\
 \hline
-PyMC & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
-Stan & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
-emcee & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
-pymc3 & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
-TensorFlow Probability & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ \\
+PyMC & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@abril2023pymc] \\
+Stan & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@carpenter2017stan] \\
+emcee & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@foreman2013emcee] \\
+TensorFlow Probability & $\cmark$ & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@dillon2017tensorflow] \\
+pymcmcstat & $\cmark$ & $\xmark$ & $\xmark$ & $\xmark$ & $\xmark$ & [@miles2019pymcmcstat] \\
 nuclear-spin-recovery & $\cmark$ & $\cmark$ & $\cmark$ & $\cmark$ & $\cmark$ \\
 \hline
 \end{tabular}%
@@ -105,9 +105,22 @@ The software is designed with two goals:
 - allow experimentalists to reconstruct nuclear spin configurations from standard dynamical decoupling experiments quickly
 - allow theorists to design, implement, and integrate new forward models, MCMC algorithms, experiments, and error/likelihood functions.
 
-The software is structured so that there are a series of high-level abstract objects that interact among themselves, and then specific logic related to 
+The software is structured so that there are a series of high-level abstract objects that interact among themselves, and then the logic for specific MCMC algorithms, forward models, error and likelihood functions can be implemented in subclasses of the abstract objects.
+We highlight the main abstract objects below, and we refer users to the tutorials for examples of specific implementations of hybridized MCMC methods on specific nuclear spin baths.
 
+The parameters to be estimated can be either properties of a `SpinBath` object consisting of `NuclearSpin` objects, which store physical properties such as xyz coordinates, hyperfine couplings, and gyromagnetic ratios, or of an `Experiment`, which contains experimental settings such as magnetic fields, interpulse spacings, the type of pulses (e.g., $\pi$ pulses).
+Each of these properties can be either be a fixed parameter or a parameter than can be sampled from, and each parameter can be modeled as being drawn from a discrete or continuous distribution.
+Any combination of these properties can be jointly sampled over, given some experimental coherence data.
 
+The `ForwardModel` provides a link between a coherence signal and a combination of a specific set of `NuclearSpin` objects and an `Experiment`. The `ForwardModel` interfaces with the coherence signals computed using `pyCCE` or analytical formulas. In the future, a surrogate coherence model mapping nuclear spins and experiments to a coherence signal could also be used as the backend to a `ForwardModel`.
+
+The `Error` functions and `LogLikelihood` objects connect a set of `NuclearSpins` and an `Experiment` with a set of coherence data using a `ForwardModel` given a specific underlying assumption about the noise distribution of the data (e.g., Gaussian, Poisson) or a specific optimization obective.
+
+Different `Walkers` are defined for the parameters of the `SpinBath` and `Experiment` to be sampled over. 
+The `ProposalKernel` and `AcceptanceProbability` objects provide the statistical engines to produce a proposal kernel (e.g., random walk Metropolis Hastings, reverse jump MCMC, parallel tempering) and acceptance probability for the different MCMC sampling methods.
+A `Scheduler` takes in a list of `Walkers` and different MCMC algorithms defined by `ProposalKernel` and `AcceptanceProbability` objects, as well as hyperparameters for running the hybrid MCMC sampler, such as the number of steps that each MCMC algorithm should take and which algorithms sample which `Walkers`, intialization conditions, and the number of ensembles to run.
+
+Once the `Scheduler` has run the algorithm, there are postprocessing features to obtain convergence information, estimates of the parameters being sampled, and uncertainty quantification. For specific examples, see the tutorials hosted on the github page.
 
 # Acknowledgements
 

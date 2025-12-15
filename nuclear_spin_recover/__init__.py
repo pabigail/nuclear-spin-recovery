@@ -1,7 +1,7 @@
 """A hybrid MCMC sampler for nonlinear, non-convex optimization of nuclear spin baths and experiments from coherence data"""
 
 # Add imports here
-from .experiment import *
+from .experiment import Experiment
 
 
 from ._version import __version__

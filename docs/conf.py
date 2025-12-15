@@ -15,9 +15,10 @@
 # Incase the project was not installed
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
+# sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import nuclear_spin_recovery
+import nuclear_spin_recover
 
 
 # -- Project information -----------------------------------------------------
@@ -43,19 +44,33 @@ release = ''
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autosummary',
-    'sphinx.ext.autodoc',
+    'autoapi.extension',
+#    'sphinx.ext.autosummary',
+#    'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'sphinx.ext.extlinks',
     'sphinx_design',
-    'sphinx_copybutton',    
+#    'sphinx_copybutton',    
 ]
 
+autoapi_dirs = ['../nuclear_spin_recover']
+autoapi_ignore = ["*/tests/*",
+                  "_version.py"]
 
-autosummary_generate = True
+autoapi_options = ['members',
+		'undoc-members',
+		#'private-members',
+		#'special-members',
+		'show-inheritance',
+		'show-module-summary',
+		'imported-members',
+        'no-index',
+]
+
+# autosummary_generate = True
 napoleon_google_docstring = False
 napoleon_use_param = False
 napoleon_use_ivar = True
@@ -77,7 +92,7 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -93,7 +108,7 @@ pygments_style = 'default'
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'pydata_sphinx_theme'
+html_theme = 'sphinx_rtd_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

@@ -7,9 +7,9 @@ import sys
 
 import pytest
 
-import nuclear_spin_recovery
+import nuclear_spin_recover
 
 
 def test_nuclear_spin_recovery_imported():
     """Sample test, will always pass so long as import statement worked."""
-    assert "nuclear_spin_recovery" in sys.modules
+    assert "nuclear_spin_recover" in sys.modules

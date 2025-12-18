@@ -118,7 +118,7 @@ def test_update_pulse_sequence():
     seq = PulseSequence([pulse_x, pulse_y])
     assert seq.pulses[0].axis == "X"
     assert seq.pulses[0].angle == np.pi
-    assert seq.pulses[1].angle == "Y"
+    assert seq.pulses[1].axis == "Y"
     assert seq.pulses[1].angle == 0.5 * np.pi
     assert len(seq.pulses) == 2
 
@@ -151,6 +151,11 @@ def test_append_pulses():
     assert seq.pulses[2].axis == "X"
     assert seq.pulses[2].angle == np.pi
 
+    with pytest.raises(TypeError, match="Can only append Pulse objects"):
+        seq.append({"X": np.pi})
+
+    with pytest.raises(TypeError, match="Can only append Pulse objects"):
+        seq.append(100)
 
 def test_delete_single_pulse_from_pulse_seq():
 
@@ -193,6 +198,38 @@ def test_delete_multiple_pulses_from_pulse_seq():
     assert len(seq.pulses) == 0
 
 
+def test_delete_indices_out_of_range_invalid():
+
+    seq = PulseSequence([Pulse("X", np.pi),
+                         Pulse("Y", -0.5*np.pi)])
+    with pytest.raises(TypeError, match="Indices must be integers"):
+        seq.delete(["X"])
+    with pytest.raises(TypeError, match="Indices must be integers"):
+        seq.delete([np.pi])
+    with pytest.raises(IndexError, match="At least one Pulse index is out of range"):
+        seq.delete([-1])
+    with pytest.raises(IndexError, match="At least one Pulse index is out of range"):
+        seq.delete([0, 2])
+    with pytest.raises(IndexError, match = "At least one Pulse index is out of range"):
+        seq.delete([5])
+
+
+def test_delete_indices_out_of_order():
+
+    seq = PulseSequence([Pulse("X", np.pi),
+                         Pulse("Y", -1*np.pi),
+                         Pulse("Z", np.pi),
+                         Pulse("Z", 0.5*np.pi)])
+
+    assert len(seq.pulses) == 4
+
+    seq.delete([3, 1])
+    assert len(seq.pulses) == 2
+    assert seq.pulses[0].axis == "X"
+    assert seq.pulses[0].angle == np.pi
+    assert seq.pulses[1].axis == "Z"
+    assert seq.pulses[1].angle == np.pi
+
 def test_signature_consistent():
 
     seq_1 = PulseSequence([])
@@ -205,7 +242,7 @@ def test_signature_consistent():
     seq_2.append(Pulse("X", np.pi))
     assert len(seq_1.pulses) == 1
     assert len(seq_2.pulses) == 1
-    assert seq_1.get_signature() == seq2.get_signature()
+    assert seq_1.get_signature() == seq_2.get_signature()
 
 
 def test_signature_unique():
@@ -216,7 +253,7 @@ def test_signature_unique():
 
     seq_1.append(Pulse("Z", -0.5 * np.pi))
     assert len(seq_1.pulses) == 1
-    assert len(seq_2.pulses) == 2
+    assert len(seq_2.pulses) == 1
     assert seq_1.get_signature() != seq_2.get_signature()
 
     seq_3 = PulseSequence([Pulse("X", 0.5 * np.pi)])

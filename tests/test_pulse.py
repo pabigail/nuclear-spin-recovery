@@ -157,6 +157,7 @@ def test_append_pulses():
     with pytest.raises(TypeError, match="Can only append Pulse objects"):
         seq.append(100)
 
+
 def test_delete_single_pulse_from_pulse_seq():
 
     seq = PulseSequence([Pulse("X", np.pi), Pulse("Y", -1 * np.pi)])
@@ -200,8 +201,7 @@ def test_delete_multiple_pulses_from_pulse_seq():
 
 def test_delete_indices_out_of_range_invalid():
 
-    seq = PulseSequence([Pulse("X", np.pi),
-                         Pulse("Y", -0.5*np.pi)])
+    seq = PulseSequence([Pulse("X", np.pi), Pulse("Y", -0.5 * np.pi)])
     with pytest.raises(TypeError, match="Indices must be integers"):
         seq.delete(["X"])
     with pytest.raises(TypeError, match="Indices must be integers"):
@@ -210,16 +210,20 @@ def test_delete_indices_out_of_range_invalid():
         seq.delete([-1])
     with pytest.raises(IndexError, match="At least one Pulse index is out of range"):
         seq.delete([0, 2])
-    with pytest.raises(IndexError, match = "At least one Pulse index is out of range"):
+    with pytest.raises(IndexError, match="At least one Pulse index is out of range"):
         seq.delete([5])
 
 
 def test_delete_indices_out_of_order():
 
-    seq = PulseSequence([Pulse("X", np.pi),
-                         Pulse("Y", -1*np.pi),
-                         Pulse("Z", np.pi),
-                         Pulse("Z", 0.5*np.pi)])
+    seq = PulseSequence(
+        [
+            Pulse("X", np.pi),
+            Pulse("Y", -1 * np.pi),
+            Pulse("Z", np.pi),
+            Pulse("Z", 0.5 * np.pi),
+        ]
+    )
 
     assert len(seq.pulses) == 4
 
@@ -229,6 +233,7 @@ def test_delete_indices_out_of_order():
     assert seq.pulses[0].angle == np.pi
     assert seq.pulses[1].axis == "Z"
     assert seq.pulses[1].angle == np.pi
+
 
 def test_signature_consistent():
 

@@ -14,7 +14,7 @@ def test_experiment_imported_instantiated():
         experiment_name="CPMG", tau=tau, mag_field=10, pulses=pulses, lambda_decoherence=1,
     )
     assert isinstance(sing_exp, SingleExperiment)
-    assert sing_exp.experiment_name == ["CPMG"]
+    assert sing_exp.experiment_name == "CPMG"
 
     batch_exp = BatchExperiment([sing_exp])
     assert isinstance(batch_exp, BatchExperiment)
@@ -40,7 +40,6 @@ def test_experiment_positive_magfield():
 
     exp_float_mag_field = SingleExperiment(
         experiment_name="CPMG",
-        num_exps=1,
         tau=[1.0, 2.0],
         mag_field=3.2,
         pulses=PulseSequence([Pulse("Y", np.pi)]),
@@ -78,7 +77,7 @@ def test_lambda_decoherence_proper_values(good_lambda):
             experiment_name=exp_name,
             tau=tau,
             mag_field=mag_field,
-            pusles=pulse_sequence)
+            pulses=pulse_sequence)
 
     assert exp_default.lambda_decoherence == 1.0
 
@@ -88,7 +87,7 @@ def test_lambda_decoherence_proper_values(good_lambda):
         [0.0, -0.5, 1.1, 100],
         )
 def test_invalid_lambda_decoherence(bad_lambda):
-    with pytest.raises(ValueError, match="lambda_decoherence must be in (0.0, 1.0])"):
+    with pytest.raises(ValueError, match=r"Lambda decoherence must be in \(0\.0, 1\.0\]"):
         SingleExperiment(
                 experiment_name="CPMG",
                 tau=[0.1],
@@ -105,14 +104,14 @@ def test_all_tau_positive():
             pulses=PulseSequence([Pulse("X", np.pi)]),
         )
 
-    assert exp1.tau[[0]] == 0.0001
+    assert exp1.tau[0] == 0.00001
 
     with pytest.raises(ValueError, match="All interpulse spacings must be > 0"):
         SingleExperiment(
                 experiment_name="CPMG",
                 tau=[0.0],
                 mag_field=0.5,
-                pulses=PulseSeqeuence([Pulse("Y", np.pi)]),
+                pulses=PulseSequence([Pulse("Y", np.pi)]),
             )
 
     with pytest.raises(ValueError, match="All interpulse spacings must be > 0"):
@@ -129,9 +128,28 @@ def test_all_tau_positive():
                          pulses=PulseSequence([Pulse("X", np.pi)]),
                          )
 
+def test_tau_list_real_numbers():
+
+    with pytest.raises(TypeError, match="Tau must be a list of interpulse spacings > 0"):
+        SingleExperiment(
+                experiment_name="CPMG",
+                tau=0.3,
+                mag_field=100,
+                pulses=PulseSequence([]),
+                )
+
+    with pytest.raises(TypeError, match="All interpulse spacings must be real numbers > 0"):
+        SingleExperiment(
+                experiment_name="CPMG",
+                tau=[True],
+                mag_field=100,
+                pulses=PulseSequence([]),
+                )
+
+
 def test_exp_names_are_strings():
     
-    with pytest.raises(TypeError, match="Experiment names must be nonempty strings"):
+    with pytest.raises(ValueError, match="Experiment names must be nonempty strings"):
         SingleExperiment(experiment_name="",
                    tau=[1.0],
                    mag_field=1.0,
@@ -146,7 +164,7 @@ def test_exp_names_are_strings():
         )
 
     with pytest.raises(TypeError, match="Experiment names must be nonempty strings"):
-        Experiment(experiment_name=True,
+        SingleExperiment(experiment_name=True,
                    tau=[0.005],
                    mag_field=200,
                    pulses=PulseSequence([Pulse("Z", np.pi)]),
@@ -159,38 +177,42 @@ def test_pulses_proper_objects():
                                mag_field=311,
                                pulses=PulseSequence([]),
     )
-    assert isinstance(exp_no_pulses.pulses, dict)
     assert len(exp_no_pulses.pulses) == 0
 
     experiment_name = "XY8"
     mag_field = 311
     tau = [1.0, 2.0]
 
-    with pytest.raises(ValueError, match="Invalid Pulse in PulseSequence"):
+    with pytest.raises(ValueError, match="Axis must be 'X', 'Y', or 'Z'"):
         SingleExperiment(experiment_name=experiment_name,
                    tau=tau,
                    mag_field=mag_field,
                    pulses=PulseSequence([Pulse("A", np.pi)]),
         )
 
-    with pytest.raises(ValueError, match="Invalid Pulse in PulseSequence"):
+    with pytest.raises(ValueError, match="Angle must be a real number"):
         SingleExperiment(experiment_name=experiment_name,
                    tau=tau,
                    mag_field=mag_field,
                    pulses=PulseSequence([Pulse("X", "pi")]),
         )
 
-    with pytest.raises(ValueError, match="Invalid Pulse in PulseSequence"):
+    with pytest.raises(ValueError, match="Angle must be a real number"):
         SingleExperiment(experiment_name=experiment_name,
-                   num_exps=1,
                    tau=tau,
                    mag_field=mag_field,
                    pulses=PulseSequence([Pulse("X", True)]),
         )
 
+    with pytest.raises(ValueError, match="Pulse sequence must be a list of Pulses"):
+        SingleExperiment(experiment_name=experiment_name,
+                         mag_field=mag_field,
+                         tau=tau,
+                         pulses=PulseSequence([1, 2, 3]),
+                         )
+
     with pytest.raises(TypeError, match="Pulses field of SingleExperiment must be a PulseSequence"):
         SingleExperiment(experiment_name=experiment_name,
-                         num_exps=1,
                          tau=tau,
                          mag_field=mag_field,
                          pulses=Pulse("X", np.pi),
@@ -198,7 +220,6 @@ def test_pulses_proper_objects():
 
     with pytest.raises(TypeError, match="Pulses field of SingleExperiment must be a PulseSequence"):
         SingleExperiment(experiment_name=experiment_name,
-                         num_exps=1,
                          tau=tau,
                          mag_field=mag_field,
                          pulses=[Pulse("Z", 0.5*np.pi)],
@@ -220,14 +241,12 @@ def test_experiment_signature_deterministic():
 
 def test_experiment_signature_equal_for_identical_inputs():
     exp1 = SingleExperiment(experiment_name=["CPMG"],
-                      num_exps=1,
                       tau=[[1.0]],
                       mag_field=[2.0],
                       pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
     exp2 = SingleExperiment(experiment_name=["CPMG"],
-                      num_exps=1,
                       tau=[[1.0]],
                       mag_field=[2.0],
                       pulses=PulseSequence([Pulse("X", np.pi)]),
@@ -240,28 +259,24 @@ def test_experiment_signature_equal_for_identical_inputs():
 
 def test_experiment_signature_unequal_similar_inputs():
     exp1 = SingleExperiment(experiment_name=["CPMG"],
-                      num_exps=1,
                       tau=[[1.0]],
                       mag_field=[2.0],
                       pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
     exp2 = SingleExperiment(experiment_name=["CPMG"],
-                      num_exps=1,
                       tau=[[1.5]],
                       mag_field=[2.0],
                       pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
     exp3 = SingleExperiment(experiment_name=["CPMG"],
-                      num_exps=1,
                       tau=[[1.0]],
                       mag_field=[2.1],
                       pulses=PulseSequence[Pulse("X", np.pi)],
             )
 
     exp4 = SingleExperiment(experiment_name=["CPMG"],
-                      num_exps=1,
                       tau=[[1.0]],
                       mag_field=[2.0],
                       pulses=PulseSequence[Pulse("Y", np.pi)],
@@ -282,13 +297,11 @@ def test_experiment_signature_unequal_similar_inputs():
 
 def test_update_experiment_fields():
     exp = SingleExperiment(experiment_name=["CPMG"],
-                     num_experiments=1,
                      tau=[[1.0, 1.2]],
                      mag_field=[100],
                      pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
-    assert exp.num_experiments == 1
     assert exp.tau[0][0] == 1.0
     assert exp.tau[0][1] == 1.2
     assert exp.mag_field[0] == 100

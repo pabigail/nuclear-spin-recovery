@@ -424,3 +424,129 @@ def test_update_pulses_errors():
 
     with pytest.raises(TypeError, match="Pulses field must be a PulseSequence"):
         exp.update_pulses(Pulse("X", np.pi))
+
+
+def test_batchexperiment_basic_operations():
+    # Create some SingleExperiment objects
+    exp1 = SingleExperiment(
+        experiment_name="Exp1",
+        tau=[1.0, 2.0],
+        mag_field=100,
+        pulses=PulseSequence([Pulse("X", np.pi)])
+    )
+    exp2 = SingleExperiment(
+        experiment_name="Exp2",
+        tau=[0.5, 1.5],
+        mag_field=200,
+        pulses=PulseSequence([Pulse("Y", np.pi)])
+    )
+
+    # Initialize BatchExperiment
+    batch = BatchExperiment([exp1])
+    assert len(batch) == 1
+    assert batch[0] == exp1
+
+    # Append experiment
+    batch.append(exp2)
+    assert len(batch) == 2
+    assert batch[1] == exp2
+
+    # Iteration works
+    experiments = list(batch)
+    assert experiments == [exp1, exp2]
+
+
+def test_batchexperiment_invalid_initialization():
+    # Not a list
+    with pytest.raises(TypeError, match="Experiments must be provided as a list"):
+        BatchExperiment("not a list")
+
+    # List contains non-SingleExperiment
+    with pytest.raises(TypeError, match="All elements must be SingleExperiment instances"):
+        BatchExperiment([1, 2, 3])
+
+def test_batchexperiment_append_errors():
+    batch = BatchExperiment()
+    # Appending non-SingleExperiment
+    with pytest.raises(TypeError, match="Can only append SingleExperiment objects"):
+        batch.append("not an experiment")
+
+def test_batchexperiment_delete_errors():
+    exp = SingleExperiment(
+        experiment_name="Exp1",
+        tau=[1.0],
+        mag_field=50,
+        pulses=PulseSequence([Pulse("Z", np.pi)])
+    )
+    batch = BatchExperiment([exp])
+
+    # Non-integer indices
+    with pytest.raises(TypeError, match="Indices must be integers"):
+        batch.delete([0.5])
+
+    # Index out of range
+    with pytest.raises(IndexError, match="At least one experiment index is out of range"):
+        batch.delete([1])
+
+def test_batchexperiment_get_signature_deterministic():
+    exp1 = SingleExperiment(
+        experiment_name="Exp1",
+        tau=[1.0, 2.0],
+        mag_field=100,
+        pulses=PulseSequence([Pulse("X", np.pi)])
+    )
+    exp2 = SingleExperiment(
+        experiment_name="Exp2",
+        tau=[0.5, 1.5],
+        mag_field=200,
+        pulses=PulseSequence([Pulse("Y", np.pi)])
+    )
+
+    batch = BatchExperiment([exp1, exp2])
+    sig1 = batch.get_signature()
+    sig2 = batch.get_signature()
+    assert sig1 == sig2  # deterministic
+
+def test_batchexperiment_get_signature_changes_on_update():
+    exp1 = SingleExperiment(
+        experiment_name="Exp1",
+        tau=[1.0],
+        mag_field=100,
+        pulses=PulseSequence([Pulse("X", np.pi)])
+    )
+    batch = BatchExperiment([exp1])
+    sig1 = batch.get_signature()
+
+    # Modify the experiment
+    exp1.update_mag_field(150)
+    sig2 = batch.get_signature()
+    assert sig1 != sig2  # signature changes if experiment changes
+
+
+
+def test_batchexperiment_delete_multiple():
+    exp1 = SingleExperiment(
+        experiment_name="Exp1",
+        tau=[1.0],
+        mag_field=100,
+        pulses=PulseSequence([Pulse("X", np.pi)])
+    )
+    exp2 = SingleExperiment(
+        experiment_name="Exp2",
+        tau=[2.0],
+        mag_field=200,
+        pulses=PulseSequence([Pulse("Y", np.pi)])
+    )
+    exp3 = SingleExperiment(
+        experiment_name="Exp3",
+        tau=[3.0],
+        mag_field=300,
+        pulses=PulseSequence([Pulse("Z", np.pi)])
+    )
+
+    batch = BatchExperiment([exp1, exp2, exp3])
+    batch.delete([0, 2])
+    # Only exp2 remains
+    assert len(batch) == 1
+    assert batch[0] == exp2
+

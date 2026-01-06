@@ -38,7 +38,9 @@ class Pulse:
         if self.axis not in {"X", "Y", "Z"}:
             raise ValueError(self.axis_error_message)
 
-        if not isinstance(self.angle, numbers.Real):
+        if not (
+            isinstance(self.angle, numbers.Real) and not isinstance(self.angle, bool)
+        ):
             raise ValueError(self.angle_error_message)
 
     def update_angle(self, new_angle: numbers.Real) -> None:
@@ -102,6 +104,15 @@ class PulseSequence:
             if i < 0 or i >= len(self.pulses):
                 raise IndexError("At least one Pulse index is out of range")
             del self.pulses[i]
+
+    def __getitem__(self, idx):
+        return self.pulses[idx]
+
+    def __len__(self):
+        return len(self.pulses)
+
+    def __iter__(self):
+        return iter(self.pulses)
 
     def get_signature(self, angle_tol=1e-6) -> tuple:
         return tuple((p.axis, round(p.angle / angle_tol)) for p in self.pulses)

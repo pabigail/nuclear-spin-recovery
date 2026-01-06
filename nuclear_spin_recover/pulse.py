@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Literal, List, Iterable
+from typing import Literal, List, Iterable, Tuple
 import numbers
+import hashlib
+import json
 
 Axis = Literal["X", "Y", "Z"]
 
@@ -82,6 +84,23 @@ class Pulse:
 
 @dataclass
 class PulseSequence:
+    """
+    A sequence of Pulse objects.
+
+    Parameters
+    ----------
+    pulses : list of Pulse
+        List of Pulse objects in the sequence. Defaults to empty list.
+
+    Methods
+    -------
+    append(pulse)
+        Append a Pulse to the sequence.
+    delete(indices)
+        Delete pulses at specified indices.
+    get_signature(angle_tol=1e-6)
+        Return a deterministic SHA256 hash string representing the pulse sequence.
+    """
     pulses: List[Pulse] = field(default_factory=list)
 
     def __post_init__(self):
@@ -114,5 +133,27 @@ class PulseSequence:
     def __iter__(self):
         return iter(self.pulses)
 
-    def get_signature(self, angle_tol=1e-6) -> tuple:
-        return tuple((p.axis, round(p.angle / angle_tol)) for p in self.pulses)
+    def get_signature(self, angle_tol: float = 1e-6) -> str:
+        """
+        Return a deterministic SHA256 hash string for this pulse sequence.
+
+        Each pulse is represented by a dict with its axis and discretized
+        angle (rounded according to `angle_tol`). The sequence of these
+        dicts is converted to a JSON string, which is then hashed to
+        produce a compact, deterministic signature.
+
+        Parameters
+        ----------
+        angle_tol : float, optional
+            Tolerance for pulse angle differences. Default is 1e-6.
+
+        Returns
+        -------
+        str
+            SHA256 hash string representing the pulse sequence.
+        """
+        pulses_list = [{"axis": str(p.axis), "angle": round(p.angle / angle_tol)}
+                       for p in self.pulses]
+
+        sig_json = json.dumps(pulses_list, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(sig_json.encode("utf-8")).hexdigest()

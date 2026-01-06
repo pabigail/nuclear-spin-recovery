@@ -1,6 +1,6 @@
 import numpy as np
-from dataclasses import dataclass, asdict
-from typing import List, Tuple, Dict, Any
+from dataclasses import dataclass, asdict, field
+from typing import List, Tuple, Dict, Any, Iterable
 from .pulse import Pulse, PulseSequence
 import numbers
 import hashlib
@@ -161,6 +161,74 @@ class SingleExperiment:
         return hashlib.sha256(sig_json.encode("utf-8")).hexdigest()
 
 
+
 @dataclass
 class BatchExperiment:
-    experiments: List[SingleExperiment]
+    """
+    A batch of SingleExperiment objects.
+
+    Parameters
+    ----------
+    experiments : list of SingleExperiment
+        List of experiments in the batch.
+
+    Methods
+    -------
+    append(experiment)
+        Append a SingleExperiment to the batch.
+    delete(indices)
+        Delete experiments at specified indices.
+    get_signature()
+        Return a deterministic SHA256 hash string representing the batch.
+    """
+
+    experiments: List[SingleExperiment] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not isinstance(self.experiments, list):
+            raise TypeError("Experiments must be provided as a list")
+        for exp in self.experiments:
+            if not isinstance(exp, SingleExperiment):
+                raise TypeError("All elements must be SingleExperiment instances")
+
+    def append(self, experiment: SingleExperiment) -> "BatchExperiment":
+        """Append a SingleExperiment to the batch."""
+        if not isinstance(experiment, SingleExperiment):
+            raise TypeError("Can only append SingleExperiment objects")
+        self.experiments.append(experiment)
+        return self
+
+    def delete(self, indices: Iterable[int]) -> None:
+        """Delete experiments at the specified indices."""
+        if not all(isinstance(i, int) for i in indices):
+            raise TypeError("Indices must be integers")
+        for i in sorted(indices, reverse=True):
+            if i < 0 or i >= len(self.experiments):
+                raise IndexError("At least one experiment index is out of range")
+            del self.experiments[i]
+
+    def __getitem__(self, idx):
+        return self.experiments[idx]
+
+    def __len__(self):
+        return len(self.experiments)
+
+    def __iter__(self):
+        return iter(self.experiments)
+
+    def get_signature(self) -> str:
+        """
+        Return a deterministic SHA256 hash string for the batch of experiments.
+
+        Each SingleExperiment's signature is obtained via its `get_signature()`
+        method. The sequence of signatures is converted to a JSON string and
+        then hashed to produce a single compact, deterministic hash for the batch.
+
+        Returns
+        -------
+        str
+            SHA256 hash string representing the batch of experiments.
+        """
+        sig_list = [exp.get_signature() for exp in self.experiments]
+        sig_json = json.dumps(sig_list, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(sig_json.encode("utf-8")).hexdigest()

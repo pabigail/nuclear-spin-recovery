@@ -204,7 +204,7 @@ def test_pulses_proper_objects():
                    pulses=PulseSequence([Pulse("X", True)]),
         )
 
-    with pytest.raises(ValueError, match="Pulse sequence must be a list of Pulses"):
+    with pytest.raises(TypeError, match="Pulse sequence must be a list of Pulses"):
         SingleExperiment(experiment_name=experiment_name,
                          mag_field=mag_field,
                          tau=tau,

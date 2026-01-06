@@ -240,15 +240,15 @@ def test_experiment_signature_deterministic():
 
 
 def test_experiment_signature_equal_for_identical_inputs():
-    exp1 = SingleExperiment(experiment_name=["CPMG"],
-                      tau=[[1.0]],
-                      mag_field=[2.0],
+    exp1 = SingleExperiment(experiment_name="CPMG",
+                      tau=[1.0],
+                      mag_field=2.0,
                       pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
-    exp2 = SingleExperiment(experiment_name=["CPMG"],
-                      tau=[[1.0]],
-                      mag_field=[2.0],
+    exp2 = SingleExperiment(experiment_name="CPMG",
+                      tau=[1.0],
+                      mag_field=2.0,
                       pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
@@ -258,28 +258,28 @@ def test_experiment_signature_equal_for_identical_inputs():
     assert sig1 == sig2
 
 def test_experiment_signature_unequal_similar_inputs():
-    exp1 = SingleExperiment(experiment_name=["CPMG"],
-                      tau=[[1.0]],
-                      mag_field=[2.0],
+    exp1 = SingleExperiment(experiment_name="CPMG",
+                      tau=[1.0],
+                      mag_field=2.0,
                       pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
-    exp2 = SingleExperiment(experiment_name=["CPMG"],
-                      tau=[[1.5]],
-                      mag_field=[2.0],
+    exp2 = SingleExperiment(experiment_name="CPMG",
+                      tau=[1.5],
+                      mag_field=2.0,
                       pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
-    exp3 = SingleExperiment(experiment_name=["CPMG"],
-                      tau=[[1.0]],
-                      mag_field=[2.1],
-                      pulses=PulseSequence[Pulse("X", np.pi)],
+    exp3 = SingleExperiment(experiment_name="CPMG",
+                      tau=[1.0],
+                      mag_field=2.1,
+                      pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
-    exp4 = SingleExperiment(experiment_name=["CPMG"],
-                      tau=[[1.0]],
-                      mag_field=[2.0],
-                      pulses=PulseSequence[Pulse("Y", np.pi)],
+    exp4 = SingleExperiment(experiment_name="CPMG",
+                      tau=[1.0],
+                      mag_field=2.0,
+                      pulses=PulseSequence([Pulse("Y", np.pi)]),
             )
 
     sig1 = exp1.get_signature()
@@ -296,9 +296,9 @@ def test_experiment_signature_unequal_similar_inputs():
 
 
 def test_update_experiment_fields():
-    exp = SingleExperiment(experiment_name=["CPMG"],
-                     tau=[[1.0, 1.2]],
-                     mag_field=[100],
+    exp = SingleExperiment(experiment_name="CPMG",
+                     tau=[1.0, 1.2],
+                     mag_field=100,
                      pulses=PulseSequence([Pulse("X", np.pi)]),
             )
 
@@ -307,7 +307,7 @@ def test_update_experiment_fields():
     assert exp.mag_field[0] == 100
     assert exp.pulses[0].axis == np.pi
 
-    exp.update_mag_field(0, [200])
+    exp.update_mag_field(0, 200)
     assert exp.mag_field[0] == 200
 
     exp.update_tau(0, [1.1, 1.3])

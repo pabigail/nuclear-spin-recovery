@@ -7,13 +7,13 @@ from nuclear_spin_recover.nuclear_spin import SingleNuclearSpin, NuclearSpinList
 def test_single_nuclear_spin_valid():
     spin = SingleNuclearSpin(
         position=[0.0, 1.0, 2.0],
-        gamma=10.705,
+        gyro=10.705,
         A_parallel=1.2,
         A_perp=0.8,
     )
 
     assert np.allclose(spin.position, [0.0, 1.0, 2.0])
-    assert spin.gamma == 10.705
+    assert spin.gyro == 10.705
     assert spin.A_parallel == 1.2
     assert spin.A_perp == 0.8
 
@@ -29,7 +29,7 @@ def test_single_nuclear_spin_invalid_position(position):
     with pytest.raises(ValueError, match="Position must be a 3-element vector"):
         SingleNuclearSpin(
             position=position,
-            gamma=1.0,
+            gyro=1.0,
             A_parallel=1.0,
             A_perp=1.0,
         )
@@ -38,7 +38,7 @@ def test_single_nuclear_spin_invalid_position(position):
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("gamma", True),
+        ("gyro", True),
         ("A_parallel", False),
         ("A_perp", "bad"),
     ],
@@ -46,7 +46,7 @@ def test_single_nuclear_spin_invalid_position(position):
 def test_single_nuclear_spin_invalid_scalars(field, value):
     kwargs = dict(
         position=[0, 0, 0],
-        gamma=1.0,
+        gyro=1.0,
         A_parallel=1.0,
         A_perp=1.0,
     )

@@ -28,7 +28,11 @@ class SingleNuclearSpin:
     
     def __post_init__(self):
         # Position
-        self.position = np.asarray(self.position, dtype=float)
+        try:
+            self.position = np.asarray(self.position, dtype=float)
+        except (TypeError, ValueError):
+            raise ValueError("Position must be a 3-element vector")
+
         if self.position.shape != (3,):
             raise ValueError("Position must be a 3-element vector")
 
@@ -49,17 +53,19 @@ class SingleNuclearSpin:
         ----------
         tol : float
             Tolerance used to discretize floating-point values.
-
+    
         Returns
         -------
         tuple
-            Hashable signature tuple.
+            Hashable signature tuple composed only of built-in Python types.
         """
+        pos_sig = tuple(int(round(float(x) / tol)) for x in self.position)
+
         return (
-            tuple(np.round(self.position / tol).astype(int)),
-            round(self.gyro / tol),
-            round(self.A_parallel / tol),
-            round(self.A_perp / tol),
+            pos_sig,
+            int(round(float(self.gyro) / tol)),
+            int(round(float(self.A_parallel) / tol)),
+            int(round(float(self.A_perp) / tol)),
         )
 
 @dataclass

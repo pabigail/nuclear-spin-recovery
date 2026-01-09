@@ -13,11 +13,13 @@ from nuclear_spin_recover.forward_model import ForwardModel
 # Fixtures: experiments and spin bath
 # -----------------------------------------------------------------------------
 
+
 @pytest.fixture
 def single_experiment():
     class SingleExperiment:
         def __init__(self):
             self.times = np.linspace(0.0, 1.0, 50)
+
     return SingleExperiment()
 
 
@@ -30,6 +32,7 @@ def batch_experiment():
     class BatchExperiment:
         def __init__(self):
             self.experiments = [SingleExperiment() for _ in range(3)]
+
     return BatchExperiment()
 
 
@@ -38,12 +41,14 @@ def spin_bath():
     class SpinBath:
         def copy_with_noise(self, eps):
             return self
+
     return SpinBath()
 
 
 # -----------------------------------------------------------------------------
 # Forward model implementations to test
 # -----------------------------------------------------------------------------
+
 
 class DummyForwardModel:
     def compute_coherence(self, experiment, spin_bath):
@@ -52,15 +57,12 @@ class DummyForwardModel:
 
         if hasattr(experiment, "times"):
             return SingleCoherenceSignal(
-                times=experiment.times,
-                coherence=np.ones_like(experiment.times)
+                times=experiment.times, coherence=np.ones_like(experiment.times)
             )
         elif hasattr(experiment, "experiments"):
             signals = [
-                SingleCoherenceSignal(
-                    times=e.times,
-                    coherence=np.ones_like(e.times)
-                ) for e in experiment.experiments
+                SingleCoherenceSignal(times=e.times, coherence=np.ones_like(e.times))
+                for e in experiment.experiments
             ]
             return CoherenceSignalList(signals)
         else:
@@ -79,6 +81,7 @@ FORWARD_MODELS = [
 # Parametrize both model and experiment type
 # -----------------------------------------------------------------------------
 
+
 @pytest.fixture(params=FORWARD_MODELS)
 def model(request) -> ForwardModel:
     return request.param
@@ -95,6 +98,7 @@ def experiment_type(request, single_experiment, batch_experiment):
 # -----------------------------------------------------------------------------
 # Generic forward model tests
 # -----------------------------------------------------------------------------
+
 
 def test_model_has_compute_coherence(model):
     assert hasattr(model, "compute_coherence")
@@ -138,6 +142,7 @@ def test_deterministic(model, experiment_type, spin_bath):
 # Failure tests
 # -----------------------------------------------------------------------------
 
+
 def test_invalid_experiment_raises(model, spin_bath):
     with pytest.raises(TypeError):
         model.compute_coherence("not an experiment", spin_bath)
@@ -152,6 +157,7 @@ def test_invalid_spin_bath_raises(model, single_experiment):
 # Example downstream usage: log-likelihood
 # -----------------------------------------------------------------------------
 
+
 def log_likelihood(model, experiment, spin_bath, data):
     signal = model.compute_coherence(experiment, spin_bath)
     residual = data - signal.coherence
@@ -162,4 +168,3 @@ def test_log_likelihood(model, single_experiment, spin_bath):
     data = np.ones_like(single_experiment.times)
     ll = log_likelihood(model, single_experiment, spin_bath, data)
     assert np.isfinite(ll)
-

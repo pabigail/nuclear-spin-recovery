@@ -10,7 +10,7 @@ import json
 @dataclass
 class SingleExperiment:
     """
-    A class representing a single experiment 
+    A class representing a single experiment
 
     Parameters
     ----------
@@ -32,6 +32,7 @@ class SingleExperiment:
     ValueError
         If any numeric constraints are violated (negative magnetic field, non-positive tau, empty experiment name, etc.).
     """
+
     experiment_name: str
     tau: np.ndarray
     mag_field: float
@@ -159,7 +160,6 @@ class SingleExperiment:
 
         # Return a hash (SHA256) to make signature compact
         return hashlib.sha256(sig_json.encode("utf-8")).hexdigest()
-
 
 
 @dataclass

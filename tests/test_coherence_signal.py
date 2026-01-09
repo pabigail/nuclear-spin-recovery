@@ -12,6 +12,7 @@ from nuclear_spin_recover.coherence_signal import (
 # SingleCoherenceSignal tests
 # =============================================================================
 
+
 def test_single_coherence_signal_init():
     times = np.linspace(0, 1, 10)
     coherence = np.ones_like(times)
@@ -60,11 +61,14 @@ def test_single_coherence_signal_immutable():
 # CoherenceSignalList tests
 # =============================================================================
 
+
 @pytest.fixture
 def sample_signals():
     times = np.linspace(0, 1, 5)
-    return [SingleCoherenceSignal(times=times, coherence=np.ones_like(times))
-            for _ in range(3)]
+    return [
+        SingleCoherenceSignal(times=times, coherence=np.ones_like(times))
+        for _ in range(3)
+    ]
 
 
 def test_coherence_signal_list_init(sample_signals):
@@ -103,4 +107,3 @@ def test_coherence_signal_list_is_iterable(sample_signals):
     assert len(signals_iter) == len(sample_signals)
     for s1, s2 in zip(signals_iter, sample_signals):
         assert s1 is s2
-

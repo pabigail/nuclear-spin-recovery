@@ -5,6 +5,7 @@ from typing import List, Iterable
 import hashlib
 import json
 
+
 @dataclass
 class SingleNuclearSpin:
     """
@@ -21,11 +22,12 @@ class SingleNuclearSpin:
     A_perp : float
         Perpendicular hyperfine coupling component.
     """
+
     position: np.ndarray
     gyro: numbers.Real
     A_parallel: numbers.Real
     A_perp: numbers.Real
-    
+
     def __post_init__(self):
         # Position
         try:
@@ -53,7 +55,7 @@ class SingleNuclearSpin:
         ----------
         tol : float
             Tolerance used to discretize floating-point values.
-    
+
         Returns
         -------
         tuple
@@ -68,11 +70,13 @@ class SingleNuclearSpin:
             int(round(float(self.A_perp) / tol)),
         )
 
+
 @dataclass
 class NuclearSpinList:
     """
     A list of SingleNuclearSpin objects.
     """
+
     spins: List[SingleNuclearSpin] = field(default_factory=list)
 
     def __post_init__(self):
@@ -112,6 +116,7 @@ class NuclearSpinList:
         sig_list = [spin.get_signature(tol) for spin in self.spins]
         sig_json = json.dumps(sig_list, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(sig_json.encode("utf-8")).hexdigest()
+
 
 @dataclass
 class FullSpinBath:

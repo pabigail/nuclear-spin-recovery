@@ -4,5 +4,6 @@
 from .pulse import Pulse, PulseSequence
 from .experiment import SingleExperiment, BatchExperiment
 from .nuclear_spin import SingleNuclearSpin, NuclearSpinList, FullSpinBath
+from .coherence_signal import SingleCoherenceSignal, CoherenceSignalList
 
 from ._version import __version__

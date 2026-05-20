@@ -38,8 +38,12 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import pandas as pd
 
+# ── NumPy 2.0 compatibility patch ────────────────────────────────────────────
+# pycce (imported transitively through rjmcmc) references np.unicode_, which
+# was removed in NumPy 2.0.  Restore the alias before pycce loads so that the
+# attribute lookup in pycce/bath/cube.py succeeds on any NumPy version.
 if not hasattr(np, "unicode_"):
-    np.unicode_ = np.str_
+    np.unicode_ = np.str_  # type: ignore[attr-defined]
 
 # ── existing inference modules (unchanged) ───────────────────────────────────
 from rjmcmc import (
@@ -408,6 +412,7 @@ def run_inference(
 def plot_posterior(
     state: Dict[str, Any],
     config: Dict[str, Any],
+    is_simulation: bool = False,
     fig_size: Tuple[float, float] = (7, 6),
 ) -> None:
     """
@@ -415,13 +420,22 @@ def plot_posterior(
     the (A_par, A_perp) hyperfine plane.
 
     Each dot corresponds to one spin inside one sampled bath.  Opacity encodes
-    posterior weight.  Ground-truth spins are overlaid as red crosses when
-    config['show_ground_truth'] is True and config['ground_truth_spins'] is set.
+    posterior weight.
+
+    Ground-truth spins (red crosses) are overlaid **only** when
+    ``is_simulation=True`` and ``config['ground_truth_spins']`` is set.
+    Set ``is_simulation=False`` (the default) for real experimental data where
+    the ground truth is unknown.
 
     Parameters
     ----------
-    state  : pipeline state (must have 'posterior' key)
-    config : configuration dict
+    state         : pipeline state (must have 'posterior' key)
+    config        : configuration dict
+    is_simulation : bool
+        ``True``  – simulated data; ground-truth spin locations are known and
+                    will be shown as red crosses on the plot.
+        ``False`` – real experimental data; ground-truth overlay is suppressed
+                    regardless of what is stored in config['ground_truth_spins'].
     """
     posterior = state.get("posterior")
     if posterior is None:
@@ -444,8 +458,9 @@ def plot_posterior(
                    alpha=float(np.clip(alpha * 5, 0.02, 0.9)),
                    s=25, color="steelblue")
 
-    # ground truth overlay
-    if config.get("show_ground_truth") and config.get("ground_truth_spins"):
+    # ground truth overlay – only shown for simulations where GT is known
+    show_gt = is_simulation and bool(config.get("ground_truth_spins"))
+    if show_gt:
         for spin in config["ground_truth_spins"]:
             x = hf_df.iloc[spin]["A_par"]
             y = hf_df.iloc[spin]["A_perp"]
@@ -453,10 +468,14 @@ def plot_posterior(
                     label="ground truth" if spin == config["ground_truth_spins"][0]
                     else "_")
 
+    mode_label = "simulation" if is_simulation else "experiment"
     ax.set_xlabel(r"$A_{\parallel}$ (kHz)", fontsize=13)
     ax.set_ylabel(r"$A_{\perp}$ (kHz)",    fontsize=13)
-    ax.set_title(f"Spin-bath posterior  ·  iteration {n_iter}", fontsize=14)
-    if config.get("show_ground_truth") and config.get("ground_truth_spins"):
+    ax.set_title(
+        f"Spin-bath posterior  ·  iteration {n_iter}  ·  [{mode_label}]",
+        fontsize=14,
+    )
+    if show_gt:
         ax.legend(fontsize=11)
     plt.tight_layout()
     plt.show()

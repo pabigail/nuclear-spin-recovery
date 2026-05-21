@@ -722,29 +722,34 @@ def plot_information_diagnostic(
     state: Dict[str, Any],
     recommendation: Dict[str, Any],
     config: Dict[str, Any],
+    is_simulation: bool = False,
 ) -> None:
     """
-    Three-panel diagnostic: posterior predictions on a dense grid,
-    information density, and the selected measurement time-points.
+    Two-panel diagnostic: posterior predictions on a dense grid (top) and
+    normalised information density with selected time-points (bottom).
 
     Parameters
     ----------
     state          : pipeline state
     recommendation : dict from suggest_next_experiment()
     config         : configuration dict
+    is_simulation  : bool
+        ``True``  – simulated data; the ground-truth coherence curve is
+                    overlaid in red on the posterior-predictions panel.
+        ``False`` – real experimental data; ground-truth curve is suppressed
+                    regardless of what is stored in config['ground_truth_spins'].
     """
     base_exp    = recommendation["base_exp"]
     opt_exp     = recommendation["optimized_exp"]
     posterior   = state["posterior"]
     hf_df       = state["hf_df"]
 
-    dense_exp = make_dense_time_experiment(base_exp, config["Nt_dense"])
+    dense_exp   = make_dense_time_experiment(base_exp, config["Nt_dense"])
     times_dense = dense_exp["timepoints"][0]
     times_opt   = opt_exp["timepoints"][0]
 
-    P, w = prediction_matrix(dense_exp, posterior, hf_df)
+    P, w       = prediction_matrix(dense_exp, posterior, hf_df)
     mean_pred  = np.average(P, axis=0, weights=w)
-    sigma      = dense_exp["noise"][0]
     info       = information_density(dense_exp, posterior, hf_df)
     info_norm  = info / (info.max() + 1e-30)
 
@@ -755,9 +760,12 @@ def plot_information_diagnostic(
         axes[0].plot(times_dense, P[k], color="gray", alpha=0.1, lw=0.7)
     axes[0].plot(times_dense, mean_pred, lw=2, label="posterior mean", color="steelblue")
 
-    gt = config.get("ground_truth_spins")
-    if config.get("show_ground_truth") and gt:
-        gt_pred = calculate_coherence_with_T2(gt, hf_df, dense_exp)
+    # ground-truth curve only shown when is_simulation=True and GT spins are set
+    show_gt = is_simulation and bool(config.get("ground_truth_spins"))
+    if show_gt:
+        gt_pred = calculate_coherence_with_T2(
+            config["ground_truth_spins"], hf_df, dense_exp
+        )
         axes[0].plot(times_dense, gt_pred[0], lw=2, color="red", label="ground truth")
 
     axes[0].set_ylabel("coherence", fontsize=12)

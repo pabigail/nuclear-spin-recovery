@@ -29,8 +29,10 @@ Typical usage (in the notebook)
 from __future__ import annotations
 
 import copy
+import pickle
 import time
 import warnings
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -62,6 +64,7 @@ from adaptive_exp import (
     make_dense_time_experiment,
     information_density,
     prediction_matrix,
+    compute_EIG_particle,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -85,6 +88,8 @@ def default_config() -> Dict[str, Any]:
         hf_file         : path to the ab-initio hyperfine text file
         strong_thresh   : kHz – remove spins with any coupling > this value
         weak_thresh     : kHz – remove spins with all couplings < this value
+        hf_cache_dir    : directory where the processed hf_df + distance matrix
+                          are cached as a pkl.  Set to None to disable caching.
 
         Initial experiment
         ~~~~~~~~~~~~~~~~~~
@@ -121,9 +126,24 @@ def default_config() -> Dict[str, Any]:
 
         Experiment optimisation (timepoint selection)
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        T_budget          : total measurement-time budget
-        Nt_dense          : dense-grid points for Fisher-information sweep
-        M_eig             : Monte-Carlo samples for EIG estimation
+        Nt_dense      : dense-grid points for Fisher-information sweep
+        pruning_alpha : float in [0, 1] – fraction of the dense grid to keep
+                        after ranking by information density.
+                        1.0 = keep every point (no pruning).
+                        0.5 = keep the top 50 % most informative points.
+                        0.1 = keep only the top 10 %.
+                        → 0 = keep at most 1 point (extreme pruning).
+                        Pruning is fully deterministic: only the EIG scoring
+                        step that follows introduces any randomness.
+        M_eig         : Monte-Carlo samples used to estimate Expected
+                        Information Gain (EIG).  The estimator's standard
+                        error scales as 1/√M_eig, so small values produce
+                        highly variable utility scores and can cause the
+                        candidate ranking to flip between runs.
+                        Recommended values:
+                          20  → fast but noisy (old default – avoid)
+                          200 → good balance, ~3× more stable than 20
+                          500 → very stable, recommended for final runs
 
         Plotting
         ~~~~~~~~
@@ -136,6 +156,7 @@ def default_config() -> Dict[str, Any]:
         hf_file         = "nv-2.txt",
         strong_thresh   = 250.0,
         weak_thresh     = 10.0,
+        hf_cache_dir    = "hf_cache",   # set to None to disable disk caching
 
         # ── first / initial experiment ──────────────────────────────────────
         init_num_pulses = 4,
@@ -168,9 +189,9 @@ def default_config() -> Dict[str, Any]:
         candidate_T2       = 0.9,
 
         # ── experiment optimisation ─────────────────────────────────────────
-        T_budget   = 10.0,
-        Nt_dense   = 300,
-        M_eig      = 20,
+        Nt_dense      = 300,
+        pruning_alpha = 0.5,   # keep top 50 % of timepoints by info density
+        M_eig         = 200,   # MC samples for EIG; raise to 500 for final runs
 
         # ── plotting ────────────────────────────────────────────────────────
         plot_top_n          = 5,
@@ -221,6 +242,113 @@ def load_hyperfine_data(config: Dict[str, Any]) -> Dict[str, Any]:
         posterior    = None,
         iteration    = 0,
     )
+
+
+def load_or_compute_hyperfine_data(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Load the hyperfine spin library, using a disk cache when available.
+
+    The cache is keyed on the three parameters that determine the library:
+    ``hf_file``, ``strong_thresh``, and ``weak_thresh``.  If a pkl for
+    this exact combination exists in ``config['hf_cache_dir']``, it is
+    loaded instantly (typically < 1 s) instead of re-running the full
+    ab-initio parsing and distance-matrix construction (which can take
+    tens of seconds for large files).
+
+    Cache file naming
+    -----------------
+    ``<hf_cache_dir>/hf_<stem>_strong<S>_weak<W>.pkl``
+
+    For example, with ``hf_file="nv-2.txt"``, ``strong_thresh=750``,
+    ``weak_thresh=5``, the cache file is::
+
+        hf_cache/hf_nv-2_strong750.0_weak5.0.pkl
+
+    Changing any of the three parameters produces a different filename,
+    so old caches are never silently reused.
+
+    To force recomputation, delete the relevant ``.pkl`` file or set
+    ``config['hf_cache_dir'] = None`` to disable caching entirely.
+
+    Parameters
+    ----------
+    config : dict
+        Uses ``hf_file``, ``strong_thresh``, ``weak_thresh``, and
+        ``hf_cache_dir`` (str or None).
+
+    Returns
+    -------
+    state : dict  (same schema as ``load_hyperfine_data``)
+    """
+    cache_dir = config.get("hf_cache_dir")
+
+    # ── build a deterministic, human-readable cache filename ─────────────────
+    if cache_dir is not None:
+        hf_stem    = Path(config["hf_file"]).stem
+        cache_name = (
+            f"hf_{hf_stem}"
+            f"_strong{config['strong_thresh']}"
+            f"_weak{config['weak_thresh']}"
+            f".pkl"
+        )
+        cache_path = Path(cache_dir) / cache_name
+    else:
+        cache_path = None
+
+    # ── cache hit ─────────────────────────────────────────────────────────────
+    if cache_path is not None and cache_path.exists():
+        print(f"Found hyperfine cache: {cache_path}")
+        print("  Loading … ", end="", flush=True)
+        t0 = time.time()
+        with open(cache_path, "rb") as f:
+            cached = pickle.load(f)
+
+        # Paranoia check: stored parameters must match the current config
+        p = cached["params"]
+        if (p["hf_file"]       == config["hf_file"]       and
+                p["strong_thresh"] == config["strong_thresh"] and
+                p["weak_thresh"]   == config["weak_thresh"]):
+            state = dict(
+                hf_df          = cached["hf_df"],
+                hf_dist_mat    = cached["hf_dist_mat"],
+                experiments    = [],
+                coherence_data = [],
+                posterior      = None,
+                iteration      = 0,
+            )
+            print(
+                f"done ({time.time() - t0:.1f}s).  "
+                f"{len(state['hf_df'])} spins loaded from cache."
+            )
+            return state
+        else:
+            # Parameters changed — recompute and overwrite
+            print(
+                "cache parameters do not match current config "
+                "(strong_thresh or weak_thresh changed) — recomputing."
+            )
+
+    # ── cache miss: compute from scratch ──────────────────────────────────────
+    state = load_hyperfine_data(config)
+
+    # ── write cache ───────────────────────────────────────────────────────────
+    if cache_path is not None:
+        Path(cache_dir).mkdir(parents=True, exist_ok=True)
+        payload = dict(
+            params = dict(
+                hf_file       = config["hf_file"],
+                strong_thresh = config["strong_thresh"],
+                weak_thresh   = config["weak_thresh"],
+            ),
+            hf_df       = state["hf_df"],
+            hf_dist_mat = state["hf_dist_mat"],
+        )
+        with open(cache_path, "wb") as f:
+            pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+        size_mb = cache_path.stat().st_size / 1e6
+        print(f"  Hyperfine data cached → {cache_path}  ({size_mb:.1f} MB)")
+
+    return state
 
 
 def build_initial_experiment(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -614,76 +742,285 @@ def build_candidate_experiments(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     return candidates
 
 
+# ── private helpers (not part of the public API) ─────────────────────────────
+
+def _select_timepoints_by_alpha(
+    times: np.ndarray,
+    info: np.ndarray,
+    alpha: float,
+) -> np.ndarray:
+    """
+    Keep the top-``alpha`` fraction of time-points ranked by information
+    density, returning them in ascending time order.
+
+    Parameters
+    ----------
+    times : 1-D array of time-point values (ms), length Nt
+    info  : 1-D array of information-density values, same length as times
+    alpha : float in [0, 1]
+        Fraction of points to retain.  alpha=1.0 returns all points unchanged;
+        alpha=0.0 is clamped to keeping exactly 1 point.
+
+    Returns
+    -------
+    selected_times : 1-D array, length max(1, round(alpha * Nt))
+    """
+    n_total = len(times)
+    if alpha >= 1.0:
+        return times.copy()
+    n_keep = max(1, int(round(alpha * n_total)))
+    # argsort descending by information density, take the top n_keep indices
+    top_idx = np.argpartition(info, -n_keep)[-n_keep:]
+    # restore chronological order so the experiment is time-ordered
+    top_idx = np.sort(top_idx)
+    return times[top_idx]
+
+
+def _experiment_cost(base_exp: Dict[str, Any], times_opt: np.ndarray) -> float:
+    """
+    Physical cost of one experiment design:
+
+        cost = num_pulses × Σ tᵢ   (ms)
+
+    The sum runs over the selected (pruned) time-points.  This jointly
+    penalises experiments with many pulses and those that run for a long
+    total time, reflecting the dominant practical cost of DD sequences.
+
+    Parameters
+    ----------
+    base_exp  : single-experiment parameter dict (must have 'num_pulses' key)
+    times_opt : 1-D array of selected time-point values (ms)
+
+    Returns
+    -------
+    cost : float  (units: pulses · ms)
+    """
+    num_pulses = float(base_exp["num_pulses"][0])
+    return num_pulses * float(np.sum(times_opt))
+
+
+
+    """
+    Enumerate the grid of candidate experiment designs from config.
+
+    Returns
+    -------
+    candidates : list of single-experiment param dicts
+    """
+    candidates = []
+    for np_ in config["pulse_options"]:
+        for tmax in config["tmax_options"]:
+            times = np.linspace(0.0, tmax, config["num_candidate_tps"])
+            exp   = make_exp_params_dict(
+                num_exps  = 1,
+                num_pulses= [np_],
+                mag_field = [config["candidate_mag_field"]],
+                noise     = [config["candidate_noise"]],
+                timepoints= [times],
+                T2        = [config["candidate_T2"]],
+            )
+            candidates.append(exp)
+    print(f"Built {len(candidates)} candidate experiments "
+          f"({len(config['pulse_options'])} pulse settings × "
+          f"{len(config['tmax_options'])} tmax values).")
+    return candidates
+
+
 def suggest_next_experiment(
     state: Dict[str, Any],
     config: Dict[str, Any],
     candidates: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
-    Score all candidate experiments by information-gain utility and return the
-    best (highest utility-per-cost) optimised design.
+    Score all candidate experiments by EIG-per-cost utility and return the
+    best optimised design.
+
+    Pruning  (``config['pruning_alpha']``)
+    ----------------------------------------
+    For each candidate a dense time-grid (``Nt_dense`` points) is evaluated
+    for its information density — the posterior-weighted variance of coherence
+    predictions at each time, divided by the noise variance.  Time-points are
+    then ranked by this score and only the top fraction ``pruning_alpha`` is
+    kept for the actual experiment.
+
+    ======  =======================================================
+    alpha   Effect
+    ======  =======================================================
+    1.0     Keep every dense-grid point (no pruning)
+    0.5     Keep the 50 % most informative points  ← default
+    0.1     Keep only the top 10 %
+    → 0     Keep at most 1 point (extreme pruning)
+    ======  =======================================================
+
+    Time-point selection is **fully deterministic** given the posterior and
+    config; the only randomness is in the EIG scoring step (see below).
+
+    Cost model  (``num_pulses × Σ tᵢ``)
+    -------------------------------------
+    Each candidate is penalised by:
+
+        cost = num_pulses × Σ tᵢ   (ms)
+
+    where the sum runs over the *selected* (post-pruning) time-points.  This
+    jointly penalises long experiments and high pulse counts, reflecting the
+    dominant practical cost of dynamical-decoupling sequences.
+
+    Why EIG scores vary between runs — and how to fix it
+    ------------------------------------------------------
+    EIG is estimated by Monte-Carlo: ``M_eig`` synthetic data-sets are drawn
+    from the current posterior and the information gain of each is averaged.
+    The estimator's standard error scales as **1/√M_eig**, so:
+
+    =========  =====================  ================================
+    M_eig      Relative noise         Notes
+    =========  =====================  ================================
+    20         1.0×  (baseline)       Old default — rankings unstable
+    200        0.32×                  Good everyday setting
+    500        0.20×                  Stable; use for final decisions
+    =========  =====================  ================================
+
+    Additionally, if ``config['random_seed']`` is set, the numpy RNG is
+    seeded before EIG scoring so that a single run is fully reproducible.
+    To compare two alpha values or M values fairly, fix the same seed.
 
     Parameters
     ----------
     state      : pipeline state with a valid posterior
-    config     : configuration dict
-    candidates : list of candidate experiment dicts.  Built from config if None.
+    config     : configuration dict.  Relevant keys:
+                   ``pruning_alpha`` – float in [0, 1] (default 0.5)
+                   ``M_eig``         – int, MC samples (default 200)
+                   ``Nt_dense``      – int, dense-grid size (default 300)
+                   ``random_seed``   – int or None
+    candidates : list of candidate experiment dicts built by
+                 ``build_candidate_experiments()``.  Built automatically
+                 from config if not supplied.
 
     Returns
     -------
-    recommendation : dict with keys
-        'optimized_exp' – optimised single-experiment param dict
-        'base_exp'      – the best candidate (before time-point pruning)
-        'utility'       – EIG / cost score
-        'cost'          – total measurement-time cost
-        'rank'          – list of all (candidate_index, utility) pairs, sorted
+    recommendation : dict
+        'optimized_exp'  – pruned experiment param dict, ready to run
+        'base_exp'       – original dense-grid candidate (before pruning)
+        'utility'        – EIG / cost for the best candidate
+        'eig'            – raw EIG (nats) for the best candidate
+        'cost'           – num_pulses × Σ tᵢ for the best candidate
+        'n_timepoints'   – number of time-points kept after pruning
+        'pruning_alpha'  – the alpha value used
+        'all_results'    – all candidate result dicts sorted by utility;
+                           each entry also stores 'info_density' and
+                           'times_dense' for use in diagnostic plots
     """
     if state.get("posterior") is None:
-        raise RuntimeError("run_inference() must be called before suggest_next_experiment().")
+        raise RuntimeError(
+            "run_inference() must be called before suggest_next_experiment()."
+        )
 
     if candidates is None:
         candidates = build_candidate_experiments(config)
 
-    posterior = state["posterior"]
-    hf_df     = state["hf_df"]
+    posterior     = state["posterior"]
+    hf_df         = state["hf_df"]
+    pruning_alpha = float(config.get("pruning_alpha", 0.5))
+    M_eig         = int(config.get("M_eig", 200))
+    Nt_dense      = int(config.get("Nt_dense", 300))
+
+    if not 0.0 <= pruning_alpha <= 1.0:
+        raise ValueError(
+            f"pruning_alpha must be in [0, 1], got {pruning_alpha:.3f}"
+        )
+
+    # Pin RNG before EIG scoring so results are reproducible when a seed is set
+    if config.get("random_seed") is not None:
+        np.random.seed(config["random_seed"])
 
     print(f"\nScoring {len(candidates)} candidate experiments …")
+    print(f"  pruning_alpha = {pruning_alpha}  |  "
+          f"M_eig = {M_eig}  |  Nt_dense = {Nt_dense}")
+    if M_eig < 100:
+        print(f"  ⚠  M_eig={M_eig} is low — EIG rankings may be unstable. "
+              f"Consider raising to ≥ 200.")
+
     all_results = []
+    log_every   = max(1, len(candidates) // 8)
+
     for i, base_exp in enumerate(candidates):
-        if i % 5 == 0:
-            print(f"  candidate {i+1}/{len(candidates)} …", flush=True)
+        if i % log_every == 0:
+            print(f"  candidate {i + 1}/{len(candidates)} …", flush=True)
         try:
-            opt_exp, utility, cost = optimize_experiment(
-                base_exp, posterior, hf_df,
-                T_budget = config["T_budget"],
-                Nt_dense = config["Nt_dense"],
-                M        = config["M_eig"],
-            )
+            # ── 1. dense time-grid ────────────────────────────────────────────
+            dense_exp   = make_dense_time_experiment(base_exp, Nt_dense)
+            times_dense = dense_exp["timepoints"][0]
+
+            # ── 2. information density (fully deterministic) ──────────────────
+            info = information_density(dense_exp, posterior, hf_df)
+
+            # ── 3. prune: keep top-alpha fraction by information density ──────
+            #    Deterministic; only EIG below introduces randomness.
+            times_opt = _select_timepoints_by_alpha(times_dense, info, pruning_alpha)
+
+            if len(times_opt) == 0:
+                warnings.warn(
+                    f"Candidate {i}: pruning left 0 timepoints — skipping."
+                )
+                continue
+
+            # ── 4. build the pruned experiment dict ───────────────────────────
+            opt_exp               = dict(base_exp)
+            opt_exp["timepoints"] = times_opt.reshape(1, -1)
+
+            # ── 5. cost = num_pulses × Σ tᵢ ──────────────────────────────────
+            cost = _experiment_cost(base_exp, times_opt)
+            if cost <= 0:
+                warnings.warn(
+                    f"Candidate {i}: cost is zero (all timepoints are 0 ms) — "
+                    "skipping."
+                )
+                continue
+
+            # ── 6. Expected Information Gain (MC estimator) ───────────────────
+            #    Variance ∝ 1/√M_eig; raise M_eig in config for stability.
+            eig = compute_EIG_particle(opt_exp, posterior, hf_df, M=M_eig)
+
+            # ── 7. utility = EIG / cost ───────────────────────────────────────
+            utility = eig / cost
+
             all_results.append(dict(
-                index         = i,
-                base_exp      = base_exp,
-                optimized_exp = opt_exp,
-                utility       = utility,
-                cost          = cost,
+                index        = i,
+                base_exp     = base_exp,
+                optimized_exp= opt_exp,
+                utility      = utility,
+                eig          = eig,
+                cost         = cost,
+                n_timepoints = len(times_opt),
+                info_density = info,       # full dense-grid density (for plots)
+                times_dense  = times_dense,
             ))
+
         except Exception as exc:
             warnings.warn(f"Candidate {i} failed: {exc}")
 
     if not all_results:
-        raise RuntimeError("All candidate experiments failed – check config.")
+        raise RuntimeError(
+            "All candidate experiments failed — check config settings."
+        )
 
-    # rank by utility (highest first)
+    # ── rank by utility (highest first) ──────────────────────────────────────
     all_results.sort(key=lambda r: r["utility"], reverse=True)
     best = all_results[0]
 
     print(f"\n✓ Best experiment selected:")
-    print(f"  Pulses : {best['base_exp']['num_pulses'][0]}")
-    print(f"  t_max  : {best['base_exp']['timepoints'][0][-1]:.4f} ms")
-    print(f"  # timepoints (pruned): {len(best['optimized_exp']['timepoints'][0])}")
-    print(f"  Utility: {best['utility']:.4f}   Cost: {best['cost']:.4f}")
+    print(f"  Pulses             : {int(best['base_exp']['num_pulses'][0])}")
+    print(f"  t_max              : {best['base_exp']['timepoints'][0][-1]:.5f} ms")
+    print(f"  Timepoints kept    : {best['n_timepoints']} / {Nt_dense}"
+          f"  (alpha = {pruning_alpha})")
+    print(f"  EIG                : {best['eig']:.4f} nats")
+    print(f"  Cost (N_p × Σt)   : {best['cost']:.4f} pulse·ms")
+    print(f"  Utility (EIG/cost) : {best['utility']:.6f}")
 
-    best["rank"] = [(r["index"], r["utility"]) for r in all_results]
+    best["pruning_alpha"] = pruning_alpha
+    best["all_results"]   = all_results
     return best
+
+
 
 
 def display_recommendation(recommendation: Dict[str, Any]) -> None:

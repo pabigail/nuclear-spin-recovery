@@ -340,3 +340,177 @@ def print_trajectory_summary(results: Dict[str, Any], top_n: int = 5) -> pd.Data
     df = pd.DataFrame(rows).set_index(["traj_id", "rank"])
     print(df.to_string())
     return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXPORT POOLED STATE  (for use in spin_bath_inference_workflow.ipynb)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_pooled_state(
+    results: Dict[str, Any],
+    trajectory_ids: Optional[List[int]] = None,
+) -> Dict[str, Any]:
+    """
+    Build a workflow_pipeline-compatible ``state`` dict by pooling posteriors
+    from the selected trajectories (default: all).
+
+    The pooled posterior is formed by concatenating every bath configuration
+    from the chosen chains and re-normalising weights so they sum to 1.  MCMC
+    traces (error, k, T2) are concatenated in trajectory order so that
+    convergence plots on the pooled state remain meaningful.
+
+    The returned dict has exactly the same schema as the ``state`` produced by
+    ``workflow_pipeline.run_inference``, so it is a drop-in replacement
+    wherever a state is expected:
+
+        from workflow_pipeline import save_state, load_state
+        from workflow_pipeline import suggest_next_experiment
+        from workflow_pipeline import plot_posterior, plot_information_diagnostic
+
+        # --- save from the cluster-results notebook ---
+        save_pooled_state(results, "spin_bath_XY4_exp1_posterior_1.pkl")
+
+        # --- load in spin_bath_inference_workflow.ipynb ---
+        state = load_state("spin_bath_XY4_exp1_posterior_1.pkl")
+        candidates = build_candidate_experiments(config)
+        recommendation_1 = suggest_next_experiment(state, config, candidates)
+        display_recommendation(recommendation_1)
+        plot_information_diagnostic(state, recommendation_1, config,
+                                    is_simulation=False)
+
+    Parameters
+    ----------
+    results         : combined results dict from load_results()
+    trajectory_ids  : list of traj_id values to include; defaults to all
+                      trajectories present in results.  Pass a subset to
+                      exclude chains that look unconverged.
+
+    Returns
+    -------
+    state : dict with keys
+        hf_df, hf_dist_mat   – spin library (shared, not duplicated)
+        experiments          – [exp_params]  (list with one entry)
+        coherence_data       – measured signal arrays
+        merged_params        – exp_params dict (single-experiment format)
+        posterior            – pooled, re-normalised list of bath dicts
+        iteration            – 1
+        error_samples        – concatenated L2 error traces
+        k_samples            – concatenated spin-count traces
+        T2_samples           – concatenated T2 traces
+        spin_samples         – spin samples from the first selected trajectory
+    """
+    all_trajs = results["trajectories"]
+
+    if trajectory_ids is not None:
+        id_set = set(trajectory_ids)
+        selected = [t for t in all_trajs if t["traj_id"] in id_set]
+        missing  = id_set - {t["traj_id"] for t in selected}
+        if missing:
+            raise ValueError(f"trajectory_ids not found in results: {sorted(missing)}")
+    else:
+        selected = all_trajs
+
+    if not selected:
+        raise ValueError("No trajectories selected – check trajectory_ids.")
+
+    # ── pool and re-normalise posteriors ──────────────────────────────────────
+    all_baths = []
+    for t in selected:
+        all_baths.extend(t["posterior"])
+
+    total_w = sum(d["weight"] for d in all_baths)
+    if total_w == 0:
+        raise ValueError("All posterior weights are zero – cannot normalise.")
+
+    pooled_posterior = [
+        {**d, "weight": d["weight"] / total_w}
+        for d in all_baths
+    ]
+
+    # ── concatenate MCMC traces in trajectory order ───────────────────────────
+    error_samples = np.concatenate(
+        [np.asarray(t["error_samples"]) for t in selected]
+    ).tolist()
+    k_samples = np.concatenate(
+        [np.asarray(t["k_samples"]) for t in selected]
+    ).tolist()
+    T2_samples = np.concatenate(
+        [np.asarray(t["T2_samples"]) for t in selected]
+    ).tolist()
+
+    exp_params = results["exp_params"]
+
+    state = dict(
+        # spin library
+        hf_df          = results["hf_df"],
+        hf_dist_mat    = results["hf_dist_mat"],
+        # experiment history (mirrors what run_inference accumulates)
+        experiments    = [exp_params],
+        coherence_data = results["coherence_data"],
+        merged_params  = exp_params,   # single experiment: merged == exp_params
+        # inference results
+        posterior      = pooled_posterior,
+        iteration      = 1,
+        # MCMC traces (concatenated across selected trajectories)
+        error_samples  = error_samples,
+        k_samples      = k_samples,
+        T2_samples     = T2_samples,
+        # spin samples: keep first selected trajectory (used rarely)
+        spin_samples   = selected[0]["spin_samples"],
+    )
+
+    return state
+
+
+def save_pooled_state(
+    results: Dict[str, Any],
+    output_path: str,
+    trajectory_ids: Optional[List[int]] = None,
+) -> None:
+    """
+    Build a pooled state dict and pickle it so it can be loaded directly in
+    ``spin_bath_inference_workflow.ipynb`` with ``load_state()``.
+
+    Parameters
+    ----------
+    results         : combined results dict from load_results()
+    output_path     : destination file, e.g. ``"spin_bath_XY4_exp1_posterior_1.pkl"``
+    trajectory_ids  : trajectories to include (default: all).  Pass a subset
+                      to exclude chains that have not converged.
+
+    Example
+    -------
+    In this notebook (cluster results)::
+
+        save_pooled_state(results, "spin_bath_XY4_exp1_posterior_1.pkl")
+
+    In ``spin_bath_inference_workflow.ipynb``::
+
+        state = load_state("spin_bath_XY4_exp1_posterior_1.pkl")
+        candidates        = build_candidate_experiments(config)
+        recommendation_1  = suggest_next_experiment(state, config, candidates)
+        display_recommendation(recommendation_1)
+        plot_information_diagnostic(state, recommendation_1, config,
+                                    is_simulation=False)
+    """
+    n_selected = (
+        len(trajectory_ids) if trajectory_ids is not None
+        else results["num_trajectories"]
+    )
+
+    print(f"Building pooled state from {n_selected} "
+          f"{'trajectory' if n_selected == 1 else 'trajectories'} …")
+
+    state = build_pooled_state(results, trajectory_ids)
+
+    with open(output_path, "wb") as f:
+        pickle.dump(state, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    size_mb = Path(output_path).stat().st_size / 1e6
+    print(f"Pooled state saved → {output_path}  ({size_mb:.1f} MB)")
+    print(f"  Trajectories pooled      : {n_selected}")
+    print(f"  Posterior configurations : {len(state['posterior'])}")
+    print(f"  Total MCMC steps stored  : {len(state['error_samples']):,}")
+    print()
+    print("Load in spin_bath_inference_workflow.ipynb with:")
+    print(f'    state = load_state("{output_path}")')

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+import numpy as np
+
 
 class Envelope(ABC):
     """Multiplicative attenuation applied to the spin-bath modulation."""
@@ -24,4 +26,19 @@ class StretchedExponential(Envelope):
     """
 
     def __call__(self, tau, exp_id, lam, n_stretch):
-        raise NotImplementedError
+        tau = np.asarray(tau, dtype=float)
+        exp_id = np.asarray(exp_id, dtype=int)
+        lam_pts = _per_point(lam, exp_id)
+        n_pts = _per_point(n_stretch, exp_id)
+        return np.exp(-((tau / lam_pts) ** n_pts))
+
+
+def _per_point(values, exp_id):
+    """Spread a per-experiment (R, n_exp) array onto points. (R, n_points)
+
+    A single column is treated as a global value shared by all experiments.
+    """
+    values = np.asarray(values, dtype=float)
+    if values.shape[1] == 1:
+        return np.repeat(values, exp_id.size, axis=1)
+    return values[:, exp_id]

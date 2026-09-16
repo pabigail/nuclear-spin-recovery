@@ -14,10 +14,14 @@ from nuclear_spin_recovery import (
     AnalyticCCE1,
     State,
     StretchedExponential,
+    gyromagnetic_ratio,
     single_spin_modulation,
 )
 
-GYRO_13C = 6.7283          # rad / (ms * G)
+# The package constant, not a rounded literal: the goldens below were generated
+# with PyCCE's value, and test_units.py::test_gyro_matches_pycce pins ours to
+# it.  A rounded constant here would break the exact comparison.
+GYRO_13C = gyromagnetic_ratio("13C")
 B_311 = 311.0              # G
 
 # Generated from the reference implementation: rjmcmc.coherence_one_spin, run

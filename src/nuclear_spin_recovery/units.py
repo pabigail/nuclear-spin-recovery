@@ -20,9 +20,17 @@ TWO_PI = 2.0 * np.pi
 SUPPORTED_ISOTOPES: tuple[str, ...] = ("13C", "29Si")
 
 
+#: Nuclear gyromagnetic ratios, rad / (ms * G), matching PyCCE's isotope table.
+#: Signs are physical: 29Si precesses opposite to 13C.
+_GYRO = {
+    "13C": 6.7282853242747445,
+    "29Si": -5.3190301724949975,
+}
+
+
 def to_angular(a_khz):
     """Convert a hyperfine coupling from kHz to angular frequency, rad/ms."""
-    raise NotImplementedError
+    return TWO_PI * np.asarray(a_khz, dtype=float)
 
 
 def gyromagnetic_ratio(isotope: str) -> float:
@@ -31,4 +39,9 @@ def gyromagnetic_ratio(isotope: str) -> float:
     Sign convention follows the reference implementation: positive for
     13C, so that omega_L = +gyro * B_z.  See spec Sec. 11.1.
     """
-    raise NotImplementedError
+    try:
+        return _GYRO[isotope]
+    except KeyError:
+        raise KeyError(
+            f"unknown isotope {isotope!r}; known: {sorted(_GYRO)}"
+        ) from None

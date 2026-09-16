@@ -14,11 +14,9 @@ if [ -e .git ]; then
 fi
 
 # ---------------------------------------------------------------- layout
-mkdir -p "src/$PKG" tests/{unit,theory,oracle} tests/data/reference \
-         docs notebooks legacy scripts .claude/hooks
+mkdir -p "src/$PKG" tests/{unit,theory} docs notebooks scripts .claude/hooks
 
 touch "src/$PKG/__init__.py" tests/__init__.py
-echo "Reference implementation. Frozen. Do not edit." > legacy/README.md
 
 # ---------------------------------------------------------------- pyproject
 cat > pyproject.toml <<EOF
@@ -80,7 +78,6 @@ data/
 *.h5
 *.hdf5
 *.npy
-!tests/data/reference/*.npz
 EOF
 
 cat > README.md <<EOF

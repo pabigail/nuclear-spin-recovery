@@ -17,4 +17,3 @@ data/
 *.h5
 *.hdf5
 *.npy
-!tests/data/reference/*.npz

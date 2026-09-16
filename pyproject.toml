@@ -23,6 +23,11 @@ packages = ["src/nuclear_spin_recovery"]
 testpaths = ["tests"]
 addopts = "-q"
 markers = ["slow: long-running statistical tests"]
+# Put src/ on sys.path directly rather than relying on the editable install.
+# macOS sets a hidden flag on .pth files under iCloud-synced directories, and
+# CPython 3.12 silently skips hidden .pth files (site.py, UF_HIDDEN check),
+# which makes the editable install disappear with no error but ModuleNotFound.
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100

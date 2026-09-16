@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# Notebooks are tracked as paired .py:percent files, not .ipynb
+notebooks/*.ipynb
+
+# Large or generated data
+data/
+*.h5
+*.hdf5
+*.npy
+!tests/data/reference/*.npz

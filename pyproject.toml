@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nuclear-spin-recovery"
+version = "0.0.0"
+description = "Bayesian recovery of nuclear spin configurations"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy", "scipy"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest", "pytest-cov", "ruff",
+  "jupyterlab", "ipykernel", "jupytext", "matplotlib",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nuclear_spin_recovery"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["slow: long-running statistical tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]

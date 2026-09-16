@@ -263,7 +263,7 @@ model reduces exactly to the published one.
 
 | Parameter | Kind | Domain | Per | Sampler |
 |---|---|---|---|---|
-| $k$ | discrete, trans-dimensional | $\{0,\dots,k_{\max}\}$ | configuration | RJMCMC |
+| $k$ | discrete, trans-dimensional | $\lbrace 0,\dots,k_{\max}\rbrace$ | configuration | RJMCMC |
 | $s_i$ | discrete | site table, distinct | spin | discrete RWMH |
 | $\delta_{\parallel,i},\delta_{\perp,i}$ | continuous | $\mathbb{R}$ | spin | continuous RWMH (optional) |
 | $\lambda_e$ | continuous | bounded, positive | experiment | continuous RWMH |
@@ -349,7 +349,7 @@ Applied to $\lambda_e$, $n_e$, $\sigma_e$, and hyperfine offsets. A proposal is
 drawn within radius $R$ of the current value, reflected at the domain boundary.
 Reflection preserves symmetry, so the proposal ratio is unity and
 
-$$\alpha = \min\left\{1,\ \frac{\mathcal{L}(\mathbf{p}^*)}{\mathcal{L}(\mathbf{p})}\cdot\frac{\pi(\mathbf{p}^*)}{\pi(\mathbf{p})}\right\},$$
+$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{p}^*)}{\mathcal{L}(\mathbf{p})}\cdot\frac{\pi(\mathbf{p}^*)}{\pi(\mathbf{p})}\right\rbrace,$$
 
 where $\pi$ is the offset prior when sampling offsets and unity otherwise.
 
@@ -369,7 +369,7 @@ $$\frac{r(z\to x)}{r(x\to z)} = \frac{\left|\mathcal{N}_R(x)\setminus\mathcal{O}
 
 and
 
-$$\alpha = \min\left\{1,\ \frac{\mathcal{L}(\mathbf{p}^*)}{\mathcal{L}(\mathbf{p})}\cdot\frac{\left|\mathcal{N}_R(x)\setminus\mathcal{O}\right|}{\left|\mathcal{N}_R(z)\setminus\mathcal{O}\right|}\right\}.$$
+$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{p}^*)}{\mathcal{L}(\mathbf{p})}\cdot\frac{\left|\mathcal{N}_R(x)\setminus\mathcal{O}\right|}{\left|\mathcal{N}_R(z)\setminus\mathcal{O}\right|}\right\rbrace.$$
 
 Both neighbourhood counts must be evaluated with the moving spin excluded from
 $\mathcal{O}$. Omitting this ratio — treating the proposal as symmetric — yields
@@ -389,7 +389,7 @@ Applied to $k$. A dimension-changing kernel $\gamma$ proposes a birth or a death
 - **Death:** $k \to k-1$; one of the $k$ existing spins is removed uniformly at
   random.
 
-$$\alpha = \min\left\{1,\ \frac{\mathcal{L}(\mathbf{d}\mid f_{k^*}(\mathbf{p}^*))}{\mathcal{L}(\mathbf{d}\mid f_{k}(\mathbf{p}))}\cdot\frac{\gamma(k^*, k)}{\gamma(k, k^*)}\right\}.$$
+$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{d}\mid f_{k^*}(\mathbf{p}^*))}{\mathcal{L}(\mathbf{d}\mid f_{k}(\mathbf{p}))}\cdot\frac{\gamma(k^*, k)}{\gamma(k, k^*)}\right\rbrace.$$
 
 Because the prior on $k$ is carried by $\gamma$ (Sec. 7.2), no separate prior
 ratio appears. The kernel is a replaceable component; substituting one that
@@ -412,7 +412,7 @@ continuous and discrete moves — against the tempered likelihood
 $\mathcal{L}^{\beta_j}$. A pair of replicas $(a,b)$ is then drawn uniformly and a
 swap attempted with
 
-$$\alpha_{\text{PT}} = \min\left\{1,\ \frac{\mathcal{L}_a(\mathbf{p}_b)\,\mathcal{L}_b(\mathbf{p}_a)}{\mathcal{L}_a(\mathbf{p}_a)\,\mathcal{L}_b(\mathbf{p}_b)}\right\} = \min\left\{1,\ \exp\left[(\beta_a-\beta_b)\left(\log\mathcal{L}(\mathbf{p}_b)-\log\mathcal{L}(\mathbf{p}_a)\right)\right]\right\}.$$
+$$\alpha_{\text{PT}} = \min\left\lbrace 1,\ \frac{\mathcal{L}_a(\mathbf{p}_b)\,\mathcal{L}_b(\mathbf{p}_a)}{\mathcal{L}_a(\mathbf{p}_a)\,\mathcal{L}_b(\mathbf{p}_b)}\right\rbrace = \min\left\lbrace 1,\ \exp\left[(\beta_a-\beta_b)\left(\log\mathcal{L}(\mathbf{p}_b)-\log\mathcal{L}(\mathbf{p}_a)\right)\right]\right\rbrace.$$
 
 The second form is what is computed: it is numerically stable and makes clear
 that only the untempered log-likelihoods and the two inverse temperatures are

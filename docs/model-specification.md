@@ -338,7 +338,9 @@ The posterior is high-dimensional, multimodal, and trans-dimensional. No single
 algorithm handles all three. The scheme composes four, each applied to the
 parameter block it suits.
 
-Throughout, parameters are partitioned into an updated set $\mathbf{p}$ and a
+Throughout, a prime denotes a proposed value: $\mathbf{p}'$ is the state
+proposed from the current state $\mathbf{p}$, and $k'$ the proposed model
+dimension. Parameters are partitioned into an updated set $\mathbf{p}$ and a
 held-fixed set $\mathbf{q}$. Every algorithm updates $\mathbf{p}$ and leaves
 $\mathbf{q}$ untouched. This partitioning is the mechanism by which the
 algorithms compose.
@@ -349,7 +351,7 @@ Applied to $\lambda_e$, $n_e$, $\sigma_e$, and hyperfine offsets. A proposal is
 drawn within radius $R$ of the current value, reflected at the domain boundary.
 Reflection preserves symmetry, so the proposal ratio is unity and
 
-$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{p}^*)}{\mathcal{L}(\mathbf{p})}\cdot\frac{\pi(\mathbf{p}^*)}{\pi(\mathbf{p})}\right\rbrace,$$
+$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{p}')}{\mathcal{L}(\mathbf{p})}\cdot\frac{\pi(\mathbf{p}')}{\pi(\mathbf{p})}\right\rbrace,$$
 
 where $\pi$ is the offset prior when sampling offsets and unity otherwise.
 
@@ -369,7 +371,7 @@ $$\frac{r(z\to x)}{r(x\to z)} = \frac{\left|\mathcal{N}_R(x)\setminus\mathcal{O}
 
 and
 
-$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{p}^*)}{\mathcal{L}(\mathbf{p})}\cdot\frac{\left|\mathcal{N}_R(x)\setminus\mathcal{O}\right|}{\left|\mathcal{N}_R(z)\setminus\mathcal{O}\right|}\right\rbrace.$$
+$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{p}')}{\mathcal{L}(\mathbf{p})}\cdot\frac{\left|\mathcal{N}_R(x)\setminus\mathcal{O}\right|}{\left|\mathcal{N}_R(z)\setminus\mathcal{O}\right|}\right\rbrace.$$
 
 Both neighbourhood counts must be evaluated with the moving spin excluded from
 $\mathcal{O}$. Omitting this ratio — treating the proposal as symmetric — yields
@@ -389,7 +391,7 @@ Applied to $k$. A dimension-changing kernel $\gamma$ proposes a birth or a death
 - **Death:** $k \to k-1$; one of the $k$ existing spins is removed uniformly at
   random.
 
-$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{d}\mid f_{k^*}(\mathbf{p}^*))}{\mathcal{L}(\mathbf{d}\mid f_{k}(\mathbf{p}))}\cdot\frac{\gamma(k^*, k)}{\gamma(k, k^*)}\right\rbrace.$$
+$$\alpha = \min\left\lbrace 1,\ \frac{\mathcal{L}(\mathbf{d}\mid f_{k'}(\mathbf{p}'))}{\mathcal{L}(\mathbf{d}\mid f_{k}(\mathbf{p}))}\cdot\frac{\gamma(k', k)}{\gamma(k, k')}\right\rbrace.$$
 
 Because the prior on $k$ is carried by $\gamma$ (Sec. 7.2), no separate prior
 ratio appears. The kernel is a replaceable component; substituting one that
@@ -475,10 +477,10 @@ never appears.
 posterior over $k$ and the true number of spins. Zero indicates the inferred
 model dimension is correct.
 
-**Sample-averaged false-absence rate.** For $S^*$ the modal configuration of
+**Sample-averaged false-absence rate.** For $\hat{S}$ the modal configuration of
 size $n$,
 
-$$FP = \frac{1}{nM}\sum_{s\in S^*}\sum_{j=1}^{M}\mathbb{I}_{s\notin B^{(j)}},$$
+$$FP = \frac{1}{nM}\sum_{s\in \hat{S}}\sum_{j=1}^{M}\mathbb{I}_{s\notin B^{(j)}},$$
 
 the fraction of posterior samples in which spins of the modal configuration are
 absent. This is not a false-positive rate in the classification sense, and is

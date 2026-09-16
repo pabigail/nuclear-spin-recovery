@@ -20,16 +20,16 @@ from nuclear_spin_recovery import (
 GYRO_13C = 6.7283          # rad / (ms * G)
 B_311 = 311.0              # G
 
-# TODO(phase-1): regenerate from the reference implementation and paste here:
-#   python -c "import rjmcmc, numpy as np; \
-#              print(repr(rjmcmc.coherence_one_spin(np.array([...]), A_par, A_perp, N, B)))"
-# run inside ~/Desktop/research/nuclear-spin-recovery.  Values below are
-# placeholders and are expected to fail until they are filled in.
+# Generated from the reference implementation: rjmcmc.coherence_one_spin, run
+# under the nv_char conda env against ~/Desktop/research/nuclear-spin-recovery.
+# These pin the omega_L sign and the 2*pi placement (spec Sec. 11.1) to the
+# code that produced the published results.  Regenerate only if that code
+# changes; do not recompute them from this package.
 GOLDEN = [
     # (tau_ms, a_par_khz, a_perp_khz, n_pulses, b_z_G, expected_M)
-    (2.0e-3, 50.0, 30.0, 16, B_311, None),
-    (4.0e-3, -20.0, 80.0, 8, B_311, None),
-    (1.0e-3, 120.0, 45.0, 32, 403.0, None),
+    (2.0e-3, 50.0, 30.0, 16, B_311, 0.9961295358493237),
+    (4.0e-3, -20.0, 80.0, 8, B_311, 0.9935876119790344),
+    (1.0e-3, 120.0, 45.0, 32, 403.0, 0.9877028430991668),
 ]
 
 
@@ -102,16 +102,31 @@ def test_two_pi_convention():
 
 # ------------------------------------------------------------- bath behaviour
 
-def test_empty_bath_is_pure_envelope(model, single_experiment, tiny_site_table):
-    """The empty product is 1, so coherence collapses to the envelope."""
+def test_empty_bath_decays_to_one_half(model, single_experiment, tiny_site_table):
+    """With no spins the product is 1, leaving 0.5 * (1 + envelope).
+
+    The envelope sits inside the half-sum (Jung Eq. 5, spec Sec. 4.2), so a
+    fully dephased signal approaches 0.5 -- the mixed population -- not 0.
+    """
     st = State.from_sites(
         (), n_sites=len(tiny_site_table), n_exp=1,
         lam=np.array([[3e-3]]), n_stretch=np.array([[1.0]]),
         sigma=np.array([[0.1]]), k_max=8,
     )
     got = model.coherence(st, single_experiment, tiny_site_table)
-    expected = np.exp(-single_experiment.tau_all / 3e-3)
-    assert got[0] == pytest.approx(expected)
+    envelope = np.exp(-single_experiment.tau_all / 3e-3)
+    assert got[0] == pytest.approx(0.5 * (1.0 + envelope))
+
+
+def test_long_time_limit_is_one_half(model, single_experiment, tiny_site_table):
+    """Envelope placement is observable: outside the half-sum this would be 0."""
+    st = State.from_sites(
+        (), n_sites=len(tiny_site_table), n_exp=1,
+        lam=np.array([[1e-9]]), n_stretch=np.array([[1.0]]),
+        sigma=np.array([[0.1]]), k_max=8,
+    )
+    got = model.coherence(st, single_experiment, tiny_site_table)
+    assert got[0] == pytest.approx(np.full(single_experiment.n_points, 0.5))
 
 
 def test_coherence_bounded(model, single_experiment, tiny_site_table):

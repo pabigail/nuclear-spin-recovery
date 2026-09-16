@@ -147,7 +147,7 @@ Two departures from the printed papers, both deliberate:
 The coherence for experiment $e$ is the product over all $k$ spins, attenuated by
 an empirical envelope:
 
-$$f_e(\tau) = \frac{1}{2}\left(1 + \prod_{i=1}^{k} M_i(\tau)\right)\exp\left[-\left(\frac{\tau}{\lambda_e}\right)^{n_e}\right].$$
+$$f_e(\tau) = \frac{1}{2}\left(1 + \left[\prod_{i=1}^{k} M_i(\tau)\right]\exp\left[-\left(\frac{\tau}{\lambda_e}\right)^{n_e}\right]\right).$$
 
 The envelope absorbs dephasing not captured by the explicitly modeled spins:
 coupling to lattice impurities other than the modeled isotope (substitutional
@@ -160,17 +160,44 @@ experiments at different pulse number, since dynamical decoupling extends
 coherence with $N$.
 
 $n_e$ defaults to a **single global value shared across experiments**, fixed at
-$n = 1$ (recovering the exponential envelope of the application paper). It may be
-fixed at another value, or sampled — globally or per-experiment.
+$n = 1$, recovering a plain exponential envelope. It may be fixed at another
+value, or sampled — globally or per-experiment.
 
-**Discrepancy, resolved.** The methods paper writes the envelope as an exponent
-applied to the bracket, $\left(\tfrac12(1+\prod_i M_i)\right)^{-\tau/\lambda}$.
-That form is not equivalent to the multiplicative envelope above, and as printed
-it does not decay: the base lies in $[0,1]$ and $\lambda$ is restricted to
-$[0,1]$, so a negative exponent drives the expression above unity and growing in
-$\tau$. The multiplicative form of the application paper (Eq. 6) is correct and
-is what this package implements, generalized from $e^{-\tau/\lambda}$ to
-$e^{-(\tau/\lambda)^{n}}$.
+**The envelope sits inside the half-sum.** This is the form of Jung *et al.*,
+npj Quantum Information **7**, 41 (2021), Eq. 5,
+
+$$P_x = \frac{1}{2}M\exp\left[-\left(\frac{\tau}{T}\right)^{n}\right] + \frac{1}{2},$$
+
+and it is the convention this package follows. The placement is not cosmetic.
+With the envelope inside, full dephasing drives the signal to $1/2$ — the
+fully mixed population, which is what a coherence measured as a population
+readout must approach. With the envelope outside it would decay to $0$ instead,
+which no population readout does.
+
+**Two published forms are inconsistent with this, and are not implemented.**
+
+- The application paper (Eq. 6) places the envelope outside the half-sum,
+  $\tfrac12(1+\prod_i M_i)e^{-\tau/\lambda}$. On a representative
+  ten-spin configuration the two forms differ by up to $0.465$ in coherence
+  units, so this is a substantive disagreement rather than a typographical one.
+- The methods paper writes the envelope as an exponent applied to the bracket,
+  $\left(\tfrac12(1+\prod_i M_i)\right)^{-\tau/\lambda}$. As printed this does
+  not decay at all: the base lies in $[0,1]$ and $\lambda$ is restricted to
+  $[0,1]$, so a negative exponent drives the expression above unity and growing
+  in $\tau$.
+
+The reference implementation agrees with Jung *et al.*, though it reaches the
+same place by a different route: it applies the envelope to the bare product and
+rescales the *data* instead, as $2(d - \tfrac12)$, which is algebraically
+identical to the form above. One consequence carries into reproducing published
+results: residuals in that rescaled convention are twice the residuals in
+coherence units, so a published $\sigma$ corresponds to $\sigma/2$ here.
+
+**On the exponent.** Jung *et al.* typeset Eq. 5 as $\exp(-\tau/T)^{n}$, which
+read literally is $e^{-n\tau/T}$ — a plain exponential in which $n$ and $T$ are
+degenerate and cannot both be identified. The intended quantity is the stretched
+exponential $e^{-(\tau/T)^{n}}$, which is what is written above and what makes
+$n = 1$ and $n = 2$ physically distinct.
 
 ### 4.3 Multiple experiments
 
@@ -534,8 +561,10 @@ Recorded so that later disagreement with published results can be traced.
    gyromagnetic ratios. This specification follows the implementation, on the
    grounds that it produced the published results. The sign affects modulation
    depth through $m_{i,z}$ and is not cosmetic.
-2. **Envelope form.** Resolved in favour of the application paper's
-   multiplicative form; see Sec. 4.2.
+2. **Envelope placement.** Resolved in favour of Jung *et al.* Eq. 5, with the
+   envelope inside the half-sum, against the application paper's Eq. 6 and the
+   methods paper's exponent form. Confirmed against the reference
+   implementation. See Sec. 4.2.
 3. **Tempering ladder indexing.** The methods paper states both $\beta_1 = 1$ and
    $\beta_j = 2^{-j}$, which are inconsistent. Resolved as zero-based:
    $\beta_j = 2^{-j}$ with $\beta_0 = 1$.
@@ -560,10 +589,14 @@ Recorded so that later disagreement with published results can be traced.
 3. T. H. Taminiau *et al.*, *Detection and control of individual nuclear spins
    using a weakly coupled electron spin*, Phys. Rev. Lett. **109**, 137602 (2012)
    — origin of the single-spin modulation expression.
-4. P. J. Green, *Reversible jump Markov chain Monte Carlo computation and
+4. K. Jung, M. H. Abobeih, J. Yun, G. Kim, H. Oh, A. Henry, T. H. Taminiau,
+   K. Kim, *Deep learning enhanced individual nuclear-spin detection*, npj
+   Quantum Information **7**, 41 (2021) — Eq. 5, the coherence convention
+   followed here.
+5. P. J. Green, *Reversible jump Markov chain Monte Carlo computation and
    Bayesian model determination*, Biometrika **82**, 711 (1995).
-5. M. Onizhuk, G. Galli, *PyCCE: A Python package for cluster correlation
+6. M. Onizhuk, G. Galli, *PyCCE: A Python package for cluster correlation
    expansion simulations of spin qubit dynamics* (2021) — numerical forward model
    and isotope constants.
-6. I. Takács, V. Ivády *et al.* — *ab initio* hyperfine couplings underlying the
+7. I. Takács, V. Ivády *et al.* — *ab initio* hyperfine couplings underlying the
    site table.

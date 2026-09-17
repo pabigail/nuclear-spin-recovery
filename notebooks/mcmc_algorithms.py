@@ -46,6 +46,7 @@ from nuclear_spin_recovery import (
     StretchedExponential,
     Target,
     Trace,
+    simulate_coherence,
     simulate_dataset,
 )
 
@@ -272,7 +273,7 @@ after = trace.discard_burn_in(burn)
 print(f"after burn-in  : {len(after)} steps (original still {len(trace)})")
 
 # %% [markdown]
-# ## 7. Recovering spin positions with $k$ fixed
+# ## 7. Walking spins over the lattice, with $k$ fixed
 #
 # Now the discrete block. The number of spins is correct, but every spin starts on the
 # wrong site; the sampler walks them over the lattice toward configurations that
@@ -297,60 +298,90 @@ ax.legend(fontsize=8)
 fig.tight_layout()
 
 # %% [markdown]
-# ### The likelihood is nearly at truth. The configuration is not.
+# ### How to judge this — and how not to
 #
-# Measure recovery the way the specification does (§9): match spins on their hyperfine
-# couplings within 0.1 kHz, never on site index, since symmetry-equivalent sites are
-# genuinely indistinguishable in the data.
+# The inverse problem is ill-posed: many configurations reproduce the same signal to
+# within the noise. So "did the chain land on the true configuration" is the wrong
+# question, and so is any measure taken from a **single** state. Two criteria replace
+# it, and they are available in different settings (spec §9.1).
+#
+# **1. Does the forward model reproduce the data?** Residual against the noise floor.
+# Needs no ground truth, so this is the only statement available experimentally.
 
 # %%
-def coupling_pairs(state):
-    k = int(state.k[0])
-    return list(zip(state.a_par_per_spin(table)[0, :k],
-                    state.a_perp_per_spin(table)[0, :k]))
+observed = data.data_all
 
 
-def detected(recovered, reference, tol=0.1):
-    return sum(
-        any(abs(a - c) <= tol and abs(b - d) <= tol for c, d in coupling_pairs(recovered))
-        for a, b in coupling_pairs(reference)
-    )
+def rms_residual(state):
+    return float(np.sqrt(np.mean(
+        (observed - simulate_coherence(state, data, table, model)) ** 2)))
 
 
-n_found = detected(final, truth)
-print(f"spins recovered within 0.1 kHz : {n_found} of {int(truth.k[0])}")
-print(f"log L gap to truth             : {target.log_prob(truth)[0] - target.log_prob(final)[0]:.1f}")
+NOISE = 0.002
+print(f"noise floor        : {NOISE:.5f}")
+print(f"truth              : {rms_residual(truth):.5f}")
+print(f"start              : {rms_residual(scrambled):.5f}")
+print(f"best sample        : {rms_residual(final):.5f}")
 
 # %% [markdown]
-# A handful of spins found, yet the likelihood lands within a few units of the truth.
-# That gap is the whole problem: **many distinct configurations explain this data almost
-# equally well**, so a chain that maximises the likelihood has not thereby found the
-# right answer. Weakly coupled spins modulate the signal by less than the noise, and the
-# data cannot distinguish them.
+# The fit reaches the noise floor. On experimental data this is where the assessment
+# would stop — there is nothing further to check, because there is no ground truth.
 #
-# This is not a failure of the sampler. It is why the method reports a posterior rather
-# than a point estimate, and why phase 3 adds parallel tempering (to escape the local
-# minima a single block walks into) and RJMCMC (so the number of spins is inferred
-# rather than assumed correct, as it was here).
+# **2. Does the posterior contain the spins that generated the data?** Evaluated over
+# posterior samples, not over one configuration. This needs the answer, so it exists
+# only in simulation — which is why simulated studies carry the burden of quantifying
+# accuracy, and experimental runs inherit credibility from simulations at matched
+# pulse number, field, sampling and noise.
+#
+# $$R_i = \frac{1}{M}\sum_{j=1}^{M}\mathbb{I}_i^{(j)}, \qquad R = \frac{1}{n}\sum_i R_i$$
 
 # %%
-def couplings(state):
-    k = int(state.k[0])
-    return np.sort(np.hypot(state.a_par_per_spin(table)[0, :k],
-                            state.a_perp_per_spin(table)[0, :k]))
+def coupling_set(sites, tol_round=4):
+    return set(zip(np.round(table.a_par[sites], tol_round),
+                   np.round(table.a_perp[sites], tol_round)))
 
 
-fig, ax = plt.subplots(figsize=(9, 3.4))
-for values, label, style in ((couplings(truth), "truth", "-o"),
-                             (couplings(final), "recovered", "-s"),
-                             (couplings(scrambled), "start", ":^")):
-    ax.plot(values, style, ms=4, lw=1, label=label)
-ax.set_yscale("log")
-ax.set_xlabel("spin, sorted by coupling")
-ax.set_ylabel(r"$\sqrt{A_\parallel^2 + A_\perp^2}$ (kHz)")
-ax.set_title("Strong couplings recover first")
-ax.legend(fontsize=8)
+def detection_rates(trace, reference, burn, tol=0.1):
+    """R_i for each reference spin, over post-burn-in posterior samples."""
+    post = trace.discard_burn_in(burn)
+    samples = [coupling_set(post.site_idx[j, : int(post.k[j])]) for j in range(len(post))]
+    ref = list(zip(reference.a_par_per_spin(table)[0, : int(reference.k[0])],
+                   reference.a_perp_per_spin(table)[0, : int(reference.k[0])]))
+    rates = []
+    for a, b in ref:
+        hits = [any(abs(a - c) <= tol and abs(b - d) <= tol for c, d in S) for S in samples]
+        rates.append(float(np.mean(hits)))
+    return np.array(rates), np.hypot(*np.array(ref).T)
+
+
+R_i, magnitude = detection_rates(site_trace, truth, burn=2000)
+print(f"overall detection rate R = {R_i.mean():.3f}")
+
+fig, ax = plt.subplots(figsize=(9, 3.6))
+order = np.argsort(magnitude)
+ax.barh(np.arange(len(R_i)), R_i[order], color="C0")
+ax.set_yticks(np.arange(len(R_i)))
+ax.set_yticklabels([f"{m:.1f}" for m in magnitude[order]])
+ax.set_xlim(0, 1.05)
+ax.set_xlabel(r"$R_i$ — fraction of posterior samples containing the spin")
+ax.set_ylabel(r"$\sqrt{A_\parallel^2+A_\perp^2}$ (kHz)")
+ax.set_title("Detection rate by coupling strength")
 fig.tight_layout()
+
+# %% [markdown]
+# So: the model **fits the data to the noise floor**, while the posterior contains only
+# a fraction of the simulated spins. Those are not in conflict — that is what ill-posed
+# means. But the low detection rate here is not the ill-posedness alone; it is mostly a
+# **mobility** limit of this sampler.
+#
+# One spin moves at a time, by at most 5 Å, with $k$ pinned at the right answer. A
+# strongly coupled site far from every starting position simply cannot be reached in
+# 6000 steps, and every intermediate configuration along the way would have to be
+# accepted. Note that the strongest spin in the bath is among the missing ones — a
+# spin that easy to see would not be lost to ill-posedness.
+#
+# This is the concrete argument for phase 3. Parallel tempering flattens the barriers
+# between configurations; RJMCMC lets a spin be born anywhere rather than walk there.
 
 # %% [markdown]
 # ## 8. Tempering, and the replica axis

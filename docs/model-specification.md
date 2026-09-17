@@ -484,11 +484,47 @@ ensembles, 25,000 steps, 10,000 discarded.
 
 ## 9. Posterior summaries
 
+### 9.1 What counts as success
+
+The inverse problem is ill-posed, so "did the recovered configuration equal the
+true one" is the wrong question. Many distinct configurations reproduce the same
+coherence signal to within the noise, and a run that lands on a different one has
+not thereby failed. Two criteria replace it, and they are available in different
+settings:
+
+**Does the forward model reproduce the data?** The residual between the predicted
+and measured signal, compared against the noise floor. A fit that reaches the
+noise level has extracted the information the data contains; no configuration can
+do better, and several will do equally well. This criterion needs no ground
+truth, so it is the one available on **experimental** data, and it is the only
+statement that can be made about an experimental recovery.
+
+**Does the posterior contain the spins that generated the data?** The detection
+rate below, evaluated over posterior samples. This requires knowing the answer,
+so it is available only in **simulation** — which is precisely why simulated
+studies carry the burden of quantifying accuracy. Experimental runs inherit their
+credibility from simulations performed under matched conditions: the same pulse
+number, field, sampling and noise level.
+
+Two errors follow from confusing these. Judging an experimental recovery as if
+the first criterion implied the second overstates what was learned. Judging any
+recovery by a **single** configuration — the last state of a chain, or the modal
+sample — measures the wrong object: the detection rate is defined over the
+posterior, and a spin absent from the modal configuration may still appear in
+most samples.
+
+### 9.2 Metrics
+
 The posterior is over configurations of varying dimension, which rules out naive
 per-parameter averaging: there is no stable correspondence between "spin 3" in
 one sample and "spin 3" in another. Summaries are therefore defined on
 couplings, matched within a tolerance that absorbs numerical differences between
 symmetry-related sites.
+
+**Signal residual.** The root-mean-square difference between the measured data
+and the prediction, reported against the noise level $\sigma_e$ of each
+experiment. Computed for posterior samples rather than for one configuration, it
+is a distribution, and its lower edge is bounded below by the noise.
 
 **Detection rate.** For a reference spin $s_i$ (simulated ground truth, or
 experimentally confirmed) and posterior samples $B^{(j)}$, $j = 1\dots M$, let

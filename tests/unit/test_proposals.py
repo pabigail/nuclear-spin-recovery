@@ -160,11 +160,16 @@ def test_discrete_no_free_neighbour_is_a_no_op(walk, rng):
     assert log_ratio == pytest.approx(0.0)
 
 
-def test_discrete_isolated_site_is_a_no_op(walk, rng):
-    """Site 3 is beyond the radius of every other site."""
-    free = np.zeros(4, dtype=bool)
-    site, log_ratio = walk.propose(rng, 3, occupied=free)
-    assert site == 3
+def test_discrete_isolated_site_is_a_no_op(rng):
+    """A site beyond the radius of every other has nowhere to go.
+
+    Needs its own geometry: every site on LINE is within 1.5 of a neighbour.
+    """
+    far = np.vstack([LINE, [[10.0, 0, 0]]])
+    walk = DiscreteLatticeWalk(NeighborIndex(far, radius=1.5))
+    free = np.zeros(5, dtype=bool)
+    site, log_ratio = walk.propose(rng, 4, occupied=free)
+    assert site == 4
     assert log_ratio == pytest.approx(0.0)
 
 

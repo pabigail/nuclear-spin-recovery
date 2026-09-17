@@ -36,9 +36,25 @@ class ContinuousReflected(Proposal):
         self.radius = float(radius)
         self.lower = float(lower)
         self.upper = float(upper)
+        if self.radius < 0.0:
+            raise ValueError(f"radius must be non-negative, got {radius}")
+        if self.lower >= self.upper:
+            raise ValueError(f"lower {lower} must be below upper {upper}")
 
     def propose(self, rng, current, occupied=None):
-        raise NotImplementedError
+        step = rng.uniform(-self.radius, self.radius, size=np.shape(current))
+        return self._reflect(np.asarray(current, dtype=float) + step), 0.0
+
+    def _reflect(self, x):
+        """Fold x back into [lower, upper] by repeated reflection.
+
+        Reflection, not clipping: clipping piles probability mass onto the
+        boundary and destroys the symmetry the zero proposal ratio assumes.
+        """
+        span = self.upper - self.lower
+        y = np.mod(x - self.lower, 2.0 * span)
+        y = np.where(y > span, 2.0 * span - y, y)
+        return self.lower + y
 
 
 class DiscreteLatticeWalk(Proposal):
@@ -59,7 +75,7 @@ class DiscreteLatticeWalk(Proposal):
 
     @property
     def radius(self):
-        raise NotImplementedError
+        return self.neighbors.radius
 
     def propose(self, rng, current, occupied=None):
         """Propose a new site for the spin currently at ``current``.
@@ -67,4 +83,18 @@ class DiscreteLatticeWalk(Proposal):
         If no unoccupied neighbour exists the move is a no-op: the current
         site is returned with a zero log ratio.
         """
-        raise NotImplementedError
+        current = int(current)
+        occupied = np.asarray(occupied, dtype=bool)
+
+        candidates = self.neighbors.neighbors(current)
+        # The spin being moved must not block its own departure.
+        free = candidates[~occupied[candidates]] if candidates.size else candidates
+        if free.size == 0:
+            return current, 0.0
+
+        proposed = int(rng.choice(free))
+        forward = self.neighbors.count_available(current, occupied, ignore=current)
+        reverse = self.neighbors.count_available(proposed, occupied, ignore=current)
+        if forward == 0 or reverse == 0:
+            return current, 0.0
+        return proposed, float(np.log(forward) - np.log(reverse))

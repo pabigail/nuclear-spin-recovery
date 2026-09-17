@@ -17,13 +17,26 @@ class NeighborIndex:
     def __init__(self, positions, radius):
         self.positions = np.asarray(positions, dtype=float)
         self.radius = float(radius)
+        if self.radius <= 0.0:
+            raise ValueError(f"radius must be positive, got {radius}")
+        self._lists = self._build()
+
+    def _build(self):
+        pos = self.positions
+        n = len(pos)
+        lists = []
+        for i in range(n):
+            d = np.linalg.norm(pos - pos[i], axis=1)
+            within = (d <= self.radius) & (np.arange(n) != i)
+            lists.append(np.flatnonzero(within))
+        return lists
 
     def __len__(self) -> int:
-        raise NotImplementedError
+        return len(self.positions)
 
     def neighbors(self, site):
         """Indices of sites within ``radius`` of ``site``, ascending."""
-        raise NotImplementedError
+        return self._lists[int(site)]
 
     def count_available(self, site, occupied, ignore=None):
         """Number of unoccupied neighbours of ``site``.
@@ -33,4 +46,10 @@ class NeighborIndex:
         proposal asymmetric; see :class:`~nuclear_spin_recovery.proposals.
         DiscreteLatticeWalk`.
         """
-        raise NotImplementedError
+        nb = self._lists[int(site)]
+        if nb.size == 0:
+            return 0
+        free = ~np.asarray(occupied, dtype=bool)[nb]
+        if ignore is not None:
+            free |= nb == int(ignore)
+        return int(free.sum())

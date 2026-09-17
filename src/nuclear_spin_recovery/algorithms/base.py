@@ -23,13 +23,14 @@ class ParameterBlock:
     name: str
 
     def __post_init__(self):
-        # TODO(phase-2): reject names outside BLOCK_NAMES.  Left permissive so
-        # fixtures build; validation is what test_algorithms exercises.
-        pass
+        if self.name not in BLOCK_NAMES:
+            raise ValueError(
+                f"unknown parameter block {self.name!r}; known: {list(BLOCK_NAMES)}"
+            )
 
     @property
     def is_discrete(self) -> bool:
-        raise NotImplementedError
+        return self.name == "sites"
 
 
 class Target:
@@ -51,7 +52,9 @@ class Target:
 
         ``beta`` is the inverse temperature; beta = 1 is the true posterior.
         """
-        raise NotImplementedError
+        return beta * self.likelihood.log_prob(
+            state, self.expset, self.model, self.site_table
+        )
 
 
 class Algorithm(ABC):
@@ -63,4 +66,15 @@ class Algorithm(ABC):
 
     def run(self, state, target, rng, n_steps, trace=None, beta=1.0):
         """Apply ``n_steps`` steps, recording each to ``trace`` if given."""
-        raise NotImplementedError
+        for _ in range(int(n_steps)):
+            state = self.step(state, target, rng, beta=beta)
+            if trace is not None:
+                trace.append(state, target.log_prob(state, beta=1.0), self.label)
+        return state
+
+    @property
+    def label(self) -> str:
+        """Short name recorded alongside each trace entry."""
+        block = getattr(self, "block", None)
+        name = getattr(block, "name", "?")
+        return f"{type(self).__name__.lower()}:{name}"

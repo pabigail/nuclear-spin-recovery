@@ -10,8 +10,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-import numpy as np
-
 #: Parameter blocks an algorithm may update.
 BLOCK_NAMES = ("sites", "lam", "n_stretch", "sigma")
 

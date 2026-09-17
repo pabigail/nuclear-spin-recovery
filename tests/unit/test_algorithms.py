@@ -25,10 +25,10 @@ def test_algorithm_is_abstract():
 
 
 def test_block_names_are_the_state_arrays():
-    assert set(base.BLOCK_NAMES) == {"sites", "lam", "n_stretch", "sigma"}
+    assert set(base.BLOCK_NAMES) == {"sites", "lam", "n_stretch", "sigma", "offsets"}
 
 
-@pytest.mark.parametrize("name", ["sites", "lam", "n_stretch", "sigma"])
+@pytest.mark.parametrize("name", ["sites", "lam", "n_stretch", "sigma", "offsets"])
 def test_valid_block_names_accepted(name):
     assert ParameterBlock(name).name == name
 
@@ -42,7 +42,7 @@ def test_sites_block_is_discrete():
     assert ParameterBlock("sites").is_discrete
 
 
-@pytest.mark.parametrize("name", ["lam", "n_stretch", "sigma"])
+@pytest.mark.parametrize("name", ["lam", "n_stretch", "sigma", "offsets"])
 def test_other_blocks_are_continuous(name):
     assert not ParameterBlock(name).is_discrete
 

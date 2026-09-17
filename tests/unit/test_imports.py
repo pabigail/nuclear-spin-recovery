@@ -29,6 +29,9 @@ MODULES = [
     "nuclear_spin_recovery.algorithms",
     "nuclear_spin_recovery.algorithms.base",
     "nuclear_spin_recovery.algorithms.rwmh",
+    "nuclear_spin_recovery.algorithms.rjmcmc",
+    "nuclear_spin_recovery.algorithms.tempering",
+    "nuclear_spin_recovery.driver",
 ]
 
 PUBLIC_NAMES = [
@@ -59,6 +62,14 @@ PUBLIC_NAMES = [
     "RWMH",
     "Target",
     "Trace",
+    "BirthDeathKernel",
+    "GaussianOffset",
+    "HybridDriver",
+    "ParallelTempering",
+    "RJMCMC",
+    "Schedule",
+    "Step",
+    "geometric_ladder",
 ]
 
 
@@ -173,6 +184,53 @@ def test_analytic_model_accepts_an_envelope():
 
     env = StretchedExponential()
     assert AnalyticCCE1(env).envelope is env
+
+
+def test_phase3_classes_subclass_their_base():
+    from nuclear_spin_recovery import (
+        Algorithm, ContinuousReflected, GaussianOffset, ParallelTempering,
+        Proposal, RJMCMC)
+
+    assert issubclass(RJMCMC, Algorithm)
+    assert issubclass(ParallelTempering, Algorithm)
+    assert issubclass(GaussianOffset, ContinuousReflected)
+    assert issubclass(GaussianOffset, Proposal)
+
+
+def test_driver_wiring_holds_its_schedule():
+    """A Step holds an algorithm; a Schedule holds Steps; a driver holds one."""
+    from nuclear_spin_recovery import (
+        ContinuousReflected, HybridDriver, ParameterBlock, RWMH, Schedule, Step)
+
+    algo = RWMH(ParameterBlock("lam"), ContinuousReflected(0.1, 0.0, 1.0))
+    step = Step(algo, 5)
+    schedule = Schedule([step])
+    driver = HybridDriver(schedule)
+    assert step.algorithm is algo
+    assert schedule.steps[0] is step
+    assert driver.schedule is schedule
+
+
+def test_tempering_holds_its_inner_schedule():
+    """PT wraps a Schedule, not a single algorithm -- a rung advances several
+    blocks before a swap."""
+    from nuclear_spin_recovery import (
+        ContinuousReflected, ParallelTempering, ParameterBlock, RWMH, Schedule, Step)
+
+    inner = Schedule([Step(RWMH(ParameterBlock("lam"),
+                                ContinuousReflected(0.1, 0.0, 1.0)), 1)])
+    ladder = ParallelTempering(inner, n_replicas=4)
+    assert ladder.inner is inner
+    assert ladder.n_replicas == 4
+
+
+def test_rjmcmc_holds_its_kernel():
+    from nuclear_spin_recovery import BirthDeathKernel, ParameterBlock, RJMCMC
+
+    kernel = BirthDeathKernel(k_max=20)
+    mover = RJMCMC(ParameterBlock("sites"), kernel)
+    assert mover.kernel is kernel
+    assert kernel.k_max == 20
 
 
 def test_nv2_table_is_present(nv2_path):

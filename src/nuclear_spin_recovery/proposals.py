@@ -24,6 +24,16 @@ class Proposal(ABC):
         kernel.
         """
 
+    def log_prior(self, value):
+        """Log prior density at ``value``.
+
+        Zero for kernels whose parameter has no proper prior -- the lattice
+        constraint and the prior on k enter elsewhere (spec Sec. 7.2).  The
+        hyperfine offsets of Sec. 5.3 are the exception: their Gaussian prior is
+        proper and must appear in the acceptance ratio.
+        """
+        return 0.0
+
 
 class ContinuousReflected(Proposal):
     """Uniform step of at most ``radius``, reflected at the domain bounds.
@@ -98,3 +108,24 @@ class DiscreteLatticeWalk(Proposal):
         if forward == 0 or reverse == 0:
             return current, 0.0
         return proposed, float(np.log(forward) - np.log(reverse))
+
+
+class GaussianOffset(ContinuousReflected):
+    """Continuous walk over a hyperfine offset, under a Gaussian prior.
+
+    Relaxes the hard *ab initio* constraint (spec Sec. 5.3): a spin's coupling
+    becomes its table value plus an offset drawn against N(0, scale**2), so the
+    prior is centred on the DFT prediction and its width encodes how far that
+    prediction is trusted.
+
+    Unlike the other kernels this one carries a proper prior, which enters the
+    acceptance ratio explicitly.
+    """
+
+    def __init__(self, radius, scale, bound=None):
+        bound = 5.0 * scale if bound is None else float(bound)
+        super().__init__(radius, lower=-bound, upper=bound)
+        self.scale = float(scale)
+
+    def log_prior(self, value):
+        raise NotImplementedError

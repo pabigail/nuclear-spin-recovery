@@ -21,9 +21,15 @@ class State:
     lam        (R, n_exp)   float  decay constant, ms
     n_stretch  (R, n_exp)   float  stretch exponent
     sigma      (R, n_exp)   float  noise std
+    dA_par     (R, k_max)   float  hyperfine offset from the table value, kHz
+    dA_perp    (R, k_max)   float  hyperfine offset from the table value, kHz
+
+    Offsets are zero unless the ab initio constraint is relaxed (spec Sec. 5.3),
+    in which case the model reduces exactly to the constrained one.
     """
 
-    def __init__(self, site_idx, k, lam, n_stretch, sigma, n_sites, k_max):
+    def __init__(self, site_idx, k, lam, n_stretch, sigma, n_sites, k_max,
+                 dA_par=None, dA_perp=None):
         self.site_idx = np.asarray(site_idx, dtype=int)
         self.k = np.asarray(k, dtype=int)
         self.lam = np.asarray(lam, dtype=float)
@@ -31,6 +37,9 @@ class State:
         self.sigma = np.asarray(sigma, dtype=float)
         self.n_sites = int(n_sites)
         self.k_max = int(k_max)
+        shape = (self.site_idx.shape[0], self.k_max)
+        self.dA_par = np.zeros(shape) if dA_par is None else np.asarray(dA_par, float)
+        self.dA_perp = np.zeros(shape) if dA_perp is None else np.asarray(dA_perp, float)
         self._occupied = self._derive_occupancy()
 
     def _derive_occupancy(self):

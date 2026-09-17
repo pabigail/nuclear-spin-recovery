@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 #: Parameter blocks an algorithm may update.
-BLOCK_NAMES = ("sites", "lam", "n_stretch", "sigma")
+BLOCK_NAMES = ("sites", "lam", "n_stretch", "sigma", "offsets")
 
 
 @dataclass(frozen=True)

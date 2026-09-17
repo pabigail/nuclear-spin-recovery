@@ -185,8 +185,9 @@ def test_discrete_respects_occupancy_in_the_stationary_law():
     trace = _run(mover, _state((0, 3), n_sites), Flat(),
                  n_steps=20_000, seed=4, n_sites=n_sites, k_max=4)
 
+    sites, counts = trace.site_idx, trace.k
     for step in range(len(trace)):
-        active = trace.site_idx[step, : trace.k[step]]
+        active = sites[step, : counts[step]]
         assert len(set(active.tolist())) == len(active)
 
 

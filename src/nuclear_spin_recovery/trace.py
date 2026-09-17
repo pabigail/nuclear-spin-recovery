@@ -28,6 +28,11 @@ class Trace:
         self._sigma = []
         self._log_prob = []
         self._algorithm = []
+        # Building an array from the append lists is O(n).  Without a cache a
+        # caller that reads a property once per step is O(n^2) -- 20,000 steps
+        # cost 32 s of pure rebuilding.  Arrays are handed out read-only so the
+        # cache cannot be invalidated behind our back.
+        self._cache = {}
 
     def __len__(self) -> int:
         return len(self._k)
@@ -55,53 +60,56 @@ class Trace:
         self._sigma.append(np.array(state.sigma[0], dtype=float))
         self._log_prob.append(float(lp.reshape(-1)[0]))
         self._algorithm.append(str(algorithm))
+        self._cache.clear()
 
     @property
     def site_idx(self):
         """(n_steps, k_max) int"""
-        if not self._site_idx:
-            return np.empty((0, self.k_max), dtype=int)
-        return np.array(self._site_idx, dtype=int)
+        return self._build("site_idx", self._site_idx, int, (0, self.k_max))
 
     @property
     def k(self):
         """(n_steps,) int"""
-        if not self._k:
-            return np.empty((0,), dtype=int)
-        return np.array(self._k, dtype=int)
+        return self._build("k", self._k, int, (0,))
 
     @property
     def lam(self):
         """(n_steps, n_exp) float"""
-        if not self._lam:
-            return np.empty((0, self.n_exp), dtype=float)
-        return np.array(self._lam, dtype=float)
+        return self._build("lam", self._lam, float, (0, self.n_exp))
 
     @property
     def n_stretch(self):
         """(n_steps, n_exp) float"""
-        if not self._n_stretch:
-            return np.empty((0, self.n_exp), dtype=float)
-        return np.array(self._n_stretch, dtype=float)
+        return self._build("n_stretch", self._n_stretch, float, (0, self.n_exp))
 
     @property
     def sigma(self):
         """(n_steps, n_exp) float"""
-        if not self._sigma:
-            return np.empty((0, self.n_exp), dtype=float)
-        return np.array(self._sigma, dtype=float)
+        return self._build("sigma", self._sigma, float, (0, self.n_exp))
 
     @property
     def log_prob(self):
         """(n_steps,) float"""
-        if not self._log_prob:
-            return np.empty((0,), dtype=float)
-        return np.array(self._log_prob, dtype=float)
+        return self._build("log_prob", self._log_prob, float, (0,))
 
     @property
     def algorithm(self):
         """(n_steps,) str -- which sub-algorithm produced each step."""
-        return np.array(self._algorithm, dtype=object)
+        return self._build("algorithm", self._algorithm, object, (0,))
+
+    def _build(self, name, store, dtype, empty_shape):
+        """Return the cached array for ``name``, building it if needed.
+
+        The result is read-only: it is shared with every other caller and with
+        the next access, so a mutation would silently rewrite recorded history.
+        """
+        cached = self._cache.get(name)
+        if cached is None:
+            cached = (np.empty(empty_shape, dtype=dtype) if not store
+                      else np.array(store, dtype=dtype))
+            cached.flags.writeable = False
+            self._cache[name] = cached
+        return cached
 
     def discard_burn_in(self, n_burn):
         """Return a new Trace holding the steps after ``n_burn``."""

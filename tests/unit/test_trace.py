@@ -128,3 +128,28 @@ def test_append_rejects_mismatched_n_exp(trace):
 def test_empty_bath_is_recordable(trace):
     trace.append(make_state(sites=()), log_prob=-1.0)
     assert trace.k[0] == 0
+
+
+def test_repeated_access_reuses_one_array(trace):
+    """Rebuilding on every access makes a per-step reader O(n^2).
+
+    At 20,000 steps that cost 32 s in a single theory test.
+    """
+    trace.append(make_state(), log_prob=-1.0)
+    assert trace.site_idx is trace.site_idx
+    assert trace.lam is trace.lam
+
+
+def test_append_invalidates_the_cache(trace):
+    trace.append(make_state(sites=(0, 2)), log_prob=-1.0)
+    first = trace.site_idx
+    trace.append(make_state(sites=(1, 3)), log_prob=-2.0)
+    assert len(trace.site_idx) == 2
+    assert trace.site_idx is not first
+
+
+def test_returned_arrays_are_read_only(trace):
+    """A trace is history; handing out a mutable shared array invites rewriting it."""
+    trace.append(make_state(), log_prob=-1.0)
+    with pytest.raises(ValueError):
+        trace.site_idx[0, 0] = 99

@@ -23,6 +23,12 @@ MODULES = [
     "nuclear_spin_recovery.likelihood",
     "nuclear_spin_recovery.likelihood.base",
     "nuclear_spin_recovery.likelihood.gaussian",
+    "nuclear_spin_recovery.trace",
+    "nuclear_spin_recovery.neighbors",
+    "nuclear_spin_recovery.proposals",
+    "nuclear_spin_recovery.algorithms",
+    "nuclear_spin_recovery.algorithms.base",
+    "nuclear_spin_recovery.algorithms.rwmh",
 ]
 
 PUBLIC_NAMES = [
@@ -44,6 +50,15 @@ PUBLIC_NAMES = [
     "simulate_dataset",
     "single_spin_modulation",
     "to_angular",
+    "Algorithm",
+    "ContinuousReflected",
+    "DiscreteLatticeWalk",
+    "NeighborIndex",
+    "ParameterBlock",
+    "Proposal",
+    "RWMH",
+    "Target",
+    "Trace",
 ]
 
 
@@ -87,6 +102,69 @@ def test_concrete_classes_subclass_their_base():
     assert issubclass(AnalyticCCE1, ForwardModel)
     assert issubclass(GaussianL2, Likelihood)
     assert issubclass(StretchedExponential, Envelope)
+
+
+def test_sampler_abstract_bases_are_abstract():
+    """Phase 2 ABCs must refuse instantiation."""
+    from nuclear_spin_recovery import Algorithm, Proposal
+
+    for cls in (Algorithm, Proposal):
+        with pytest.raises(TypeError):
+            cls()
+
+
+def test_sampler_concrete_classes_subclass_their_base():
+    from nuclear_spin_recovery import (
+        Algorithm,
+        ContinuousReflected,
+        DiscreteLatticeWalk,
+        Proposal,
+        RWMH,
+    )
+
+    assert issubclass(RWMH, Algorithm)
+    assert issubclass(ContinuousReflected, Proposal)
+    assert issubclass(DiscreteLatticeWalk, Proposal)
+
+
+def test_rwmh_holds_its_block_and_proposal():
+    """Constructor wiring across the phase 2 modules."""
+    import numpy as np
+
+    from nuclear_spin_recovery import (
+        DiscreteLatticeWalk,
+        NeighborIndex,
+        ParameterBlock,
+        RWMH,
+    )
+
+    block = ParameterBlock("sites")
+    proposal = DiscreteLatticeWalk(NeighborIndex(np.zeros((3, 3)), radius=1.0))
+    mover = RWMH(block, proposal)
+    assert mover.block is block
+    assert mover.proposal is proposal
+
+
+def test_target_holds_its_components(tiny_site_table):
+    import numpy as np
+
+    from nuclear_spin_recovery import (
+        AnalyticCCE1,
+        Experiment,
+        ExperimentSet,
+        GaussianL2,
+        StretchedExponential,
+        Target,
+    )
+
+    eset = ExperimentSet([Experiment(tau=np.array([1e-3]), n_pulses=8, b_z=311.0)])
+    model = AnalyticCCE1(StretchedExponential())
+    lik = GaussianL2()
+    target = Target(eset, model, lik, tiny_site_table)
+    assert target.expset is eset
+    assert target.model is model
+    assert target.likelihood is lik
+    assert target.site_table is tiny_site_table
 
 
 def test_analytic_model_accepts_an_envelope():

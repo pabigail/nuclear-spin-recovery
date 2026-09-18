@@ -53,11 +53,19 @@ class State:
         """(R, k_max) boolean: which slots hold a live spin."""
         return np.arange(self.k_max)[None, :] < self.k[:, None]
 
-    def _gather(self, values):
-        """Gather a per-site array onto active spin slots. (R, k_max)"""
+    def _gather(self, values, offset=None):
+        """Gather a per-site array onto active spin slots. (R, k_max)
+
+        ``offset`` is added to live slots only, so relaxing the ab initio
+        constraint (spec Sec. 5.3) reduces exactly to the constrained model
+        when the offsets are zero.
+        """
         values = np.asarray(values, dtype=float)
         safe = np.clip(self.site_idx, 0, self.n_sites - 1)
-        return np.where(self._active_mask(), values[safe], 0.0)
+        gathered = values[safe]
+        if offset is not None:
+            gathered = gathered + offset
+        return np.where(self._active_mask(), gathered, 0.0)
 
     @classmethod
     def from_sites(cls, sites, *, n_sites, n_exp, lam, n_stretch, sigma, k_max):
@@ -107,6 +115,8 @@ class State:
             sigma=self.sigma.copy(),
             n_sites=self.n_sites,
             k_max=self.k_max,
+            dA_par=self.dA_par.copy(),
+            dA_perp=self.dA_perp.copy(),
         )
         out._occupied = self._occupied.copy()
         return out
@@ -124,6 +134,8 @@ class State:
             sigma=tile(self.sigma),
             n_sites=self.n_sites,
             k_max=self.k_max,
+            dA_par=tile(self.dA_par),
+            dA_perp=tile(self.dA_perp),
         )
         return out
 
@@ -137,6 +149,8 @@ class State:
             sigma=self.sigma[:1].copy(),
             n_sites=self.n_sites,
             k_max=self.k_max,
+            dA_par=self.dA_par[:1].copy(),
+            dA_perp=self.dA_perp[:1].copy(),
         )
         out._occupied = self._occupied[:1].copy()
         return out
@@ -150,11 +164,11 @@ class State:
 
     def a_par_per_spin(self, site_table):
         """Parallel hyperfine component of each active spin, kHz. (R, k_max)"""
-        return self._gather(site_table.a_par)
+        return self._gather(site_table.a_par, self.dA_par)
 
     def a_perp_per_spin(self, site_table):
         """Perpendicular hyperfine component of each active spin, kHz."""
-        return self._gather(site_table.a_perp)
+        return self._gather(site_table.a_perp, self.dA_perp)
 
     def check_invariants(self):
         """Raise if the state is malformed.

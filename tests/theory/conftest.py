@@ -63,6 +63,20 @@ class Metrics:
         return float(np.median(self.residual))
 
     @property
+    def best_residual(self):
+        """Lowest residual any sampled configuration achieves.
+
+        The statistic to use when comparing a model against one nested inside
+        it.  A model with extra sampled parameters has a *higher* median
+        residual than one holding them at the prior mean, because a typical
+        draw sits away from that mean -- so a median comparison penalises the
+        richer model for exploring.  What it should be asked is whether it can
+        reach a fit the constrained model cannot.  Only meaningful between runs
+        with the same number of posterior samples.
+        """
+        return float(np.min(self.residual))
+
+    @property
     def k_mode(self):
         return int(np.bincount(self.k_posterior).argmax())
 
@@ -78,12 +92,36 @@ def model():
     return AnalyticCCE1(StretchedExponential())
 
 
+@pytest.fixture(scope="session")
+def detectable_table(table):
+    """Only sites a CPMG-16 experiment at 311 G can actually resolve.
+
+    Below roughly 25 kHz a spin modulates the signal by less than the noise,
+    so adding a spurious one barely changes the likelihood and is accepted
+    about half the time.  On the full 3557-site table that random walk carries
+    k far above the truth, which measures identifiability rather than the
+    sampler.  Restricting the candidate pool makes a spurious spin cost
+    something, so the model dimension becomes identifiable and the trans-
+    dimensional machinery can be tested on its own.
+
+    Measured (test-plan §5.6), k_true = 8: full table gives a posterior mode of
+    17, a 25 kHz cutoff gives 9, and this one gives 8.
+    """
+    magnitude = np.hypot(table.a_par, table.a_perp)
+    keep = magnitude >= 100.0
+    return SiteTable(
+        distance=table.distance[keep], positions=table.positions[keep],
+        a_par=table.a_par[keep], a_perp=table.a_perp[keep],
+        isotope=table.isotope[keep], gyro=table.gyro[keep])
+
+
 @pytest.fixture
 def make_state(table):
-    def build(sites, lam=LAM, sigma=LIK_SIGMA, k_max=32, dA=False):
+    def build(sites, lam=LAM, sigma=LIK_SIGMA, k_max=32, tbl=None):
+        tbl = table if tbl is None else tbl
         return State.from_sites(
             np.sort(np.asarray(list(sites), dtype=int)),
-            n_sites=len(table), n_exp=1,
+            n_sites=len(tbl), n_exp=1,
             lam=np.array([[lam]]), n_stretch=np.array([[1.0]]),
             sigma=np.array([[sigma]]), k_max=k_max)
     return build
@@ -110,29 +148,31 @@ def stratified_bath(table):
 @pytest.fixture
 def simulated(table, model, make_state):
     """Truth, data and target for one simulated bath."""
-    def build(sites, seed, lam=LAM, noise=DATA_NOISE):
-        truth = make_state(sites, lam=lam, sigma=noise)
+    def build(sites, seed, lam=LAM, noise=DATA_NOISE, tbl=None):
+        tbl = table if tbl is None else tbl
+        truth = make_state(sites, lam=lam, sigma=noise, tbl=tbl)
         blank = ExperimentSet([Experiment(tau=TAU, n_pulses=N_PULSES, b_z=B_Z)])
-        data = simulate_dataset(truth, blank, table, model, sigma=noise,
+        data = simulate_dataset(truth, blank, tbl, model, sigma=noise,
                                 rng=np.random.default_rng(seed + 9000))
-        return truth, data, Target(data, model, GaussianL2(), table)
+        return truth, data, Target(data, model, GaussianL2(), tbl)
     return build
 
 
 @pytest.fixture
 def metrics(table, model, make_state):
     """Compute every ladder metric from a trace. See test-plan §3."""
-    def compute(trace, truth, data, burn, stride=50, noise=DATA_NOISE):
+    def compute(trace, truth, data, burn, stride=50, noise=DATA_NOISE, tbl=None):
+        tbl = table if tbl is None else tbl
         post = trace.discard_burn_in(burn)
         idx = range(0, len(post), max(1, stride))
 
         def couplings(sites):
-            return set(zip(np.round(table.a_par[sites], 4),
-                           np.round(table.a_perp[sites], 4)))
+            return set(zip(np.round(tbl.a_par[sites], 4),
+                           np.round(tbl.a_perp[sites], 4)))
 
         samples = [couplings(post.site_idx[j, : int(post.k[j])]) for j in range(len(post))]
-        ref = list(zip(table.a_par[np.asarray(truth.site_idx[0, : int(truth.k[0])])],
-                       table.a_perp[np.asarray(truth.site_idx[0, : int(truth.k[0])])]))
+        ref = list(zip(tbl.a_par[np.asarray(truth.site_idx[0, : int(truth.k[0])])],
+                       tbl.a_perp[np.asarray(truth.site_idx[0, : int(truth.k[0])])]))
 
         R_i = np.array([
             np.mean([any(abs(a - c) <= MATCH_TOL and abs(b - d) <= MATCH_TOL
@@ -142,8 +182,14 @@ def metrics(table, model, make_state):
         obs = data.data_all
         predictive, residual = [], []
         for j in idx:
-            st = make_state(post.site_idx[j, : int(post.k[j])], k_max=post.k_max)
-            pred = simulate_coherence(st, data, table, model)
+            k = int(post.k[j])
+            st = make_state(post.site_idx[j, :k], k_max=post.k_max, tbl=tbl)
+            # Offsets must come from the trace.  Rebuilding from site indices
+            # alone pins them at zero, which scores a relaxed run as if its
+            # constraint had never been relaxed.
+            st.dA_par[0, :k] = post.dA_par[j, :k]
+            st.dA_perp[0, :k] = post.dA_perp[j, :k]
+            pred = simulate_coherence(st, data, tbl, model)
             predictive.append(pred)
             residual.append(np.sqrt(np.mean((obs - pred) ** 2)) / noise)
 

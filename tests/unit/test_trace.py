@@ -153,3 +153,41 @@ def test_returned_arrays_are_read_only(trace):
     trace.append(make_state(), log_prob=-1.0)
     with pytest.raises(ValueError):
         trace.site_idx[0, 0] = 99
+
+
+def test_records_offsets(trace):
+    """A sample is not reproducible from site indices alone.
+
+    Rebuilding a relaxed configuration without its offsets scores it as if the
+    ab initio constraint had never been relaxed.
+    """
+    st = make_state(sites=(0, 2))
+    st.dA_par[0, 0] = 1.5
+    st.dA_perp[0, 1] = -2.5
+    trace.append(st, log_prob=-1.0)
+    assert trace.dA_par[0, 0] == pytest.approx(1.5)
+    assert trace.dA_perp[0, 1] == pytest.approx(-2.5)
+
+
+def test_offset_shapes_match_the_slots(trace):
+    for _ in range(4):
+        trace.append(make_state(), log_prob=-1.0)
+    assert trace.dA_par.shape == (4, 8)
+    assert trace.dA_perp.shape == (4, 8)
+
+
+def test_offsets_survive_burn_in_discard(trace):
+    for i in range(6):
+        st = make_state()
+        st.dA_par[0, 0] = float(i)
+        trace.append(st, log_prob=-1.0)
+    kept = trace.discard_burn_in(2)
+    assert kept.dA_par[0, 0] == pytest.approx(2.0)
+
+
+def test_offsets_are_copied_not_aliased(trace):
+    st = make_state()
+    st.dA_par[0, 0] = 3.0
+    trace.append(st, log_prob=-1.0)
+    st.dA_par[0, 0] = 9.0
+    assert trace.dA_par[0, 0] == pytest.approx(3.0)

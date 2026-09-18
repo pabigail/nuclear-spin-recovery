@@ -282,10 +282,133 @@ that cannot fit the data cannot pass.
 
 ### 5.5 What is not yet calibrated
 
-T1, T3, T4, T5 and T6 have no thresholds because the machinery they test does not
-exist yet. Each is calibrated when its phase lands, by the same procedure: run the
-rung's own configuration, record the metric, record what the metric reads with
-the mechanism disabled, and set the threshold between them with margin.
+T6 has no thresholds because the machinery it tests does not exist yet. It is
+calibrated when its phase lands, by the same procedure: run the rung's own
+configuration, record the metric, record what the metric reads with the
+mechanism disabled, and set the threshold between them with margin.
+
+### 5.6 Phase 3 calibration
+
+Each number below decided a test's shape, not just its threshold. Four of the
+five decisions were forced by a measurement contradicting what the test
+originally assumed.
+
+#### Model dimension is only identifiable on a detectable candidate table
+
+RJMCMC run against baths of 8 spins, varying the pool births may draw from:
+
+| candidate table | sites | k_true | posterior mode of k | 5–95% |
+|---|---:|---:|---:|---|
+| full, weak cutoff 5 kHz | 3557 | 8 | 17 | [11, 24] |
+| weak cutoff 25 kHz | 767 | 8 | 9 | [8, 11] |
+| **weak cutoff 100 kHz** | **165** | **8** | **8** | **[8, 9]** |
+
+Below the detection floor a spurious spin changes the likelihood by less than
+the noise, so it is accepted about half the time and $k$ random-walks upward.
+On the full table the posterior mode measures identifiability, not the sampler.
+T3 therefore runs against a restricted table, where a spurious spin costs
+something.
+
+#### Dimension is multimodal, and birth–death alone does not mix across it
+
+Same bath, started under- and over-specified:
+
+| start | 8,000 steps | 16,000 | 30,000 |
+|---|---:|---:|---:|
+| below ($k_0 = 4$) | 8 | 8 | 8 |
+| above ($k_0 = 14$) | 10 | 10 | 10 |
+
+Stable at every chain length, so this is not burn-in. From above the chain
+finds every true spin — $R = 1.0$ across the detectable band — but never sheds
+the last two extras. T3 asserts mode equality from below only, and *documents*
+the over-specified case rather than demanding it pass. Closing that gap is what
+tempering over a trans-dimensional block would buy.
+
+#### Tempering helps, but not on every seed
+
+Single discrete block against a six-rung ladder, same data and start:
+
+| seed | residual, single | tempered | $R_{25-100}$ single | tempered |
+|---|---:|---:|---:|---:|
+| 21 | 1.73 | 1.62 | 0.482 | 0.566 |
+| 22 | **4.80** | **2.00** | 0.370 | 0.743 |
+| 23 | 1.64 | 1.66 | 0.546 | 0.545 |
+| **pooled** | **2.72** | **1.76** | **0.466** | **0.618** |
+
+Seed 22 is the claim in miniature: a chain stuck at 4.8σ, rescued to 2.0σ. Seed
+23 shows nothing. T4 therefore asserts on the mean across three seeds. A
+single-seed strict comparison would be flaky, and choosing the seed that shows
+the effect would be worse than flaky. The 100–750 kHz band is unusable for this
+comparison — both methods saturate near 1.0, leaving no headroom.
+
+#### Swap rate sets the replica count
+
+Rungs advanced 300 steps so they differ, then 400 swap attempts:
+
+| ladder | coldest β | swap rate |
+|---|---:|---:|
+| geometric $2^{-j}$, J = 4 | 0.125 | **0.000** |
+| geometric $2^{-j}$, J = 6 | 0.031 | 0.058 |
+| $0.7^{j}$, J = 6 | 0.168 | 0.062 |
+| $0.85^{j}$, J = 8 | 0.321 | 0.048 |
+
+Hence `N_REPLICAS = 6`: a four-rung geometric ladder never exchanges at all.
+The rates are low because the swap draws a *random* pair rather than an
+adjacent one, following the methods paper — only a third of draws on six rungs
+are adjacent, and wider gaps are almost never accepted. Raising this is an
+obvious future improvement, and one the spec would have to record as a
+departure.
+
+#### Relaxation is compared at its best, not at its median
+
+Truth generated with couplings perturbed ~1 kHz off-table:
+
+| configuration | residual |
+|---|---:|
+| truth sites, offsets pinned at 0 | 3.47 σ |
+| truth sites, **true** offsets | **1.00 σ** |
+| constrained run, from truth sites | 3.47 σ |
+| relaxed run, from truth sites | **1.71 σ** |
+
+Three corrections were needed to get these. **Start at the true sites:** this
+rung isolates relaxation, and starting from a wrong configuration measures
+relaxation and configuration search together — the extra freedom lets the chain
+fit the data with wrong sites, which inverts the comparison (best residual 4.53 σ
+relaxed against 3.46 σ constrained). That is a real effect and worth its own
+rung one day, but it is not the one T5 asks about. **Equal site-step budgets:**
+the
+relaxed schedule spends four of every six steps on offsets, so an equal *total*
+budget gives it a third as many site moves and it loses on configuration search
+rather than on the mechanism under test — that confound read 19.70 σ.
+**Comparison at the best sample, not the median:** the constrained model pins
+the offsets at the prior mean, which is the best point estimate when the
+likelihood barely constrains them, while the relaxed model samples them, so a
+typical draw is worse by construction. Comparing medians penalises the richer
+model for exploring and reads 7.12 σ against 3.51 σ. The question a nested
+model should be asked is whether it can reach a fit the constraint forbids, at
+equal posterior-sample counts.
+
+#### A measurement gap the rung exposed
+
+T5 could not be measured at all until `Trace` recorded the hyperfine offsets.
+The metrics harness rebuilds each posterior sample from its site indices, which
+zeroes the offsets, so every relaxed run was scored as if its constraint had
+never been relaxed. The symptom was a test reading 4.68 σ while a
+final-state diagnostic on the same configuration read 1.82 σ: the diagnostic
+carried the offsets, the trace had discarded them. A posterior sample is not
+reproducible from site indices alone.
+
+#### Chain lengths
+
+| constant | value | basis |
+|---|---:|---|
+| `CHAIN_STEPS` | 8,000 | single-block rungs; k-recovery stable from 8,000 to 30,000 |
+| `LADDER_STEPS` | 6,000 | tempered rungs cost `N_REPLICAS` inner steps each |
+| `N_REPLICAS` | 6 | J = 4 never swaps; J = 6 swaps at 0.058 |
+| `BURN` | 3,000 | |
+
+Ladder wall time is about 4 minutes, dominated by T4's pooled comparison at
+~110 s. The working loop remains `pytest -m "not slow"` at about 1 s.
 
 ---
 

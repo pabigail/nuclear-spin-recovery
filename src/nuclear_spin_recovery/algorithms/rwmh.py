@@ -25,11 +25,12 @@ class RWMH(Algorithm):
         """Propose and accept or reject, independently per replica."""
         current_lp = target.log_prob(state, beta=beta)
         proposed = state.copy()
-        log_ratio = (
-            self._propose_sites(proposed, rng)
-            if self.block.is_discrete
-            else self._propose_continuous(proposed, rng)
-        )
+        if self.block.is_discrete:
+            log_ratio = self._propose_sites(proposed, rng)
+        elif self.block.name == "offsets":
+            log_ratio = self._propose_offsets(proposed, rng)
+        else:
+            log_ratio = self._propose_continuous(proposed, rng)
         proposed_lp = target.log_prob(proposed, beta=beta)
 
         log_alpha = proposed_lp - current_lp + log_ratio
@@ -46,6 +47,28 @@ class RWMH(Algorithm):
         updated, log_ratio = self.proposal.propose(rng, values[:, column])
         values[:, column] = updated
         return np.full(state.n_replicas, log_ratio, dtype=float)
+
+    def _propose_offsets(self, state, rng):
+        """Update one spin's hyperfine offset, in place.
+
+        Returns proposal ratio plus prior ratio: unlike the other blocks the
+        offsets carry a proper prior, which must enter the acceptance ratio
+        (spec Sec. 5.3).
+        """
+        log_ratio = np.zeros(state.n_replicas)
+        which = rng.integers(2)
+        values = state.dA_par if which == 0 else state.dA_perp
+        for r in range(state.n_replicas):
+            if state.k[r] == 0:
+                continue
+            slot = int(rng.integers(state.k[r]))
+            current = float(values[r, slot])
+            proposed, ratio = self.proposal.propose(rng, current)
+            values[r, slot] = proposed
+            log_ratio[r] = (ratio
+                            + self.proposal.log_prior(proposed)
+                            - self.proposal.log_prior(current))
+        return log_ratio
 
     def _propose_sites(self, state, rng):
         """Move one spin per replica to a neighbouring free site, in place."""
@@ -69,7 +92,8 @@ class RWMH(Algorithm):
     def _merge(current, proposed, accept):
         """Take the proposed replicas where accepted, the current ones where not."""
         out = current.copy()
-        for name in ("site_idx", "k", "lam", "n_stretch", "sigma"):
+        for name in ("site_idx", "k", "lam", "n_stretch", "sigma",
+                     "dA_par", "dA_perp"):
             getattr(out, name)[accept] = getattr(proposed, name)[accept]
         out.occupied[accept] = proposed.occupied[accept]
         return out

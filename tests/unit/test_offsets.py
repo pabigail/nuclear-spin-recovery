@@ -146,9 +146,11 @@ def test_offsets_block_updates_only_offsets(tiny_site_table):
 def test_offsets_move_under_a_flat_target(tiny_site_table):
     mover = RWMH(ParameterBlock("offsets"), GaussianOffset(0.2, 1.0))
     st = make_state(tiny_site_table)
+    rng = np.random.default_rng(0)          # one stream, not a fresh seed per step
     for _ in range(80):
-        st = mover.step(st, Flat(), np.random.default_rng(0))
+        st = mover.step(st, Flat(), rng)
     assert not np.all(st.dA_par[0, :2] == 0.0)
+    assert not np.all(st.dA_perp[0, :2] == 0.0)
 
 
 def test_prior_pulls_offsets_toward_zero(tiny_site_table):

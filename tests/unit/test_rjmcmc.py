@@ -83,26 +83,55 @@ def test_birth_probability_is_respected(rng):
     assert np.mean([m == "birth" for m in moves]) == pytest.approx(0.8, abs=0.03)
 
 
-def test_birth_ratio_is_hand_computable(kernel):
-    """Birth: gamma(k->k+1) = p_b / n_free ; reverse: p_d / (k+1)."""
-    k, n_free = 3, 5
-    expected = np.log(0.5 / (k + 1)) - np.log(0.5 / n_free)
-    assert kernel.log_ratio(k, "birth", n_free) == pytest.approx(expected)
+def test_ratio_is_the_move_asymmetry_alone(kernel):
+    """Under a uniform prior on k, symmetric moves give a ratio of exactly zero.
+
+    The proposal ratio for a birth, (p_d/(k+1)) / (p_b/n_free), is cancelled
+    exactly by the combinatorial prior term C(n,k)/C(n,k+1) = (k+1)/n_free.
+    What survives is only the birth/death asymmetry.
+    """
+    assert kernel.log_ratio(3, "birth", n_free=5) == pytest.approx(0.0)
+    assert kernel.log_ratio(3, "death", n_free=5) == pytest.approx(0.0)
 
 
-def test_death_ratio_is_the_birth_ratio_reversed(kernel):
-    """Reversibility: the death ratio out of k+1 undoes the birth ratio into it."""
-    k, n_free = 3, 5
-    birth = kernel.log_ratio(k, "birth", n_free)
-    # after a birth there is one fewer free site, and k+1 spins to remove
-    death = kernel.log_ratio(k + 1, "death", n_free - 1)
+def test_ratio_reflects_an_asymmetric_move_split():
+    """Proposing births more often must make them correspondingly harder."""
+    kernel = BirthDeathKernel(k_max=20, birth_prob=0.8)
+    assert kernel.log_ratio(3, "birth", n_free=5) == pytest.approx(np.log(0.2 / 0.8))
+    assert kernel.log_ratio(3, "death", n_free=5) == pytest.approx(np.log(0.8 / 0.2))
+
+
+def test_death_ratio_is_the_birth_ratio_reversed():
+    """Reversibility: death out of k+1 undoes birth into it."""
+    kernel = BirthDeathKernel(k_max=20, birth_prob=0.7)
+    birth = kernel.log_ratio(3, "birth", n_free=5)
+    death = kernel.log_ratio(4, "death", n_free=4)
     assert death == pytest.approx(-birth)
 
 
-def test_ratio_depends_on_free_sites(kernel):
-    """More room to be born into makes a birth relatively less likely to reverse."""
-    assert kernel.log_ratio(3, "birth", 10) != pytest.approx(
-        kernel.log_ratio(3, "birth", 5))
+def test_ratio_is_independent_of_free_sites(kernel):
+    """The site count cancels between proposal and prior.
+
+    A ratio that still varies with n_free has dropped the combinatorial term,
+    and on a table of thousands of sites that omission favours every birth by
+    a factor of hundreds -- the model dimension then runs to k_max whatever the
+    data says.
+    """
+    assert kernel.log_ratio(3, "birth", n_free=10) == pytest.approx(
+        kernel.log_ratio(3, "birth", n_free=5))
+    assert kernel.log_ratio(3, "birth", n_free=3000) == pytest.approx(
+        kernel.log_ratio(3, "birth", n_free=5))
+
+
+def test_prior_on_k_enters_the_ratio():
+    """Swapping the prior changes the effective prior on bath size.
+
+    Spec Sec. 7.2: the prior on k is carried by the kernel, so an
+    abundance-informed prior is a substitution rather than a sampler change.
+    """
+    penalty = BirthDeathKernel(k_max=20, log_prior_k=lambda k: -2.0 * k)
+    assert penalty.log_ratio(3, "birth", n_free=5) == pytest.approx(-2.0)
+    assert penalty.log_ratio(3, "death", n_free=5) == pytest.approx(+2.0)
 
 
 def test_kernel_is_reproducible():

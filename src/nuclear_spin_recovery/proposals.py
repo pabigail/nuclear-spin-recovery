@@ -128,4 +128,6 @@ class GaussianOffset(ContinuousReflected):
         self.scale = float(scale)
 
     def log_prior(self, value):
-        raise NotImplementedError
+        """Gaussian centred on the table value, i.e. on a zero offset."""
+        value = np.asarray(value, dtype=float)
+        return -0.5 * (value / self.scale) ** 2

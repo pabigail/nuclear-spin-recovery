@@ -24,8 +24,9 @@ class Step:
     n_steps: int
 
     def __post_init__(self):
-        # TODO(phase-3): require n_steps >= 1 and an Algorithm instance.
-        pass
+        self.n_steps = int(self.n_steps)
+        if self.n_steps < 1:
+            raise ValueError(f"n_steps must be at least 1, got {self.n_steps}")
 
 
 class Schedule:
@@ -35,15 +36,17 @@ class Schedule:
         self.steps = list(steps)
 
     def __len__(self) -> int:
-        raise NotImplementedError
+        return len(self.steps)
 
     def __iter__(self):
-        raise NotImplementedError
+        return iter(self.steps)
 
     @property
     def steps_per_cycle(self) -> int:
         """Total sampler steps in one pass through the schedule."""
-        raise NotImplementedError
+        if not self.steps:
+            raise ValueError("schedule is empty")
+        return sum(step.n_steps for step in self.steps)
 
 
 class HybridDriver:
@@ -58,4 +61,15 @@ class HybridDriver:
         A budget that does not divide the cycle length stops partway through a
         cycle rather than overrunning.
         """
-        raise NotImplementedError
+        remaining = int(n_total)
+        if remaining and not self.schedule.steps:
+            raise ValueError("schedule is empty")
+        while remaining > 0:
+            for step in self.schedule:
+                if remaining <= 0:
+                    break
+                take = min(step.n_steps, remaining)
+                state = step.algorithm.run(state, target, rng, n_steps=take,
+                                           trace=trace)
+                remaining -= take
+        return state

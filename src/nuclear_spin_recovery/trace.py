@@ -26,6 +26,8 @@ class Trace:
         self._lam = []
         self._n_stretch = []
         self._sigma = []
+        self._dA_par = []
+        self._dA_perp = []
         self._log_prob = []
         self._algorithm = []
         # Building an array from the append lists is O(n).  Without a cache a
@@ -58,6 +60,8 @@ class Trace:
         self._lam.append(np.array(state.lam[0], dtype=float))
         self._n_stretch.append(np.array(state.n_stretch[0], dtype=float))
         self._sigma.append(np.array(state.sigma[0], dtype=float))
+        self._dA_par.append(np.array(state.dA_par[0], dtype=float))
+        self._dA_perp.append(np.array(state.dA_perp[0], dtype=float))
         self._log_prob.append(float(lp.reshape(-1)[0]))
         self._algorithm.append(str(algorithm))
         self._cache.clear()
@@ -86,6 +90,16 @@ class Trace:
     def sigma(self):
         """(n_steps, n_exp) float"""
         return self._build("sigma", self._sigma, float, (0, self.n_exp))
+
+    @property
+    def dA_par(self):
+        """(n_steps, k_max) float -- offset from the table A_parallel, kHz."""
+        return self._build("dA_par", self._dA_par, float, (0, self.k_max))
+
+    @property
+    def dA_perp(self):
+        """(n_steps, k_max) float -- offset from the table A_perp, kHz."""
+        return self._build("dA_perp", self._dA_perp, float, (0, self.k_max))
 
     @property
     def log_prob(self):
@@ -124,6 +138,8 @@ class Trace:
         out._lam = list(self._lam[n_burn:])
         out._n_stretch = list(self._n_stretch[n_burn:])
         out._sigma = list(self._sigma[n_burn:])
+        out._dA_par = list(self._dA_par[n_burn:])
+        out._dA_perp = list(self._dA_perp[n_burn:])
         out._log_prob = list(self._log_prob[n_burn:])
         out._algorithm = list(self._algorithm[n_burn:])
         return out

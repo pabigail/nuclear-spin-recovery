@@ -61,3 +61,15 @@ venv.bak/
 # MacOS metadata
 .DS_Store
 nuclear-spin-recover/io_files/*.pkl
+
+# Linter cache
+.ruff_cache/
+
+# Notebooks are tracked as paired .py:percent files, not .ipynb
+notebooks/*.ipynb
+
+# Large or generated data
+data/
+*.h5
+*.hdf5
+*.npy

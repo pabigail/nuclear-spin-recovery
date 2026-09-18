@@ -1,0 +1,3 @@
+# Every notebook here is paired with a .py:percent file.
+# The .py is the version control artifact; the .ipynb is derived.
+formats = "ipynb,py:percent"

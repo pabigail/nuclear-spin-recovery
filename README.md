@@ -25,3 +25,28 @@ git clone <this-repo-url>
 cd nuclear-spin-recovery
 pip install .
 
+```
+
+## Development History
+
+This repository holds two implementations of the same physics.
+
+- **`main`** — Original research implementation (2024–2025). The code that
+  produced the results in arXiv:2506.19259 and arXiv:2506.18802.
+- **`claude-rewrite`** — Production rewrite (2026–), with an object-oriented
+  sampler architecture, a written model specification, and a calibrated test
+  suite. Active development happens here. See [REWRITE.md](REWRITE.md).
+
+The rewrite branch carries both histories: `git log` shows the original 89
+commits alongside the rewrite.
+
+### Working on the rewrite branch
+
+```bash
+pip install -e ".[dev]"
+pytest                   # full suite, ~4 min
+pytest -m "not slow"     # fast subset, ~1 s
+```
+
+Notebooks in `notebooks/` are paired with `.py:percent` files via jupytext.
+Edit either; only the `.py` is committed.

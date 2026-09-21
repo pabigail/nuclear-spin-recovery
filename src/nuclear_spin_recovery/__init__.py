@@ -28,6 +28,20 @@ from .forward import (
     StretchedExponential,
     single_spin_modulation,
 )
+from .post import (
+    BANDS,
+    MATCH_TOL,
+    PosteriorSummary,
+    band_index,
+    by_band,
+    couplings,
+    detection_rate,
+    false_absence,
+    matches,
+    predictive_signals,
+    residual_distribution,
+    summarize,
+)
 from .simulate import add_noise, simulate_coherence, simulate_dataset
 from .state import State
 from .trace import Trace
@@ -36,6 +50,7 @@ from .units import TWO_PI, SUPPORTED_ISOTOPES, gyromagnetic_ratio, to_angular
 __all__ = [
     "Algorithm",
     "AnalyticCCE1",
+    "BANDS",
     "BirthDeathKernel",
     "ContinuousReflected",
     "DiscreteLatticeWalk",
@@ -47,9 +62,11 @@ __all__ = [
     "GaussianOffset",
     "HybridDriver",
     "Likelihood",
+    "MATCH_TOL",
     "NeighborIndex",
     "ParallelTempering",
     "ParameterBlock",
+    "PosteriorSummary",
     "Proposal",
     "RJMCMC",
     "RWMH",
@@ -63,12 +80,21 @@ __all__ = [
     "Target",
     "Trace",
     "add_noise",
+    "band_index",
+    "by_band",
+    "couplings",
+    "detection_rate",
+    "false_absence",
     "geometric_ladder",
     "gyromagnetic_ratio",
+    "matches",
+    "predictive_signals",
     "read_hyperfine_table",
+    "residual_distribution",
     "secular_components",
     "simulate_coherence",
     "simulate_dataset",
     "single_spin_modulation",
+    "summarize",
     "to_angular",
 ]

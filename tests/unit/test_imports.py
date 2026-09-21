@@ -32,6 +32,11 @@ MODULES = [
     "nuclear_spin_recovery.algorithms.rjmcmc",
     "nuclear_spin_recovery.algorithms.tempering",
     "nuclear_spin_recovery.driver",
+    "nuclear_spin_recovery.post",
+    "nuclear_spin_recovery.post.detection",
+    "nuclear_spin_recovery.post.metrics",
+    "nuclear_spin_recovery.post.residual",
+    "nuclear_spin_recovery.post.plots",
 ]
 
 PUBLIC_NAMES = [
@@ -70,6 +75,18 @@ PUBLIC_NAMES = [
     "Schedule",
     "Step",
     "geometric_ladder",
+    "BANDS",
+    "MATCH_TOL",
+    "PosteriorSummary",
+    "band_index",
+    "by_band",
+    "couplings",
+    "detection_rate",
+    "false_absence",
+    "matches",
+    "predictive_signals",
+    "residual_distribution",
+    "summarize",
 ]
 
 
@@ -126,11 +143,11 @@ def test_sampler_abstract_bases_are_abstract():
 
 def test_sampler_concrete_classes_subclass_their_base():
     from nuclear_spin_recovery import (
+        RWMH,
         Algorithm,
         ContinuousReflected,
         DiscreteLatticeWalk,
         Proposal,
-        RWMH,
     )
 
     assert issubclass(RWMH, Algorithm)
@@ -143,10 +160,10 @@ def test_rwmh_holds_its_block_and_proposal():
     import numpy as np
 
     from nuclear_spin_recovery import (
+        RWMH,
         DiscreteLatticeWalk,
         NeighborIndex,
         ParameterBlock,
-        RWMH,
     )
 
     block = ParameterBlock("sites")
@@ -188,8 +205,13 @@ def test_analytic_model_accepts_an_envelope():
 
 def test_phase3_classes_subclass_their_base():
     from nuclear_spin_recovery import (
-        Algorithm, ContinuousReflected, GaussianOffset, ParallelTempering,
-        Proposal, RJMCMC)
+        RJMCMC,
+        Algorithm,
+        ContinuousReflected,
+        GaussianOffset,
+        ParallelTempering,
+        Proposal,
+    )
 
     assert issubclass(RJMCMC, Algorithm)
     assert issubclass(ParallelTempering, Algorithm)
@@ -200,7 +222,13 @@ def test_phase3_classes_subclass_their_base():
 def test_driver_wiring_holds_its_schedule():
     """A Step holds an algorithm; a Schedule holds Steps; a driver holds one."""
     from nuclear_spin_recovery import (
-        ContinuousReflected, HybridDriver, ParameterBlock, RWMH, Schedule, Step)
+        RWMH,
+        ContinuousReflected,
+        HybridDriver,
+        ParameterBlock,
+        Schedule,
+        Step,
+    )
 
     algo = RWMH(ParameterBlock("lam"), ContinuousReflected(0.1, 0.0, 1.0))
     step = Step(algo, 5)
@@ -215,7 +243,13 @@ def test_tempering_holds_its_inner_schedule():
     """PT wraps a Schedule, not a single algorithm -- a rung advances several
     blocks before a swap."""
     from nuclear_spin_recovery import (
-        ContinuousReflected, ParallelTempering, ParameterBlock, RWMH, Schedule, Step)
+        RWMH,
+        ContinuousReflected,
+        ParallelTempering,
+        ParameterBlock,
+        Schedule,
+        Step,
+    )
 
     inner = Schedule([Step(RWMH(ParameterBlock("lam"),
                                 ContinuousReflected(0.1, 0.0, 1.0)), 1)])
@@ -225,7 +259,7 @@ def test_tempering_holds_its_inner_schedule():
 
 
 def test_rjmcmc_holds_its_kernel():
-    from nuclear_spin_recovery import BirthDeathKernel, ParameterBlock, RJMCMC
+    from nuclear_spin_recovery import RJMCMC, BirthDeathKernel, ParameterBlock
 
     kernel = BirthDeathKernel(k_max=20)
     mover = RJMCMC(ParameterBlock("sites"), kernel)
@@ -237,3 +271,37 @@ def test_nv2_table_is_present(nv2_path):
     """The committed hyperfine table ships with the repo."""
     assert nv2_path.exists()
     assert nv2_path.stat().st_size > 1_000_000
+
+
+def test_post_subpackage_reexports_its_names():
+    """post/ is importable on its own, as the ensemble runner will use it."""
+    from nuclear_spin_recovery import post
+
+    assert post.__all__ == sorted(post.__all__)
+    for name in post.__all__:
+        assert hasattr(post, name), f"{name} missing from post namespace"
+
+
+def test_importing_post_does_not_import_matplotlib():
+    """A compute node writing summaries must not need a plotting stack.
+
+    Run in a subprocess: matplotlib may already be in this interpreter because
+    another test imported it, which would make an in-process check vacuous.
+    """
+    import os
+    import pathlib
+    import subprocess
+    import sys
+
+    src = pathlib.Path(__file__).resolve().parents[2] / "src"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(src)] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])
+    )
+    code = (
+        "import sys; import nuclear_spin_recovery.post; "
+        "sys.exit(1 if 'matplotlib' in sys.modules else 0)"
+    )
+    done = subprocess.run([sys.executable, "-c", code], env=env,
+                          capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr or "matplotlib was imported"

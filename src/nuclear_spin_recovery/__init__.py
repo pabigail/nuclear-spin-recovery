@@ -11,6 +11,17 @@ from .algorithms import (
     geometric_ladder,
 )
 from .driver import HybridDriver, Schedule, Step
+from .ensemble import (
+    RHAT_PARAMETERS,
+    Agreement,
+    EnsembleResult,
+    EnsembleRunner,
+    derive_seeds,
+    load_ensembles,
+    merge_traces,
+    rhat,
+    spread_across_k,
+)
 from .experiment import Experiment, ExperimentSet
 from .lattice import SiteTable, read_hyperfine_table, secular_components
 from .neighbors import NeighborIndex
@@ -48,12 +59,15 @@ from .trace import Trace
 from .units import TWO_PI, SUPPORTED_ISOTOPES, gyromagnetic_ratio, to_angular
 
 __all__ = [
+    "Agreement",
     "Algorithm",
     "AnalyticCCE1",
     "BANDS",
     "BirthDeathKernel",
     "ContinuousReflected",
     "DiscreteLatticeWalk",
+    "EnsembleResult",
+    "EnsembleRunner",
     "Envelope",
     "Experiment",
     "ExperimentSet",
@@ -68,6 +82,7 @@ __all__ = [
     "ParameterBlock",
     "PosteriorSummary",
     "Proposal",
+    "RHAT_PARAMETERS",
     "RJMCMC",
     "RWMH",
     "SUPPORTED_ISOTOPES",
@@ -83,18 +98,23 @@ __all__ = [
     "band_index",
     "by_band",
     "couplings",
+    "derive_seeds",
     "detection_rate",
     "false_absence",
     "geometric_ladder",
     "gyromagnetic_ratio",
+    "load_ensembles",
     "matches",
+    "merge_traces",
     "predictive_signals",
     "read_hyperfine_table",
     "residual_distribution",
+    "rhat",
     "secular_components",
     "simulate_coherence",
     "simulate_dataset",
     "single_spin_modulation",
+    "spread_across_k",
     "summarize",
     "to_angular",
 ]

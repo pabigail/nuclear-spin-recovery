@@ -37,6 +37,7 @@ MODULES = [
     "nuclear_spin_recovery.post.metrics",
     "nuclear_spin_recovery.post.residual",
     "nuclear_spin_recovery.post.plots",
+    "nuclear_spin_recovery.ensemble",
 ]
 
 PUBLIC_NAMES = [
@@ -87,6 +88,15 @@ PUBLIC_NAMES = [
     "predictive_signals",
     "residual_distribution",
     "summarize",
+    "RHAT_PARAMETERS",
+    "Agreement",
+    "EnsembleResult",
+    "EnsembleRunner",
+    "derive_seeds",
+    "load_ensembles",
+    "merge_traces",
+    "rhat",
+    "spread_across_k",
 ]
 
 

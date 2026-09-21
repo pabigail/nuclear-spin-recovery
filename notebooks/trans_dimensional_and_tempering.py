@@ -66,6 +66,11 @@ from nuclear_spin_recovery import (
     simulate_coherence,
     simulate_dataset,
 )
+from nuclear_spin_recovery.post import (
+    predictive_signals,
+    residual_distribution,
+    summarize,
+)
 
 plt.rcParams.update({"figure.dpi": 110, "axes.grid": True, "grid.alpha": 0.25})
 
@@ -223,7 +228,12 @@ print(f"6000 steps in {time.time() - t0:.1f} s, {len(rwmh_trace)} recorded")
 
 # %%
 def residual(sites, dA_par=None, dA_perp=None, tbl=None):
-    """RMS residual of a configuration, in units of the data noise."""
+    """RMS residual of one known configuration, in units of the data noise.
+
+    A single configuration, so deliberately *not* a `post/` entry point --
+    `summarize` refuses a lone state on purpose. The arithmetic still comes from
+    `residual_distribution`, so there is one formula in the project, not two.
+    """
     tbl = table if tbl is None else tbl
     st = make_state(sites, tbl=tbl)
     k = int(st.k[0])
@@ -231,37 +241,28 @@ def residual(sites, dA_par=None, dA_perp=None, tbl=None):
         st.dA_par[0, :k] = dA_par[:k]
         st.dA_perp[0, :k] = dA_perp[:k]
     pred = simulate_coherence(st, data, tbl, model)
-    return float(np.sqrt(np.mean((obs - pred) ** 2)) / DATA_NOISE)
+    return float(residual_distribution(obs, pred[None, :], DATA_NOISE)[0])
 
 
 def residual_curve(trace, stride=25, tbl=None):
     """Residual at every ``stride``-th recorded step. (steps, residuals)"""
+    tbl = table if tbl is None else tbl
     steps = np.arange(0, len(trace), stride)
-    vals = [residual(trace.site_idx[j, : int(trace.k[j])],
-                     trace.dA_par[j], trace.dA_perp[j], tbl=tbl) for j in steps]
-    return steps, np.array(vals)
+    predictive = predictive_signals(trace, data, tbl, model, stride=stride)
+    return steps, residual_distribution(obs, predictive, DATA_NOISE)
 
 
-def detection_rates(trace, burn, reference=true_sites, stride=10, tol=0.1, tbl=None):
-    """Fraction of posterior samples containing each reference spin's couplings.
+def detection_rates(trace, burn, reference=None, stride=10, tbl=None):
+    """Fraction of posterior samples containing each reference spin. (n_ref,)
 
     Matched on couplings, never on site index: symmetry-equivalent sites are
-    physically indistinguishable, so an index match would score a correct answer
-    as a miss.
+    physically indistinguishable, so an index match would score a correct
+    answer as a miss.
     """
     tbl = table if tbl is None else tbl
-    post = trace.discard_burn_in(burn)
-    samples = [
-        set(zip(np.round(tbl.a_par[post.site_idx[j, : int(post.k[j])]], 4),
-                np.round(tbl.a_perp[post.site_idx[j, : int(post.k[j])]], 4)))
-        for j in range(0, len(post), stride)
-    ]
-    out = []
-    for s in reference:
-        a, b = tbl.a_par[s], tbl.a_perp[s]
-        out.append(np.mean([any(abs(a - c) <= tol and abs(b - d) <= tol
-                                for c, d in S) for S in samples]))
-    return np.array(out)
+    reference = true_sites if reference is None else reference
+    return summarize(trace, data, tbl, model, reference=reference, burn=burn,
+                     stride=stride, noise=DATA_NOISE).R_i
 
 
 steps, rwmh_resid = residual_curve(rwmh_trace)

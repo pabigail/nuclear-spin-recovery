@@ -10,7 +10,6 @@ See docs/test-plan.md §3.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -25,9 +24,9 @@ from nuclear_spin_recovery import (
     State,
     StretchedExponential,
     Target,
-    simulate_coherence,
     simulate_dataset,
 )
+from nuclear_spin_recovery.post import PosteriorSummary, summarize
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -42,43 +41,11 @@ MATCH_TOL = 0.1           # kHz, absorbs numerical differences between
 BANDS = ((5, 25), (25, 100), (100, 750))
 
 
-@dataclass
-class Metrics:
-    """Everything a rung asserts on. Computed over the posterior, never a state."""
-
-    R_i: np.ndarray            # detection rate per reference spin
-    magnitude: np.ndarray      # coupling magnitude of each reference spin
-    residual: np.ndarray       # RMS residual per sampled configuration, in units of sigma
-    k_posterior: np.ndarray    # sampled values of k
-    false_absence: float       # FP of spec §9.2
-    predictive: np.ndarray     # (n_draws, n_points) posterior-predictive signals
-
-    def R(self, lo, hi):
-        """Mean detection rate within a coupling band."""
-        sel = (self.magnitude >= lo) & (self.magnitude < hi)
-        return float(self.R_i[sel].mean()) if sel.any() else float("nan")
-
-    @property
-    def median_residual(self):
-        return float(np.median(self.residual))
-
-    @property
-    def best_residual(self):
-        """Lowest residual any sampled configuration achieves.
-
-        The statistic to use when comparing a model against one nested inside
-        it.  A model with extra sampled parameters has a *higher* median
-        residual than one holding them at the prior mean, because a typical
-        draw sits away from that mean -- so a median comparison penalises the
-        richer model for exploring.  What it should be asked is whether it can
-        reach a fit the constrained model cannot.  Only meaningful between runs
-        with the same number of posterior samples.
-        """
-        return float(np.min(self.residual))
-
-    @property
-    def k_mode(self):
-        return int(np.bincount(self.k_posterior).argmax())
+#: The ladder's metric object is now the package's own.  Extracting it out of
+#: this file was the point of phase 4a: the notebook and the tests had grown
+#: separate copies, which is how the posterior-vs-final-state error happened in
+#: the first place.  See docs/phase-4-plan.md, unit 4a.
+Metrics = PosteriorSummary
 
 
 @pytest.fixture(scope="session")
@@ -159,52 +126,15 @@ def simulated(table, model, make_state):
 
 
 @pytest.fixture
-def metrics(table, model, make_state):
-    """Compute every ladder metric from a trace. See test-plan §3."""
+def metrics(table, model):
+    """Compute every ladder metric from a trace. See test-plan §3.
+
+    A thin adapter over :func:`nuclear_spin_recovery.post.summarize`; the
+    measurement itself lives in the package now.
+    """
     def compute(trace, truth, data, burn, stride=50, noise=DATA_NOISE, tbl=None):
         tbl = table if tbl is None else tbl
-        post = trace.discard_burn_in(burn)
-        idx = range(0, len(post), max(1, stride))
-
-        def couplings(sites):
-            return set(zip(np.round(tbl.a_par[sites], 4),
-                           np.round(tbl.a_perp[sites], 4)))
-
-        samples = [couplings(post.site_idx[j, : int(post.k[j])]) for j in range(len(post))]
-        ref = list(zip(tbl.a_par[np.asarray(truth.site_idx[0, : int(truth.k[0])])],
-                       tbl.a_perp[np.asarray(truth.site_idx[0, : int(truth.k[0])])]))
-
-        R_i = np.array([
-            np.mean([any(abs(a - c) <= MATCH_TOL and abs(b - d) <= MATCH_TOL
-                         for c, d in S) for S in samples])
-            for a, b in ref])
-
-        obs = data.data_all
-        predictive, residual = [], []
-        for j in idx:
-            k = int(post.k[j])
-            st = make_state(post.site_idx[j, :k], k_max=post.k_max, tbl=tbl)
-            # Offsets must come from the trace.  Rebuilding from site indices
-            # alone pins them at zero, which scores a relaxed run as if its
-            # constraint had never been relaxed.
-            st.dA_par[0, :k] = post.dA_par[j, :k]
-            st.dA_perp[0, :k] = post.dA_perp[j, :k]
-            pred = simulate_coherence(st, data, tbl, model)
-            predictive.append(pred)
-            residual.append(np.sqrt(np.mean((obs - pred) ** 2)) / noise)
-
-        modal_k = int(np.bincount(post.k).argmax())
-        modal_j = int(np.flatnonzero(post.k == modal_k)[0])
-        modal = couplings(post.site_idx[modal_j, :modal_k])
-        fa = (np.mean([[s not in S for S in samples] for s in modal])
-              if modal else 0.0)
-
-        return Metrics(
-            R_i=R_i,
-            magnitude=np.hypot(*np.array(ref).T) if ref else np.array([]),
-            residual=np.array(residual),
-            k_posterior=np.asarray(post.k),
-            false_absence=float(fa),
-            predictive=np.array(predictive),
-        )
+        reference = np.asarray(truth.site_idx[0, : int(truth.k[0])])
+        return summarize(trace, data, tbl, model, reference=reference,
+                         burn=burn, stride=stride, noise=noise, tol=MATCH_TOL)
     return compute

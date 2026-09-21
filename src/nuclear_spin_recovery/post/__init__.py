@@ -15,7 +15,11 @@ from .detection import (
     matches,
 )
 from .metrics import PosteriorSummary, summarize
-from .residual import predictive_signals, residual_distribution
+from .residual import (
+    predictive_from_arrays,
+    predictive_signals,
+    residual_distribution,
+)
 
 __all__ = [
     "BANDS",
@@ -27,6 +31,7 @@ __all__ = [
     "detection_rate",
     "false_absence",
     "matches",
+    "predictive_from_arrays",
     "predictive_signals",
     "residual_distribution",
     "summarize",

@@ -524,3 +524,15 @@ def test_matplotlib_is_not_imported_at_module_scope():
         assert not isinstance(node, (ast.Import, ast.ImportFrom)) or \
             "matplotlib" not in ast.dump(node), \
             "matplotlib imported at module scope in plots.py"
+
+
+def test_false_absence_matches_within_tolerance(tiny_site_table):
+    """Exact membership counts a symmetry-equivalent site as an absence.
+
+    Sites 0 and 1 are the same physical answer. Measured on a real run, exact
+    membership reported FP = 0.224 where every true spin had R_i = 1.0 and the
+    best residual was 0.92 sigma -- all orbit rounding, no absence.
+    """
+    modal = couplings(tiny_site_table, [0])
+    nudged = [{(120.05, 45.02)}] * 4
+    assert false_absence(nudged, modal) == pytest.approx(0.0)

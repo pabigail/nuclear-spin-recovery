@@ -73,3 +73,7 @@ data/
 *.h5
 *.hdf5
 *.npy
+
+# Ensemble run output and SLURM logs
+runs/
+logs/

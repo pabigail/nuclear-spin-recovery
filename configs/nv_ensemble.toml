@@ -1,0 +1,58 @@
+# A production-shaped run: NV in diamond, ten ensembles, one per array task.
+#
+# Every key here is resolved against the schema in
+# src/nuclear_spin_recovery/config.py and recorded as JSON beside the results,
+# defaults included -- so the record is what the run was driven by, not a copy
+# of what was typed.
+
+[table]
+path = "nv-2.txt"
+strong_thresh = 750.0      # kHz; drop sites where either component exceeds it
+weak_thresh = 5.0          # kHz; drop sites where both fall below it
+coupling_cutoff = 100.0    # kHz; the detectable subset -- test-plan.md 5.6
+# isotope defaults to "13C"
+
+[[experiment]]
+n_pulses = 16
+b_z = 311.0                # G
+tau_start = 3.2e-5         # ms
+tau_stop = 8.0e-3
+tau_count = 250
+
+[data]
+mode = "simulate"          # "file" awaits unit 4e
+truth_k = 6
+truth_seed = 7
+noise = 0.002
+
+[likelihood]
+sigma = 0.02               # calibrated, not the data noise -- test-plan.md 5.2
+
+[state]
+lam = 3.0e-3               # ms
+n_stretch = 1.0
+k_max = 32
+
+# RJMCMC + PT: the pair that beat every single algorithm and beat all three
+# together, measured in notebooks/algorithm_comparison.py.
+[[schedule]]
+algorithm = "rjmcmc"
+n_steps = 100
+k_max = 32
+
+[[schedule]]
+algorithm = "tempering"
+n_steps = 250
+n_replicas = 8
+radius = 6.0
+
+[ensemble]
+n_ensembles = 10
+n_steps = 25000            # 3.9 min on one core at this table size
+n_burn = 10000
+root_seed = 2026
+init_policy = "spread_across_k"
+init_k = [3, 9]            # above and below, to expose the multimodality
+
+[output]
+dir = "runs"

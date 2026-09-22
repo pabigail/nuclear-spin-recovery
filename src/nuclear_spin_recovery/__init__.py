@@ -41,7 +41,13 @@ from .proposals import (
     GaussianOffset,
     Proposal,
 )
-from .likelihood import GaussianL2, Likelihood
+from .likelihood import (
+    GaussianL2,
+    Likelihood,
+    WassersteinL2,
+    signal_measure,
+    wasserstein_signal_distance,
+)
 from .forward import (
     AnalyticCCE1,
     Envelope,
@@ -109,6 +115,7 @@ __all__ = [
     "TWO_PI",
     "Target",
     "Trace",
+    "WassersteinL2",
     "add_noise",
     "band_index",
     "by_band",
@@ -128,6 +135,7 @@ __all__ = [
     "rhat",
     "run_ensemble",
     "secular_components",
+    "signal_measure",
     "simulate_coherence",
     "simulate_dataset",
     "single_spin_modulation",
@@ -135,4 +143,5 @@ __all__ = [
     "submission_script",
     "summarize",
     "to_angular",
+    "wasserstein_signal_distance",
 ]

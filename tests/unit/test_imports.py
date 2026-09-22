@@ -23,6 +23,7 @@ MODULES = [
     "nuclear_spin_recovery.likelihood",
     "nuclear_spin_recovery.likelihood.base",
     "nuclear_spin_recovery.likelihood.gaussian",
+    "nuclear_spin_recovery.likelihood.wasserstein",
     "nuclear_spin_recovery.trace",
     "nuclear_spin_recovery.neighbors",
     "nuclear_spin_recovery.proposals",
@@ -106,6 +107,9 @@ PUBLIC_NAMES = [
     "merge_run",
     "run_ensemble",
     "submission_script",
+    "WassersteinL2",
+    "signal_measure",
+    "wasserstein_signal_distance",
 ]
 
 

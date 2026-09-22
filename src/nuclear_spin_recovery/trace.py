@@ -125,6 +125,10 @@ class Trace:
             self._cache[name] = cached
         return cached
 
+    #: Fields written to disk, in the order they are restored.
+    _FIELDS = ("site_idx", "k", "lam", "n_stretch", "sigma", "dA_par",
+               "dA_perp", "log_prob")
+
     def save(self, path):
         """Write this trace to ``path`` as a compressed ``.npz``.
 
@@ -132,17 +136,38 @@ class Trace:
         the offsets are mostly zero, so a 25,000-step trace at k_max = 64 goes
         from 39.4 MB in memory to 6.8 MB on disk.  Twenty ensembles are 136 MB,
         which keeps pooling a local operation.
+
+        Algorithm labels are stored as a unicode array rather than an object
+        array, so nothing here needs ``allow_pickle`` to be read back.
         """
-        raise NotImplementedError
+        arrays = {name: np.asarray(getattr(self, name)) for name in self._FIELDS}
+        np.savez_compressed(
+            path,
+            algorithm=np.array(self._algorithm, dtype=np.str_),
+            meta=np.array([self.n_sites, self.k_max, self.n_exp], dtype=np.int64),
+            **arrays,
+        )
 
     @classmethod
     def load(cls, path):
         """Read a trace written by :meth:`save`.
 
         Round-trips everything, the per-step algorithm labels included -- they
-        are what lets a pooled trace still be read block by block.
+        are what lets a pooled trace still be read block by block.  The result
+        is a live Trace: it can be appended to, merged, or summarised like any
+        other.
         """
-        raise NotImplementedError
+        with np.load(path, allow_pickle=False) as handle:
+            n_sites, k_max, n_exp = (int(v) for v in handle["meta"])
+            out = cls(n_sites, k_max, n_exp)
+            out._site_idx = [np.array(row, dtype=int) for row in handle["site_idx"]]
+            out._k = [int(v) for v in handle["k"]]
+            for name in ("lam", "n_stretch", "sigma", "dA_par", "dA_perp"):
+                setattr(out, f"_{name}",
+                        [np.array(row, dtype=float) for row in handle[name]])
+            out._log_prob = [float(v) for v in handle["log_prob"]]
+            out._algorithm = [str(v) for v in handle["algorithm"]]
+        return out
 
     def discard_burn_in(self, n_burn):
         """Return a new Trace holding the steps after ``n_burn``."""

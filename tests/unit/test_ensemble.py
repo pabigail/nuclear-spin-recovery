@@ -365,9 +365,24 @@ def test_rhat_rises_when_chains_disagree():
     assert rhat(chains) > 2.0
 
 
-def test_rhat_of_frozen_chains_is_nan_not_infinite():
-    """A chain that never moved carries no information about mixing."""
-    assert np.isnan(rhat(np.ones((4, 50))))
+@pytest.mark.parametrize("value", [1.0, 0.02, 3e-3, 1e-8, 311.0])
+def test_rhat_of_frozen_chains_is_nan(value):
+    """A chain that never moved carries no information about mixing.
+
+    Parametrised over the scale because an exact ``within == 0`` guard passes
+    at 1.0 and fails at 3e-3: a constant chain there has a ddof=1 variance of
+    about 1e-37 from cancellation, which slips through and reports
+    R = sqrt((N-1)/N) = 0.994 -- perfect convergence, for a parameter that
+    never moved.
+    """
+    assert np.isnan(rhat(np.full((4, 50), value)))
+
+
+def test_rhat_still_computes_for_genuinely_small_variation():
+    """The frozen guard must not swallow real movement at a small scale."""
+    rng = np.random.default_rng(0)
+    chains = 3e-3 + rng.normal(0.0, 1e-5, size=(4, 200))
+    assert not np.isnan(rhat(chains))
 
 
 def test_rhat_needs_at_least_two_chains():
@@ -454,3 +469,18 @@ def test_agreement_reports_rather_than_judges():
     fields = set(Agreement.__dataclass_fields__)
     for verdict in ("passed", "ok", "converged", "valid", "verdict"):
         assert verdict not in fields
+
+
+def test_agreement_of_a_single_ensemble_is_defined(trace_of):
+    """M = 1 is the first point of the ensemble-count sweep, not an error.
+
+    R-hat compares chains against each other, so with one chain it is
+    undefined -- nan -- rather than an exception that makes the sweep
+    unrunnable at its first point.
+    """
+    result = EnsembleResult(traces=[trace_of(n=8)], seeds=np.arange(1),
+                            init_name="fixed")
+    agreement = result.agreement()
+    assert agreement.n_ensembles == 1
+    assert agreement.k_mode_spread == 0
+    assert all(np.isnan(v) for v in agreement.rhat.values())

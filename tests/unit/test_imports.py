@@ -38,6 +38,7 @@ MODULES = [
     "nuclear_spin_recovery.post.residual",
     "nuclear_spin_recovery.post.plots",
     "nuclear_spin_recovery.ensemble",
+    "nuclear_spin_recovery.config",
 ]
 
 PUBLIC_NAMES = [
@@ -97,6 +98,14 @@ PUBLIC_NAMES = [
     "merge_traces",
     "rhat",
     "spread_across_k",
+    "DEFAULT_QOS",
+    "KNOWN_ALGORITHMS",
+    "PERLMUTTER_ACCOUNT",
+    "PERLMUTTER_WORKDIR",
+    "RunConfig",
+    "merge_run",
+    "run_ensemble",
+    "submission_script",
 ]
 
 

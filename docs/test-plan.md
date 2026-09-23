@@ -412,6 +412,112 @@ Ladder wall time is about 4 minutes, dominated by T4's pooled comparison at
 
 ---
 
+### 5.7 The Wasserstein penalty weight
+
+**Calibrated, and the calibrated value is zero.** A negative result, recorded
+at the same length as a positive one so that nobody repeats the sweep assuming
+it was never run.
+
+Only the product $\zeta s$ enters the log-likelihood, so the sweep is over that
+product. `WassersteinL2(zeta=0.2, scale=5000)`, `(1.0, 1000)` and `(0.5, 2000)`
+return bitwise identical values: two parameters, one degree of freedom.
+
+Conditions as §5.1, on the 165-site detectable table, $k_{\text{true}} = 6$,
+RJMCMC + parallel tempering at $J = 6$, 2,000 steps with 1,000 discarded, three
+seeds. Weight 0 is `GaussianL2` exactly and is the negative control.
+
+| $\zeta s$ | best residual per seed | median | $R$ per seed | mode of $k$ | accept |
+|---:|---|---:|---|---|---:|
+| **0** | [7.49, **0.92**, **0.92**] | **0.92** | [0.83, 1.00, 1.00] | [6, 6, 6] | 11.8% |
+| $10^2$ | [7.49, 0.92, 0.92] | 0.92 | [0.83, 1.00, 1.00] | [6, 6, 6] | 11.8% |
+| $10^3$ | [7.49, 7.49, 0.92] | 7.49 | [0.83, 0.83, 1.00] | [6, 6, 6] | 11.5% |
+| $10^4$ | [7.49, 0.92, 8.04] | 7.49 | [0.83, 1.00, 0.83] | [6, 6, 7] | 12.5% |
+| $10^5$ | [11.20, 9.79, 9.33] | 9.79 | [0.67, 0.83, 0.83] | [8, 8, 10] | 10.4% |
+| $10^6$ | [9.57, 29.42, 28.94] | 28.94 | [0.83, 0.17, 0.33] | [8, 8, 6] | 10.4% |
+
+The penalty is inert, then harmful. There is no weight at which it improves
+either criterion.
+
+#### Where the penalty starts to act at all
+
+Chains run against `GaussianL2` and against each weight under one seed, compared
+step by step:
+
+| $\zeta s$ | first step at which the chain differs |
+|---:|---|
+| $10^0$ | never — bitwise identical |
+| $10^1$ | never — bitwise identical |
+| $10^2$ | step 563 |
+| $10^3$ | step 44 |
+| $10^4$ | step 5 |
+
+Below about $10$ the term cannot flip a single accept/reject decision, so the
+sampler is `GaussianL2` with extra arithmetic. Above about $10^3$ it flips
+decisions immediately and the recovery degrades. The window in which it acts
+without harming is narrow and, on these seeds, empty of benefit.
+
+#### Why, given that the distance does discriminate
+
+$\widehat{W}$ is not blind. Measured on the same data: $6\times10^{-5}$ at the
+truth against $3.2\times10^{-2}$ at a random three-spin start — a factor of 517,
+and in the right direction.
+
+The residual discriminates far harder. $\log L$ runs from $-1$ at the truth to
+$-3500$ at a random draw, a factor of thousands, and it is already sharpest
+exactly where $\widehat{W}$ is flattest. So at a weight small enough to leave the
+residual in charge the penalty contributes nothing, and at a weight large enough
+to matter the sampler begins optimising $\widehat{W}$ instead — whose landscape
+is flat enough that $k$ drifts upward (mode 8 to 10 against a true 6) and
+detection falls away.
+
+#### The regime the penalty was proposed for
+
+The sweep above varies which spins are present. The penalty was proposed for a
+different failure: features *displaced* rather than absent. That regime was
+measured separately.
+
+Data is simulated from the true bath and then recorded on a $\tau$ grid offset
+by a whole number of sampling intervals — correct physics, systematic timing
+error. The correct configuration is then scored against 400 random six-spin
+candidates, and each criterion is asked how often a wrong candidate beats the
+right one:
+
+| offset | wrong candidate beats correct, least squares | …under $\widehat{W}$ |
+|---:|---:|---:|
+| 0 | 0.0% | 0.0% |
+| 1 point (0.032 µs) | 4.8% | **0.2%** |
+| 2 points (0.064 µs) | 35.0% | **12.8%** |
+| 3 points (0.096 µs) | 65.0% | **24.2%** |
+| 5 points (0.160 µs) | 70.0% | **44.8%** |
+| 8 points (0.256 µs) | **20.8%** | 67.0% |
+
+**The criteria cross over.** For offsets up to a few sampling intervals the
+transport distance is markedly more robust — at three points it is misled a
+quarter of the time against two thirds for least squares. At eight points the
+ordering reverses: the correct signal has by then been transported far enough
+that $\widehat{W}$ ranks it behind many random candidates, while least squares
+recovers because a large offset degrades the random candidates too.
+
+So the penalty does what it was proposed to do, in a window. Neither criterion
+dominates the other, and the window's width is a property of the sampling
+interval and the modulation, not a universal constant.
+
+#### What this does and does not license
+
+It does **not** show the penalty is useless. On displaced data it is
+substantially the better criterion over a range of offsets, and the calibration
+sweep simply does not contain that failure mode: those baths differ by which
+spins are present, and both criteria rank them identically there.
+
+It does show that **the default must stay $\zeta = 0$**. On well-aligned data
+the penalty is inert below $\zeta s \approx 10$ and harmful above $10^3$, with
+no window of benefit. A user turning it on is departing from a calibrated
+setting, and should be doing so because a timing offset has been *diagnosed* —
+not as a general improvement. Having diagnosed one, they need their own sweep:
+the useful weight depends on the offset, which is what the crossover shows.
+
+---
+
 ## 6. Test layout
 
 | location | contents | speed |

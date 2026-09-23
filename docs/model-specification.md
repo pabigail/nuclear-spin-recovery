@@ -330,16 +330,81 @@ concentrate. The methods paper finds strong sensitivity and adopts
 $\sigma^2 = 0.1$ as the best compromise. Treating $\sigma_e$ as sampled rather
 than fixed lets the data inform this tradeoff, at the cost of a softer posterior.
 
-**Alternative: Wasserstein-penalized likelihood.** An optional variant adds a
-distributional penalty between predicted and observed signals,
+**Alternative: Wasserstein-penalized likelihood.** An optional variant adds an
+optimal-transport penalty between the predicted and observed signals, so that a
+prediction whose features sit in nearly the right place is preferred over one
+whose features are absent. The $L^2$ residual cannot express that distinction: a
+modulation dip displaced by one sampling interval is penalized as heavily as one
+that never appears.
 
-$$\mathcal{L}_{\text{mod}}(\mathbf{d}\mid\theta) = (1-\zeta)\exp\left(-\frac{1}{2\sigma^2}\sum_j (d_j - f_j)^2\right) - \zeta\,W\!\left(f,\mathbf{d}\right),$$
+$$\log \mathcal{L}_{\text{mod}}(\mathbf{d}\mid\theta) = -\frac{1}{2\sigma_e^2}\sum_j (d_j - f_j)^2 \;-\; \zeta\, s\, \widehat{W}\!\left(f,\mathbf{d}\right),$$
 
-with $W$ the Wasserstein distance and $\zeta$ a weighting parameter. The default
-is $\zeta = 0$, recovering the Gaussian likelihood exactly. The likelihood is a
-replaceable component: any function of predicted and observed signal may be
-substituted, and the sampling machinery — including the tempered likelihoods
-used in parallel tempering — operates on whatever is installed.
+with $\widehat{W}$ the normalized 1-Wasserstein distance defined below,
+$\zeta \in [0,1]$ a weighting parameter, and $s$ a scale. The default is
+$\zeta = 0$, which recovers the Gaussian likelihood **exactly** — not to within
+a tolerance; the penalty term is short-circuited rather than multiplied by zero,
+since $0 \times \mathrm{NaN}$ is $\mathrm{NaN}$.
+
+*Two definitions the distance requires.* A Wasserstein distance is defined
+between probability measures, and a coherence signal is not one. Both of the
+following are choices, not consequences:
+
+1. **The measure.** The dip depth $1 - f$ is read as a non-negative weight over
+   $\tau$, so that mass sits where the bath modulates the signal and the
+   transport cost answers "how far along $\tau$ would the features have to
+   move". Reading the signal *values* as samples instead — the other natural
+   reading — gives a quantity blind to $\tau$, which scores a correctly shaped
+   signal and a scrambled one alike. Noisy data can exceed unit coherence, which
+   would make the weight negative; such points are clipped, and the clipped mass
+   is negligible beside the modulation.
+
+2. **The normalization.** Weights are normalized to unit mass, so $\widehat{W}$
+   compares shapes rather than amplitudes and is unchanged by rescaling either
+   signal. The transport cost is then divided by the span of $\tau$, making
+   $\widehat{W} \in [0,1]$ dimensionless; without that division the penalty's
+   magnitude would depend on whether $\tau$ was recorded in ms or µs. A feature
+   translated by a fraction $\delta$ of the window scores exactly $\delta$.
+
+With several experiments, $\widehat{W}$ is computed per experiment and summed.
+Concatenating the grids first would permit mass to move between experiments,
+which corresponds to nothing physical: each carries its own $\tau$ axis, span
+and pulse number.
+
+The scale $s$ exists because the two terms are not naturally commensurate, and
+it is a **free parameter requiring calibration**, as $\sigma_e$ was. Nothing in
+the physics fixes how many $\sigma^2$ a full-window displacement is worth.
+
+Measured at the settings of the test plan §5.1 — 250 points, $\zeta = 0.1$,
+$s = n$ — $\widehat{W}$ runs from $10^{-4}$ at the truth to $1.5\times10^{-2}$
+for a randomly drawn six-spin configuration, so the penalty spans $0$ to $0.38$
+while the residual term spans $-1$ to $-3500$. At that scale the penalty is
+about a tenth of a percent of the quantity it modifies: present, but unable to
+change an acceptance decision. $\widehat{W}$ is small because the envelope
+dominates the dip-depth distribution, leaving little mass to transport even
+between configurations that fit very differently. A scale of order
+$n / \widehat{W}_{\text{typical}}$ is where the term begins to matter.
+
+The penalty is bounded by $\zeta s$, since $\widehat{W} \le 1$. That bound is
+the most the transport term can move the log-likelihood, and it is the
+quantity to reason about when choosing $s$.
+
+*Deviation from the published form.* The methods paper writes this penalty as a
+product,
+$\mathcal{L}_{\text{mod}} = (1-\zeta)\exp(E) - \zeta W$ with
+$E = -\frac{1}{2\sigma^2}\sum_j (d_j - f_j)^2$. That expression is negative
+whenever $\zeta W$ exceeds $(1-\zeta)\exp(E)$, so its logarithm is undefined
+there — and $E$ is large and negative for any configuration that does not
+already fit. At $E = -50$, a mild misfit, the product is already negative for
+$\zeta = 0.1$; traces in this project routinely sit near $E = -3000$. Since the
+sampler works in log space and tempers by multiplying $\log\mathcal{L}$ by
+$\beta$, the penalty is applied **additively in log space** as written above.
+The two agree wherever the product form is defined at all, and the additive form
+is finite everywhere.
+
+The likelihood remains a replaceable component: any function of predicted and
+observed signal may be substituted, and the sampling machinery — including the
+tempered likelihoods used in parallel tempering — operates on whatever is
+installed.
 
 ### 7.2 Priors
 
@@ -610,6 +675,19 @@ Recorded so that later disagreement with published results can be traced.
 5. **Redundant distance column.** The site table carries both a radial distance
    and Cartesian coordinates; they agree to roughly four decimals but not
    exactly. The stored value is used as given rather than recomputed.
+6. **Wasserstein penalty in log space.** The methods paper writes the penalized
+   likelihood as a product, $(1-\zeta)\exp(E) - \zeta W$. That expression is
+   negative wherever $\zeta W$ exceeds $(1-\zeta)\exp(E)$ — already so at
+   $E = -50$ for $\zeta = 0.1$, while ordinary traces here sit near
+   $E = -3000$ — so its logarithm is undefined across almost the whole state
+   space the sampler visits. Applied additively in log space instead, which
+   agrees with the product form wherever that form is defined. See Sec. 7.1.
+7. **What the Wasserstein distance is taken between.** Neither paper says. This
+   specification transports the dip depth $1 - f$ along $\tau$, with weights
+   normalized to unit mass and the cost divided by the $\tau$ span. The
+   alternative reading — the signal values as an empirical sample — is blind to
+   $\tau$ and cannot distinguish a correctly shaped signal from a scrambled
+   one. See Sec. 7.1.
 
 ---
 

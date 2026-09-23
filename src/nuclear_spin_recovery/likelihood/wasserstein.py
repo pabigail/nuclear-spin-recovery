@@ -28,6 +28,9 @@ See docs/phase-4-plan.md, unit 4d.
 
 from __future__ import annotations
 
+import numpy as np
+from scipy.stats import wasserstein_distance
+
 from .base import Likelihood
 
 
@@ -39,7 +42,7 @@ def signal_measure(signal, floor=0.0):
     meaningless; clipping is the least-surprising repair and the clipped mass
     is a rounding error next to the modulation.
     """
-    raise NotImplementedError
+    return np.clip(1.0 - np.asarray(signal, dtype=float), floor, None)
 
 
 def wasserstein_signal_distance(a, b, tau, floor=0.0):
@@ -50,9 +53,30 @@ def wasserstein_signal_distance(a, b, tau, floor=0.0):
     does not change if tau is re-expressed in different units.
 
     Returns 0 when both measures are empty -- two signals pinned at full
-    coherence carry no features to transport, which is agreement, not an error.
+    coherence carry no features to transport, which is agreement, not an error
+    -- and 1 when exactly one is empty, since no transport plan turns a
+    featureless signal into a modulated one.
     """
-    raise NotImplementedError
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    tau = np.asarray(tau, dtype=float)
+    if a.shape != b.shape:
+        raise ValueError(f"signals have shapes {a.shape} and {b.shape}")
+    if a.shape != tau.shape:
+        raise ValueError(f"signal shape {a.shape} does not match tau {tau.shape}")
+    span = float(np.ptp(tau))
+    if span <= 0.0:
+        raise ValueError("tau spans zero, so the distance cannot be normalised")
+
+    weight_a, weight_b = signal_measure(a, floor), signal_measure(b, floor)
+    mass_a, mass_b = float(weight_a.sum()), float(weight_b.sum())
+    if mass_a <= 0.0 and mass_b <= 0.0:
+        return 0.0
+    if mass_a <= 0.0 or mass_b <= 0.0:
+        return 1.0
+    # scipy normalises the weights to unit mass internally, which is what makes
+    # this a distance between distributions rather than between amplitudes.
+    return wasserstein_distance(tau, tau, weight_a, weight_b) / span
 
 
 class WassersteinL2(Likelihood):
@@ -72,15 +96,67 @@ class WassersteinL2(Likelihood):
     draws -- its logarithm is undefined for almost every state the sampler
     visits.  The penalty is therefore applied additively in log space, which
     agrees with the product form wherever that form is defined at all, composes
-    with tempering, and is finite everywhere.
+    with tempering, and is finite everywhere.  The specification records the
+    same decision.
 
-    ``scale`` makes the penalty commensurate with the residual term, which
-    grows with the number of points; the default scales with the data.
+    ``scale`` converts a transport distance into the units of the residual
+    term, and it is a **free parameter that has to be calibrated**, like zeta
+    and like sigma_e before it.  Nothing in the physics fixes how many
+    sigma-squared a full-window displacement is worth.
+
+    The default, the number of data points, is a starting point and not a
+    working value.  Measured on NV data at the settings of test-plan Sec. 5.1,
+    with 250 points and zeta = 0.1: W runs from 0.0001 at the truth to 0.0153
+    for a randomly drawn six-spin configuration, so the penalty spans 0.00 to
+    0.38 while the residual term spans -1 to -3500.  That is about a tenth of a
+    percent of the quantity it is meant to modify -- the term is present but
+    cannot change an acceptance decision.  W is small because the envelope
+    dominates the dip-depth distribution, leaving little mass to transport even
+    between quite different configurations.
+
+    A scale of order ``n_points / W_typical`` is where the term starts to
+    matter.  Calibrate it the way sigma_e was calibrated: sweep, record the
+    residual and the detection rate, and check what the metric reads with the
+    mechanism disabled.
     """
 
     def __init__(self, zeta=0.0, scale=None, floor=0.0):
-        raise NotImplementedError
+        self.zeta = float(zeta)
+        if not 0.0 <= self.zeta <= 1.0:
+            raise ValueError(f"zeta must lie in [0, 1], got {zeta}")
+        #: None means "the number of data points", resolved per call.
+        self.scale = scale
+        self.floor = float(floor)
 
     def log_prob(self, state, expset, model, site_table):
         """Log-likelihood per replica. (n_replicas,)"""
-        raise NotImplementedError
+        predicted = model.coherence(state, expset, site_table)
+        residual = expset.data_all[None, :] - predicted
+        sigma = state.sigma[:, expset.exp_id]
+        gaussian = -0.5 * np.sum((residual / sigma) ** 2, axis=1)
+        if self.zeta == 0.0:
+            # Short-circuit rather than multiply by zero: the penalty can be
+            # nan for a degenerate signal, and 0 * nan is nan.
+            return gaussian
+        scale = expset.n_points if self.scale is None else float(self.scale)
+        return gaussian - self.zeta * scale * self._transport(predicted, expset)
+
+    def _transport(self, predicted, expset):
+        """Summed normalised transport cost per replica. (n_replicas,)
+
+        Computed per experiment and summed.  Concatenating the grids first
+        would let mass move between experiments, which is not a thing that can
+        happen: each has its own tau axis, its own span, and its own pulse
+        number.
+        """
+        observed = expset.split(expset.data_all)
+        out = np.zeros(predicted.shape[0], dtype=float)
+        for r in range(predicted.shape[0]):
+            pieces = expset.split(predicted[r])
+            out[r] = sum(
+                wasserstein_signal_distance(piece, seen, experiment.tau,
+                                            self.floor)
+                for piece, seen, experiment
+                in zip(pieces, observed, expset.experiments, strict=True)
+            )
+        return out

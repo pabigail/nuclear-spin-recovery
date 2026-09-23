@@ -177,6 +177,19 @@ def test_two_featureless_signals_agree_rather_than_erroring():
         pytest.approx(0.0)
 
 
+def test_one_empty_measure_against_a_featured_one_is_maximal():
+    """No transport plan turns a featureless signal into a modulated one.
+
+    Not covered by the approved scaffold; the case turned up while
+    implementing, where the choice is between a nan, an exception, and the
+    maximum. The maximum is the one that lets a sampler walk out of it.
+    """
+    assert wasserstein_signal_distance(np.ones(201), bump(0.5), TAU) == \
+        pytest.approx(1.0)
+    assert wasserstein_signal_distance(bump(0.5), np.ones(201), TAU) == \
+        pytest.approx(1.0)
+
+
 def test_mismatched_lengths_raise():
     with pytest.raises(ValueError):
         wasserstein_signal_distance(bump(0.3), bump(0.5)[:-1], TAU)
@@ -292,6 +305,27 @@ def test_the_penalty_vanishes_when_the_signals_match(scene, tiny_site_table,
     assert WassersteinL2(zeta=0.7).log_prob(truth, exact, model,
                                             tiny_site_table) == pytest.approx(
         GaussianL2().log_prob(truth, exact, model, tiny_site_table), rel=1e-12)
+
+
+def test_the_penalty_is_bounded_by_zeta_times_the_scale(scene, tiny_site_table,
+                                                        model):
+    """W is bounded by 1, so the penalty can never exceed zeta * scale.
+
+    This is what makes the scale's meaning testable rather than folklore: it is
+    the most the transport term is allowed to move the log-likelihood, and on
+    real data it lands far below that ceiling. Measured at the default scale on
+    NV data, the penalty is about a tenth of a percent of the residual term --
+    present, but unable to change an acceptance decision until the scale is
+    calibrated upward.
+    """
+    _truth, data = scene
+    state = make_state([1, 3], tiny_site_table)
+    zeta, scale = 0.5, 37.0
+    gap = (GaussianL2().log_prob(state, data, model, tiny_site_table)
+           - WassersteinL2(zeta=zeta, scale=scale).log_prob(
+               state, data, model, tiny_site_table))
+    assert np.all(gap >= 0.0)
+    assert np.all(gap <= zeta * scale + 1e-12)
 
 
 def test_zeta_outside_the_unit_interval_raises():

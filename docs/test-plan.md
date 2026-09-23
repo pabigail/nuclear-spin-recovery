@@ -579,11 +579,81 @@ Pooling makes the modal dimension *worse* on two of three seeds. The pooled mode
 is the mode of a mixture, and a mixture of ensembles that mostly over-count
 produces an over-counting mode; nothing makes it converge on the truth.
 
+§5.9 refines this: the measurement above is at $M = 8$, and pooling *does*
+recover the dimension at $M = 20$, exactly, in six sets of six. The claim that
+survives is narrower than "pooling fixes $k$" — it takes more ensembles than
+anyone had tried.
+
 This matters beyond the rung, because "run ensembles and pool them" is the
 recommendation of spec §8.6. What pooling reliably provides is the **spread** —
 the statement that the dimension is not settled — not a better point estimate of
 it. The ensembles notebook says the same thing, and its own $M$-sweep flips
 between 6 and 8 as ensembles are added.
+
+---
+
+### 5.9 How many ensembles
+
+`phase-4-plan.md` §5.2 frames this as "which $M$ gives the best detection". That
+question has no answer, and noticing why is most of the study: pooled $R$ is, at
+equal sample counts, exactly the **mean** of the per-ensemble values, so its
+expectation does not improve with $M$ at all. What improves is its variance.
+
+The question actually put, therefore: **how many ensembles before the pooled
+answer stops depending on which set you happened to run?**
+
+Six independent sets of 20 ensembles, 1,000 steps with 400 discarded,
+`spread_across_k` over $(3, 9)$, conditions otherwise as §5.1. Each $M$ row is a
+*prefix* of the same 20 rather than a fresh draw — what prefix-stable seeds are
+for. 455 s total.
+
+| $M$ | pooled $R$, mean ± spread across sets | $\lvert\text{mode}(k)-6\rvert$ | best residual | modal-$k$ spread |
+|---:|---|---|---:|---:|
+| 1 | 0.857 ± 0.116 | 0.67 ± 0.75 | 7.76 | 0.0 |
+| 2 | 0.831 ± 0.070 | 0.83 ± 0.69 | 4.48 | 0.8 |
+| 3 | 0.851 ± 0.053 | 0.67 ± 0.75 | **0.92** | 0.8 |
+| 5 | 0.857 ± 0.049 | 0.67 ± 0.75 | 0.92 | 1.5 |
+| 10 | 0.868 ± 0.034 | 0.67 ± 0.47 | 0.92 | 1.8 |
+| **20** | 0.879 ± **0.017** | **0.00 ± 0.00** | 0.92 | 2.0 |
+
+**The mean $R$ barely moves** — 0.857 to 0.879 across a twentyfold change in
+$M$ — exactly as the definition predicts.
+
+**The spread falls as $1/\sqrt{M}$.** A log-log fit gives an exponent of
+$-0.59$ against the $-0.5$ expected of independent samples; with six sets the
+standard deviations are themselves noisy, so that is agreement, not a
+discrepancy. It is also a check on the machinery: ensembles that shared state
+would fall off more slowly.
+
+**Three ensembles suffice for criterion A.** The best residual reaches 0.92 σ at
+$M = 3$ and does not improve after. One ensemble finding the good mode is enough
+for a fit; the rest buy precision on detection.
+
+**Dimension needs twenty.** $\lvert\text{mode}(k)-6\rvert$ sits at 0.67 from
+$M = 1$ through $M = 10$ and reaches **0.00 in all six sets** at $M = 20$. This
+refines §5.8 rather than contradicting it: that measurement was at $M = 8$,
+where pooling was indeed no better than a typical single ensemble. Pooling does
+eventually recover the dimension — just not at the ensemble counts anyone had
+tried.
+
+*The modal-$k$ spread column is not comparable across rows.* It grows with $M$
+because more ensembles give more chances of an outlier, not because agreement
+worsens.
+
+#### The recommendation
+
+| if what matters is | use | what it costs |
+|---|---|---|
+| signal fit alone (criterion A) | $M = 3$ | best residual saturated |
+| detection rate (criterion B) | $M = 10$ | $R$ to ±0.034 |
+| the number of spins | $M = 20$ | modal $k$ exact in 6/6 sets |
+
+The published $M = 5$ gives $R$ to ±0.049 and the modal dimension wrong in two
+thirds of sets. It is defensible for a fit and not for a spin count.
+
+**This study is one bath at one set of settings.** The $1/\sqrt{M}$ scaling
+should transfer; the $M = 20$ threshold for dimension is a property of how
+multimodal *this* posterior is, and a harder bath will need more.
 
 ---
 

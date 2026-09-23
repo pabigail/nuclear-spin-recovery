@@ -47,7 +47,10 @@ n_replicas = 8
 radius = 6.0
 
 [ensemble]
-n_ensembles = 10
+# 20, not the inherited 5: test-plan 5.9 measures the modal dimension exact in
+# all six sets at 20 and at no smaller count tried. Drop to 10 if only the
+# detection rate matters (R to +/-0.034), or 3 if only the fit does.
+n_ensembles = 20
 n_steps = 25000            # 3.9 min on one core at this table size
 n_burn = 10000
 root_seed = 2026

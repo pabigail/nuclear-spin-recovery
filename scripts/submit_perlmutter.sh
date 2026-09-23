@@ -2,7 +2,7 @@
 #SBATCH -A m5305
 #SBATCH -C cpu
 #SBATCH -q shared
-#SBATCH --array=0-9
+#SBATCH --array=0-19
 #SBATCH -n 1
 #SBATCH -c 1
 #SBATCH -t 00:30:00

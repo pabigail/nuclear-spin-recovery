@@ -335,12 +335,19 @@ assumed here.
 
 ### 5.2 — how many ensembles · calibration study
 
-**Not run.** Everything it needs exists — prefix-stable seeds make the sweep
-free, since $M$ ensembles are the first $M$ of a set already computed, and
-`notebooks/ensembles_and_agreement.py` demonstrates the mechanics over
-$M = 1, 2, 3, 5, 7, 10$ on one seed. What is missing is the seed-to-seed spread
-at each $M$, without which no production number can be set: the notebook's own
-sweep is non-monotone, with the pooled mode reading 6, then 8, then 6 again.
+**Run; recorded in test-plan §5.9.** The framing below — "which $M$ gives the
+best detection" — turned out to have no answer, and noticing why was most of the
+study. Pooled $R$ is at equal sample counts exactly the *mean* of the
+per-ensemble values, so its expectation does not improve with $M$; its variance
+does. The question asked instead was how many ensembles before the pooled answer
+stops depending on which set you happened to run.
+
+Six independent sets of 20. The spread in pooled $R$ falls as $M^{-0.59}$,
+consistent with the $M^{-1/2}$ of independent samples and a check that the
+ensembles do not share state. Best residual saturates at $M = 3$; detection
+reaches ±0.034 at $M = 10$; the modal dimension is exact in all six sets at
+$M = 20$ and at no smaller count tried. The published $M = 5$ is defensible for
+a fit and not for a spin count.
 
 Not a pass/fail rung. A recorded sweep of detection accuracy against ensemble
 count, which is what sets the production number in place of the inherited 5.
@@ -518,15 +525,15 @@ disagreement with published results can be traced.
 
 ### Open
 
-Nothing blocking implementation. Four things outstanding:
+Nothing blocking implementation. Two things outstanding, both to settle at
+first submission rather than now:
 
-1. **The ensemble-count study (§5.2) has not been run**, so the production
-   ensemble count is still the inherited 5 rather than a measured number.
-   Everything it needs exists.
-2. **`m5305`'s entitlement to the `shared` QOS**, to confirm at first
-   submission rather than now.
-3. **The wall-clock request**, once the production table and *k* range are
-   fixed. 30 minutes is roughly 7× the measured single-ensemble runtime.
+1. **`m5305`'s entitlement to the `shared` QOS.** Some allocations are not
+   permitted it.
+2. **The wall-clock request**, once the production table and *k* range are
+   fixed. 30 minutes is roughly 7× the measured single-ensemble runtime — but
+   §5.9 raised the production ensemble count to 20, which lengthens the array
+   rather than any single task, so the per-task limit is unaffected.
 
 ---
 

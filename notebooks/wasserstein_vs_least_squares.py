@@ -16,7 +16,7 @@
 # | configurations differ by **which spins are present** | least squares; the penalty is inert, then harmful |
 # | data carries a **systematic timing offset** | transport distance, over a window of offsets |
 #
-# The default stays $\zeta = 0$. What follows is why, and when to depart from it.
+# The default stays $w = 0$. What follows is why, and when to depart from it.
 
 # %%
 import sys
@@ -145,16 +145,22 @@ print(f"W-hat         : "
 # ## 2. On well-aligned data, the penalty never helps
 #
 # The calibration sweep of `docs/test-plan.md` §5.7, reproduced at reduced
-# length. Only the product $\zeta s$ enters the likelihood — `zeta=0.2,
-# scale=5000` and `zeta=1.0, scale=1000` are bitwise identical — so the sweep
-# runs over that product. Weight 0 **is** `GaussianL2`, exactly.
+# length. The penalty takes a single weight $w$: the published form writes a
+# factor $\zeta$ and a scale, but only their product ever entered, so the two
+# were perfectly degenerate and have been collapsed. Weight 0 **is**
+# `GaussianL2`, exactly.
 
 # %%
-for pair in ((0.2, 5000.0), (1.0, 1000.0), (0.5, 2000.0)):
-    value = WassersteinL2(zeta=pair[0], scale=pair[1]).log_prob(
-        make_state(true_sites), data, model, table)[0]
-    print(f"  zeta={pair[0]:<4} scale={pair[1]:<7.0f} -> {value:.9f}")
-print("\nTwo parameters, one degree of freedom.")
+import inspect
+
+print("WassersteinL2 takes:",
+      list(inspect.signature(WassersteinL2.__init__).parameters)[1:])
+for w in (0.0, 1e3, 1e5):
+    value = WassersteinL2(weight=w).log_prob(make_state(true_sites), data,
+                                             model, table)[0]
+    print(f"  weight={w:<8.0f} -> {value:.6f}")
+print("\nOne knob. The published zeta and its implicit scale only ever appeared")
+print("as a product, so tuning them separately was tuning nothing.")
 
 # %%
 walk = DiscreteLatticeWalk(NeighborIndex(table.positions, radius=6.0))
@@ -172,7 +178,7 @@ t0 = time.time()
 sweep = []
 for weight in WEIGHTS:
     likelihood = (GaussianL2() if weight == 0.0
-                  else WassersteinL2(zeta=1.0, scale=weight))
+                  else WassersteinL2(weight=weight))
     target = Target(data, model, likelihood, table)
     best, detection, modes = [], [], []
     for seed in SEEDS:
@@ -187,7 +193,7 @@ for weight in WEIGHTS:
         modes.append(s.k_mode)
     sweep.append((weight, np.median(best), np.mean(detection), modes))
 print(f"{time.time() - t0:.0f} s\n")
-print(f"{'zeta * scale':>13} {'median best σ':>14} {'mean R':>8} {'k mode':>10}")
+print(f"{'weight':>13} {'median best σ':>14} {'mean R':>8} {'k mode':>10}")
 for weight, med, det, modes in sweep:
     tag = "0  (GaussianL2)" if weight == 0 else f"{weight:.0e}"
     print(f"{tag:>13} {med:14.2f} {det:8.2f} {modes!s:>10}")
@@ -294,9 +300,9 @@ plt.tight_layout()
 #
 # The penalty is a tool for a **diagnosed** problem, not a general improvement.
 #
-# - Leave $\zeta = 0$. On well-aligned data there is no weight that helps, and
-#   weights above $\zeta s \approx 10^3$ actively destroy the recovery.
-# - Below $\zeta s \approx 10$ the term cannot flip a single accept/reject
+# - Leave $w = 0$. On well-aligned data there is no weight that helps, and
+#   weights above $w \approx 10^3$ actively destroy the recovery.
+# - Below $w \approx 10$ the term cannot flip a single accept/reject
 #   decision: the chain is bitwise identical to the least-squares one. If a
 #   weight is set that low, the penalty is arithmetic with no effect.
 # - Turn it on when a timing offset has been *identified* — not suspected — and
@@ -310,9 +316,9 @@ plt.tight_layout()
 
 # %%
 target_plain = Target(data, model, GaussianL2(), table)
-target_penalised = Target(data, model, WassersteinL2(zeta=1.0, scale=5.0), table)
+target_penalised = Target(data, model, WassersteinL2(weight=5.0), table)
 state = make_state(start)
-print("zeta*scale = 5, below the threshold where anything changes:")
+print("weight = 5, below the threshold where anything changes:")
 print(f"  GaussianL2    {target_plain.log_prob(state)[0]:.6f}")
 print(f"  WassersteinL2 {target_penalised.log_prob(state)[0]:.6f}")
 print(f"  difference    "
@@ -323,8 +329,7 @@ print("\nNon-zero, and far too small to change any decision the sampler makes.")
 # ## Where to go next
 #
 # What was measured: on the recovery problem this package is built for, the
-# transport penalty is inert below $\zeta s \approx 10$ and harmful above
-# $10^3$, with no window of benefit — so the calibrated weight is zero. On data
+# transport penalty is inert below $w \approx 10$ and harmful above $10^3$, with no window of benefit — so the calibrated weight is zero. On data
 # carrying a systematic timing offset it is substantially the better criterion
 # over a window of offsets, and worse outside it.
 #

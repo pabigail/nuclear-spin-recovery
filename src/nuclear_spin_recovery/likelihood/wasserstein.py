@@ -82,15 +82,23 @@ def wasserstein_signal_distance(a, b, tau, floor=0.0):
 class WassersteinL2(Likelihood):
     """Gaussian L2 with an optional transport penalty.
 
-        log L = -1/2 sum_j ((d_j - f_j) / sigma)^2  -  zeta * scale * W
+        log L = -1/2 sum_j ((d_j - f_j) / sigma)^2  -  weight * W
 
-    At ``zeta = 0`` this is :class:`~nuclear_spin_recovery.likelihood.gaussian.
-    GaussianL2` exactly -- not approximately, and the short-circuit matters:
-    ``0 * nan`` is ``nan``, so a degenerate signal must not be able to poison a
-    run that asked for no penalty.
+    At ``weight = 0`` this is :class:`~nuclear_spin_recovery.likelihood.
+    gaussian.GaussianL2` exactly -- not approximately, and the short-circuit
+    matters: ``0 * nan`` is ``nan``, so a degenerate signal must not be able to
+    poison a run that asked for no penalty.
+
+    **One parameter, not two.**  Spec Sec. 7.1 writes the penalty with a
+    weighting factor zeta and a scale s, but only their product ever enters the
+    log-likelihood -- ``zeta=0.2, scale=5000`` and ``zeta=1.0, scale=1000``
+    returned bitwise identical values -- so the two were perfectly degenerate
+    and are collapsed here into ``weight``.  Its units are log-likelihood per
+    unit of normalised transport, and it spans decades: the calibration in
+    docs/test-plan.md Sec. 5.7 sweeps it from 0 to 1e6.
 
     **This is not the product form printed in spec Sec. 7.1.**  That form,
-    ``(1 - zeta) exp(E) - zeta W``, is negative whenever ``zeta W`` exceeds
+    ``(1 - zeta) exp(E) - zeta W``, is negative whenever the penalty exceeds
     ``(1 - zeta) exp(E)``, and since E is large and negative for any
     configuration that does not already fit -- measured at -3000 on ordinary
     draws -- its logarithm is undefined for almost every state the sampler
@@ -99,33 +107,21 @@ class WassersteinL2(Likelihood):
     with tempering, and is finite everywhere.  The specification records the
     same decision.
 
-    ``scale`` converts a transport distance into the units of the residual
-    term, and it is a **free parameter that has to be calibrated**, like zeta
-    and like sigma_e before it.  Nothing in the physics fixes how many
-    sigma-squared a full-window displacement is worth.
-
-    The default, the number of data points, is a starting point and not a
-    working value.  Measured on NV data at the settings of test-plan Sec. 5.1,
-    with 250 points and zeta = 0.1: W runs from 0.0001 at the truth to 0.0153
-    for a randomly drawn six-spin configuration, so the penalty spans 0.00 to
-    0.38 while the residual term spans -1 to -3500.  That is about a tenth of a
-    percent of the quantity it is meant to modify -- the term is present but
-    cannot change an acceptance decision.  W is small because the envelope
-    dominates the dip-depth distribution, leaving little mass to transport even
-    between quite different configurations.
-
-    A scale of order ``n_points / W_typical`` is where the term starts to
-    matter.  Calibrate it the way sigma_e was calibrated: sweep, record the
-    residual and the detection rate, and check what the metric reads with the
-    mechanism disabled.
+    ``weight`` is a **calibrated parameter, and its calibrated value is zero**.
+    On well-aligned data no weight improves either criterion: below about 10 the
+    term cannot flip a single accept/reject decision, and above about 1e3 the
+    recovery degrades.  It earns its place only on data carrying a diagnosed
+    timing offset, where it is the better criterion over a window of offsets.
+    See docs/test-plan.md Sec. 5.7 for both measurements.
     """
 
-    def __init__(self, zeta=0.0, scale=None, floor=0.0):
-        self.zeta = float(zeta)
-        if not 0.0 <= self.zeta <= 1.0:
-            raise ValueError(f"zeta must lie in [0, 1], got {zeta}")
-        #: None means "the number of data points", resolved per call.
-        self.scale = scale
+    def __init__(self, weight=0.0, floor=0.0):
+        self.weight = float(weight)
+        if self.weight < 0.0:
+            raise ValueError(
+                f"weight must be non-negative, got {weight}; it multiplies a "
+                f"distance, so a negative value would reward disagreement"
+            )
         self.floor = float(floor)
 
     def log_prob(self, state, expset, model, site_table):
@@ -134,12 +130,11 @@ class WassersteinL2(Likelihood):
         residual = expset.data_all[None, :] - predicted
         sigma = state.sigma[:, expset.exp_id]
         gaussian = -0.5 * np.sum((residual / sigma) ** 2, axis=1)
-        if self.zeta == 0.0:
+        if self.weight == 0.0:
             # Short-circuit rather than multiply by zero: the penalty can be
             # nan for a degenerate signal, and 0 * nan is nan.
             return gaussian
-        scale = expset.n_points if self.scale is None else float(self.scale)
-        return gaussian - self.zeta * scale * self._transport(predicted, expset)
+        return gaussian - self.weight * self._transport(predicted, expset)
 
     def _transport(self, predicted, expset):
         """Summed normalised transport cost per replica. (n_replicas,)

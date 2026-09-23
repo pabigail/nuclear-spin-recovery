@@ -337,13 +337,21 @@ whose features are absent. The $L^2$ residual cannot express that distinction: a
 modulation dip displaced by one sampling interval is penalized as heavily as one
 that never appears.
 
-$$\log \mathcal{L}_{\text{mod}}(\mathbf{d}\mid\theta) = -\frac{1}{2\sigma_e^2}\sum_j (d_j - f_j)^2 \;-\; \zeta\, s\, \widehat{W}\!\left(f,\mathbf{d}\right),$$
+$$\log \mathcal{L}_{\text{mod}}(\mathbf{d}\mid\theta) = -\frac{1}{2\sigma_e^2}\sum_j (d_j - f_j)^2 \;-\; w\, \widehat{W}\!\left(f,\mathbf{d}\right),$$
 
-with $\widehat{W}$ the normalized 1-Wasserstein distance defined below,
-$\zeta \in [0,1]$ a weighting parameter, and $s$ a scale. The default is
-$\zeta = 0$, which recovers the Gaussian likelihood **exactly** — not to within
-a tolerance; the penalty term is short-circuited rather than multiplied by zero,
-since $0 \times \mathrm{NaN}$ is $\mathrm{NaN}$.
+with $\widehat{W}$ the normalized 1-Wasserstein distance defined below and
+$w \ge 0$ a single weight. The default is $w = 0$, which recovers the Gaussian
+likelihood **exactly** — not to within a tolerance; the penalty term is
+short-circuited rather than multiplied by zero, since $0 \times \mathrm{NaN}$
+is $\mathrm{NaN}$.
+
+*One parameter, not two.* The methods paper writes this with a weighting factor
+$\zeta$ and, implicitly, a scale converting a distance into log-likelihood
+units. Only their product ever enters, so the two are perfectly degenerate —
+$(\zeta, s) = (0.2, 5000)$ and $(1.0, 1000)$ give bitwise identical values —
+and they are collapsed here into $w$. Its units are log-likelihood per unit of
+normalized transport, and it spans decades rather than the unit interval: the
+calibration sweeps it from $0$ to $10^6$.
 
 *Two definitions the distance requires.* A Wasserstein distance is defined
 between probability measures, and a coherence signal is not one. Both of the
@@ -370,23 +378,22 @@ Concatenating the grids first would permit mass to move between experiments,
 which corresponds to nothing physical: each carries its own $\tau$ axis, span
 and pulse number.
 
-The scale $s$ exists because the two terms are not naturally commensurate, and
-it is a **free parameter requiring calibration**, as $\sigma_e$ was. Nothing in
-the physics fixes how many $\sigma^2$ a full-window displacement is worth.
+The weight $w$ exists because the two terms are not naturally commensurate, and
+it is a **calibrated parameter whose calibrated value is zero**. Nothing in the
+physics fixes how many $\sigma^2$ a full-window displacement is worth, and the
+sweep in the test plan §5.7 finds no value that improves recovery on
+well-aligned data: below $w \approx 10$ the term cannot flip a single
+accept/reject decision, and above $w \approx 10^3$ the recovery degrades.
 
-Measured at the settings of the test plan §5.1 — 250 points, $\zeta = 0.1$,
-$s = n$ — $\widehat{W}$ runs from $10^{-4}$ at the truth to $1.5\times10^{-2}$
-for a randomly drawn six-spin configuration, so the penalty spans $0$ to $0.38$
-while the residual term spans $-1$ to $-3500$. At that scale the penalty is
-about a tenth of a percent of the quantity it modifies: present, but unable to
-change an acceptance decision. $\widehat{W}$ is small because the envelope
-dominates the dip-depth distribution, leaving little mass to transport even
-between configurations that fit very differently. A scale of order
-$n / \widehat{W}_{\text{typical}}$ is where the term begins to matter.
+The term earns its place in a different regime. On data carrying a systematic
+timing offset it is substantially the better criterion over a window of
+offsets — at one sampling interval a wrong configuration outscores the right one
+4.8% of the time under least squares and 0.2% under transport — and worse
+outside that window. §5.7 records both measurements.
 
-The penalty is bounded by $\zeta s$, since $\widehat{W} \le 1$. That bound is
-the most the transport term can move the log-likelihood, and it is the
-quantity to reason about when choosing $s$.
+The penalty is bounded by $w$, since $\widehat{W} \le 1$. That bound is the
+most the transport term can move the log-likelihood, and it is the quantity to
+reason about when choosing $w$.
 
 *Deviation from the published form.* The methods paper writes this penalty as a
 product,
@@ -682,7 +689,13 @@ Recorded so that later disagreement with published results can be traced.
    $E = -3000$ — so its logarithm is undefined across almost the whole state
    space the sampler visits. Applied additively in log space instead, which
    agrees with the product form wherever that form is defined. See Sec. 7.1.
-7. **What the Wasserstein distance is taken between.** Neither paper says. This
+7. **One weight where the paper writes two factors.** The published penalty
+   carries a weighting factor $\zeta$ and, implicitly, a scale converting a
+   transport distance into log-likelihood units. Only their product enters, so
+   the two are perfectly degenerate; they are collapsed into a single $w$ so
+   that no one tunes a parameter that cannot independently do anything. See
+   Sec. 7.1.
+8. **What the Wasserstein distance is taken between.** Neither paper says. This
    specification transports the dip depth $1 - f$ along $\tau$, with weights
    normalized to unit mass and the cost divided by the $\tau$ span. The
    alternative reading — the signal values as an empirical sample — is blind to

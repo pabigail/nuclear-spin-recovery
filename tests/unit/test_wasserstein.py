@@ -11,7 +11,7 @@ distributions at all:
 - negative weights, which noisy data above unit coherence would produce, are
   repaired rather than transported.
 
-The rest pins the exact reduction at zeta = 0, which is the whole safety
+The rest pins the exact reduction at weight = 0, which is the whole safety
 argument for adding the term at all.
 
 Spec Sec. 7.1; docs/phase-4-plan.md unit 4d.
@@ -203,15 +203,15 @@ def test_a_degenerate_tau_axis_raises():
 
 
 # --------------------------------------------------------------------------
-# the exact reduction at zeta = 0
+# the exact reduction at weight = 0
 # --------------------------------------------------------------------------
 
 
-def test_zeta_zero_equals_the_gaussian_to_machine_precision(scene, tiny_site_table,
+def test_zero_weight_equals_the_gaussian_to_machine_precision(scene, tiny_site_table,
                                                             model):
     truth, data = scene
     gaussian = GaussianL2().log_prob(truth, data, model, tiny_site_table)
-    variant = WassersteinL2(zeta=0.0).log_prob(truth, data, model, tiny_site_table)
+    variant = WassersteinL2(weight=0.0).log_prob(truth, data, model, tiny_site_table)
     assert variant == pytest.approx(gaussian, rel=1e-15)
 
 
@@ -220,31 +220,36 @@ def test_the_reduction_holds_for_arbitrary_states(scene, tiny_site_table, model,
                                                   sites):
     _truth, data = scene
     state = make_state(sites, tiny_site_table)
-    assert WassersteinL2(zeta=0.0).log_prob(state, data, model, tiny_site_table) == \
+    assert WassersteinL2(weight=0.0).log_prob(state, data, model, tiny_site_table) == \
         pytest.approx(GaussianL2().log_prob(state, data, model, tiny_site_table),
                       rel=1e-15)
 
 
-def test_the_reduction_ignores_the_scale(scene, tiny_site_table, model):
-    """zeta = 0 must switch the term off, whatever it would have been scaled by."""
-    _truth, data = scene
-    state = make_state([0, 2], tiny_site_table)
-    a = WassersteinL2(zeta=0.0, scale=1.0).log_prob(state, data, model,
-                                                    tiny_site_table)
-    b = WassersteinL2(zeta=0.0, scale=1e9).log_prob(state, data, model,
-                                                    tiny_site_table)
-    assert a == pytest.approx(b, rel=1e-15)
+def test_the_weight_is_the_only_knob(scene, tiny_site_table, model):
+    """There is one degree of freedom, and the API exposes exactly one.
+
+    Spec Sec. 7.1 writes the penalty with a weighting factor and a scale, but
+    only their product enters the log-likelihood, so the two were perfectly
+    degenerate. Collapsing them is what stops a user tuning a parameter that
+    cannot independently do anything.
+    """
+    import inspect
+
+    signature = inspect.signature(WassersteinL2.__init__)
+    assert "zeta" not in signature.parameters
+    assert "scale" not in signature.parameters
+    assert "weight" in signature.parameters
 
 
-def test_zeta_zero_survives_a_degenerate_signal(scene, tiny_site_table, model):
+def test_zero_weight_survives_a_degenerate_signal(scene, tiny_site_table, model):
     """`0 * nan` is nan: the penalty must be short-circuited, not multiplied out."""
     _truth, data = scene
     state = make_state([3], tiny_site_table)       # a nearly featureless spin
     assert np.all(np.isfinite(
-        WassersteinL2(zeta=0.0).log_prob(state, data, model, tiny_site_table)))
+        WassersteinL2(weight=0.0).log_prob(state, data, model, tiny_site_table)))
 
 
-def test_zeta_zero_gives_an_identical_accepted_path(scene, tiny_site_table, model):
+def test_zero_weight_gives_an_identical_accepted_path(scene, tiny_site_table, model):
     """Exact reduction means the sampler cannot tell the two apart."""
     _truth, data = scene
 
@@ -257,7 +262,7 @@ def test_zeta_zero_gives_an_identical_accepted_path(scene, tiny_site_table, mode
                     np.random.default_rng(4), n_steps=60, trace=trace)
         return np.asarray(trace.lam)
 
-    assert np.array_equal(run(GaussianL2()), run(WassersteinL2(zeta=0.0)))
+    assert np.array_equal(run(GaussianL2()), run(WassersteinL2(weight=0.0)))
 
 
 # --------------------------------------------------------------------------
@@ -269,21 +274,21 @@ def test_the_penalty_only_ever_lowers_the_log_likelihood(scene, tiny_site_table,
                                                          model):
     _truth, data = scene
     state = make_state([1, 3], tiny_site_table)
-    penalised = WassersteinL2(zeta=0.5).log_prob(state, data, model, tiny_site_table)
+    penalised = WassersteinL2(weight=5000.0).log_prob(state, data, model, tiny_site_table)
     plain = GaussianL2().log_prob(state, data, model, tiny_site_table)
     assert np.all(penalised <= plain)
 
 
-def test_the_penalty_grows_with_zeta(scene, tiny_site_table, model):
+def test_the_penalty_grows_with_the_weight(scene, tiny_site_table, model):
     _truth, data = scene
     state = make_state([1, 3], tiny_site_table)
-    values = [WassersteinL2(zeta=z).log_prob(state, data, model,
-                                             tiny_site_table)[0]
-              for z in (0.0, 0.25, 0.5, 1.0)]
+    values = [WassersteinL2(weight=w).log_prob(state, data, model,
+                                               tiny_site_table)[0]
+              for w in (0.0, 2500.0, 5000.0, 10000.0)]
     assert all(b <= a + 1e-12 for a, b in pairwise(values))
 
 
-def test_zeta_changes_the_ranking_of_some_pair(scene, tiny_site_table, model):
+def test_the_weight_changes_the_ranking_of_some_pair(scene, tiny_site_table, model):
     """Without this the parameter is decorative."""
     _truth, data = scene
     left, right = make_state([0, 2], tiny_site_table), make_state([1, 3],
@@ -293,51 +298,56 @@ def test_zeta_changes_the_ranking_of_some_pair(scene, tiny_site_table, model):
         return (likelihood.log_prob(left, data, model, tiny_site_table)[0]
                 - likelihood.log_prob(right, data, model, tiny_site_table)[0])
 
-    assert gap(WassersteinL2(zeta=1.0)) != pytest.approx(gap(GaussianL2()))
+    assert gap(WassersteinL2(weight=10000.0)) != pytest.approx(gap(GaussianL2()))
 
 
 def test_the_penalty_vanishes_when_the_signals_match(scene, tiny_site_table,
                                                      model):
-    """Zero transport cost, so the variant agrees with the Gaussian even at zeta > 0."""
+    """Zero transport cost, so the variant agrees with the Gaussian even when on."""
     truth, data = scene
     exact = simulate_dataset(truth, data, tiny_site_table, model, sigma=0.0,
                              rng=np.random.default_rng(0))
-    assert WassersteinL2(zeta=0.7).log_prob(truth, exact, model,
+    assert WassersteinL2(weight=7000.0).log_prob(truth, exact, model,
                                             tiny_site_table) == pytest.approx(
         GaussianL2().log_prob(truth, exact, model, tiny_site_table), rel=1e-12)
 
 
-def test_the_penalty_is_bounded_by_zeta_times_the_scale(scene, tiny_site_table,
+def test_the_penalty_is_bounded_by_the_weight(scene, tiny_site_table,
                                                         model):
-    """W is bounded by 1, so the penalty can never exceed zeta * scale.
+    """W is bounded by 1, so the penalty can never exceed the weight itself.
 
     This is what makes the scale's meaning testable rather than folklore: it is
     the most the transport term is allowed to move the log-likelihood, and on
-    real data it lands far below that ceiling. Measured at the default scale on
-    NV data, the penalty is about a tenth of a percent of the residual term --
-    present, but unable to change an acceptance decision until the scale is
-    calibrated upward.
+    real data it lands far below that ceiling. Measured at a weight of order the
+    point count the penalty is about a tenth of a percent of the residual term
+    -- present, but unable to change an acceptance decision until the weight is
+    raised by several decades.
     """
     _truth, data = scene
     state = make_state([1, 3], tiny_site_table)
-    zeta, scale = 0.5, 37.0
+    weight = 37.0
     gap = (GaussianL2().log_prob(state, data, model, tiny_site_table)
-           - WassersteinL2(zeta=zeta, scale=scale).log_prob(
+           - WassersteinL2(weight=weight).log_prob(
                state, data, model, tiny_site_table))
     assert np.all(gap >= 0.0)
-    assert np.all(gap <= zeta * scale + 1e-12)
+    assert np.all(gap <= weight + 1e-12)
 
 
-def test_zeta_outside_the_unit_interval_raises():
-    for bad in (-0.1, 1.5):
-        with pytest.raises(ValueError):
-            WassersteinL2(zeta=bad)
+def test_a_negative_weight_raises():
+    """It multiplies a distance; negative would reward disagreement.
+
+    There is deliberately no upper bound. The weight is a rate rather than a
+    fraction, and the calibration in test-plan Sec. 5.7 sweeps it to 1e6.
+    """
+    with pytest.raises(ValueError):
+        WassersteinL2(weight=-0.1)
+    assert WassersteinL2(weight=1e6).weight == pytest.approx(1e6)
 
 
 def test_one_value_per_replica(scene, tiny_site_table, model):
     _truth, data = scene
     replicas = make_state([0, 2], tiny_site_table).expand_replicas(4)
-    assert WassersteinL2(zeta=0.3).log_prob(replicas, data, model,
+    assert WassersteinL2(weight=3000.0).log_prob(replicas, data, model,
                                             tiny_site_table).shape == (4,)
 
 
@@ -364,7 +374,7 @@ def test_the_implemented_form_is_finite_there(scene, tiny_site_table, model):
     """Same regime, this implementation: a number, not a nan."""
     _truth, data = scene
     bad = make_state([3], tiny_site_table)
-    value = WassersteinL2(zeta=0.5).log_prob(bad, data, model, tiny_site_table)
+    value = WassersteinL2(weight=5000.0).log_prob(bad, data, model, tiny_site_table)
     assert np.all(np.isfinite(value))
 
 
@@ -379,14 +389,14 @@ def test_it_subclasses_the_likelihood_abc():
 
 def test_it_installs_in_a_target(scene, tiny_site_table, model):
     _truth, data = scene
-    target = Target(data, model, WassersteinL2(zeta=0.2), tiny_site_table)
+    target = Target(data, model, WassersteinL2(weight=2000.0), tiny_site_table)
     assert np.all(np.isfinite(target.log_prob(make_state([0, 2], tiny_site_table))))
 
 
 def test_tempering_scales_the_whole_thing(scene, tiny_site_table, model):
     """beta multiplies the penalised log-likelihood, not just the residual."""
     _truth, data = scene
-    target = Target(data, model, WassersteinL2(zeta=0.4), tiny_site_table)
+    target = Target(data, model, WassersteinL2(weight=4000.0), tiny_site_table)
     state = make_state([1, 3], tiny_site_table)
     assert target.log_prob(state, beta=0.25) == pytest.approx(
         0.25 * target.log_prob(state, beta=1.0))

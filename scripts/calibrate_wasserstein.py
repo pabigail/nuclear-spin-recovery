@@ -1,7 +1,6 @@
 """How does the transport penalty change recovery, as its weight varies?
 
-Only the product zeta * scale enters the log-likelihood, so the sweep is over
-that product.  Weight 0 is the negative control: it is GaussianL2 exactly.
+Weight 0 is the negative control: it is GaussianL2 exactly.
 """
 import sys
 import time
@@ -79,7 +78,7 @@ print(f"{'weight':>9} {'best sigma':>26} {'median':>7} {'R':>22} {'k mode':>14} 
 t0 = time.time()
 for weight in WEIGHTS:
     likelihood = (GaussianL2() if weight == 0.0
-                  else WassersteinL2(zeta=1.0, scale=weight))
+                  else WassersteinL2(weight=weight))
     target = Target(DATA, MODEL, likelihood, TABLE)
     best, R, kmode, acc = [], [], [], []
     for seed in SEEDS:

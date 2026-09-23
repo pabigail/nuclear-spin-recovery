@@ -418,15 +418,17 @@ Ladder wall time is about 4 minutes, dominated by T4's pooled comparison at
 at the same length as a positive one so that nobody repeats the sweep assuming
 it was never run.
 
-Only the product $\zeta s$ enters the log-likelihood, so the sweep is over that
-product. `WassersteinL2(zeta=0.2, scale=5000)`, `(1.0, 1000)` and `(0.5, 2000)`
-return bitwise identical values: two parameters, one degree of freedom.
+The penalty carries a single weight $w$, in log-likelihood per unit of
+normalised transport. The published form writes a factor $\zeta$ and a scale,
+but only their product enters — `(zeta, scale)` of `(0.2, 5000)`, `(1.0, 1000)`
+and `(0.5, 2000)` returned bitwise identical values — so the two were collapsed
+into $w$ before this sweep was run.
 
 Conditions as §5.1, on the 165-site detectable table, $k_{\text{true}} = 6$,
 RJMCMC + parallel tempering at $J = 6$, 2,000 steps with 1,000 discarded, three
 seeds. Weight 0 is `GaussianL2` exactly and is the negative control.
 
-| $\zeta s$ | best residual per seed | median | $R$ per seed | mode of $k$ | accept |
+| $w$ | best residual per seed | median | $R$ per seed | mode of $k$ | accept |
 |---:|---|---:|---|---|---:|
 | **0** | [7.49, **0.92**, **0.92**] | **0.92** | [0.83, 1.00, 1.00] | [6, 6, 6] | 11.8% |
 | $10^2$ | [7.49, 0.92, 0.92] | 0.92 | [0.83, 1.00, 1.00] | [6, 6, 6] | 11.8% |
@@ -443,7 +445,7 @@ either criterion.
 Chains run against `GaussianL2` and against each weight under one seed, compared
 step by step:
 
-| $\zeta s$ | first step at which the chain differs |
+| $w$ | first step at which the chain differs |
 |---:|---|
 | $10^0$ | never — bitwise identical |
 | $10^1$ | never — bitwise identical |
@@ -509,8 +511,8 @@ substantially the better criterion over a range of offsets, and the calibration
 sweep simply does not contain that failure mode: those baths differ by which
 spins are present, and both criteria rank them identically there.
 
-It does show that **the default must stay $\zeta = 0$**. On well-aligned data
-the penalty is inert below $\zeta s \approx 10$ and harmful above $10^3$, with
+It does show that **the default must stay $w = 0$**. On well-aligned data
+the penalty is inert below $w \approx 10$ and harmful above $10^3$, with
 no window of benefit. A user turning it on is departing from a calibrated
 setting, and should be doing so because a timing offset has been *diagnosed* —
 not as a general improvement. Having diagnosed one, they need their own sweep:

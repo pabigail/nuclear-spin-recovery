@@ -189,6 +189,18 @@ nothing.
 - The relaxed model achieves **both** a lower residual and a higher $R$ than the
   hard-constrained model on identical data.
 
+### T7 — ensemble agreement  ·  phase 4, passing
+
+Ensembles exist because a single chain cannot cross the dimension barrier. The
+rung asserts that the diagnostic built to notice that **fires** on chains known
+to be trapped, and **falls silent** when the trans-dimensional block that traps
+them is removed.
+
+- Modal $k$ spread $\ge 1$ and $\hat{R}$ on $k$ above 1.5, from ensembles
+  spread across $k$.
+- Spread exactly 0 and $\hat{R}$ undefined with birth-death moves deleted.
+- **No claim that pooling improves the estimate.** Measured and false; §5.8.
+
 ### T6 — experimental data  ·  phase 4
 
 Criterion A needs no ground truth, so the real CPMG-8 and CPMG-16 measurements at
@@ -517,6 +529,61 @@ no window of benefit. A user turning it on is departing from a calibrated
 setting, and should be doing so because a timing offset has been *diagnosed* —
 not as a general improvement. Having diagnosed one, they need their own sweep:
 the useful weight depends on the offset, which is what the crossover shows.
+
+---
+
+### 5.8 T7 — ensemble agreement
+
+Conditions as §5.1 on the 165-site detectable table, $k_{\text{true}} = 6$,
+eight ensembles of 1,200 steps with 400 discarded, initialised
+`spread_across_k` over $(3, 9)$ so chains approach from above and below.
+
+**The diagnostic fires,** reproducibly across three root seeds:
+
+| root seed | modal $k$ spread | $\hat{R}$ on $k$ |
+|---:|---:|---:|
+| 2026 | 2 | 2.39 |
+| 11 | 2 | 2.34 |
+| 404 | 2 | 1.94 |
+
+Against a conventional pass mark of 1.01. Thresholds set at spread $\ge 1$ and
+$\hat{R} > 1.5$, below the measured band with margin.
+
+**And falls silent when the mechanism is removed.** With the trans-dimensional
+block deleted, $k$ cannot vary: eight ensembles, modal $k = 6$ for every one of
+them, spread 0, $\hat{R}$ undefined. That control is what makes the row above
+mean something — a statistic that always reported disagreement would pass the
+positive test too.
+
+#### Two assertions from the plan that were dropped
+
+`phase-4-plan.md` §4 specifies three checks for this rung. Two do not survive
+contact with the definitions.
+
+**"Pooling improves or matches the best single-ensemble residual" is a
+tautology.** The pooled trace is the concatenation of the ensemble traces, so
+its minimum residual is identically the smallest of theirs. It cannot fail. The
+same holds for pooled $R$, which at equal sample counts is exactly the mean of
+the per-ensemble values.
+
+**"Pooling recovers the dimension" is false.** It was the obvious non-trivial
+replacement, and measuring it refuted it:
+
+| root seed | pooled $\lvert\text{mode}(k) - k_{\text{true}}\rvert$ | median over ensembles |
+|---:|---:|---:|
+| 2026 | **2** | 1.0 |
+| 11 | **1** | 0.5 |
+| 404 | 0 | 0.5 |
+
+Pooling makes the modal dimension *worse* on two of three seeds. The pooled mode
+is the mode of a mixture, and a mixture of ensembles that mostly over-count
+produces an over-counting mode; nothing makes it converge on the truth.
+
+This matters beyond the rung, because "run ensembles and pool them" is the
+recommendation of spec §8.6. What pooling reliably provides is the **spread** —
+the statement that the dimension is not settled — not a better point estimate of
+it. The ensembles notebook says the same thing, and its own $M$-sweep flips
+between 6 and 8 as ensembles are added.
 
 ---
 

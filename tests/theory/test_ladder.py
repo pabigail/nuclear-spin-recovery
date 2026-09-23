@@ -17,6 +17,7 @@ import pytest
 
 from nuclear_spin_recovery import (
     BirthDeathKernel,
+    EnsembleRunner,
     ContinuousReflected,
     DiscreteLatticeWalk,
     GaussianOffset,
@@ -30,6 +31,7 @@ from nuclear_spin_recovery import (
     State,
     Step,
     Trace,
+    spread_across_k,
 )
 from .conftest import LAM, LIK_SIGMA
 
@@ -499,3 +501,92 @@ def test_posterior_predictive_envelope_brackets_the_data(
     inside = np.mean((data.data_all >= lo - 4 * 0.002) &
                      (data.data_all <= hi + 4 * 0.002))
     assert inside > 0.9
+
+
+# ---------------------------------------------------------------------------
+# T7 — ensemble agreement detects trapped chains
+# ---------------------------------------------------------------------------
+
+ENSEMBLE_STEPS, ENSEMBLE_BURN, N_ENSEMBLES = 1200, 400, 8
+
+
+def _ensemble_schedule(table, *, trans_dimensional):
+    """The hybrid, with birth-death moves optionally removed.
+
+    Removing them is the negative control: k cannot vary, so a diagnostic that
+    reports disagreement in k must fall silent.
+    """
+    walk = DiscreteLatticeWalk(NeighborIndex(table.positions, radius=WALK_RADIUS))
+    blocks = []
+    if trans_dimensional:
+        blocks.append(Step(RJMCMC(ParameterBlock("sites"),
+                                  BirthDeathKernel(k_max=32)), 80))
+    blocks.append(Step(ParallelTempering(
+        Schedule([Step(RWMH(ParameterBlock("sites"), walk), 1)]),
+        n_replicas=6), 160))
+    return Schedule(blocks)
+
+
+def _run_ensembles(table, target, make_state, *, k_values, trans_dimensional,
+                   root_seed, n_ensembles=N_ENSEMBLES, n_steps=ENSEMBLE_STEPS):
+    def build(sites):
+        return make_state(sites, tbl=table)
+
+    runner = EnsembleRunner(
+        _ensemble_schedule(table, trans_dimensional=trans_dimensional),
+        n_ensembles=n_ensembles, n_steps=n_steps, n_burn=ENSEMBLE_BURN,
+        init=spread_across_k(build, k_values), init_name="spread_across_k")
+    return runner.run(target, root_seed=root_seed)
+
+
+def test_t7_agreement_fires_on_chains_trapped_at_different_dimensions(
+        detectable_table, simulated, make_state):
+    """The diagnostic must report the disagreement that is known to be there.
+
+    §5.6 measured that chains reaching a given k from above and from below
+    settle at different values and stay there.  Ensembles initialised across
+    that split therefore *must* disagree, and `agreement()` must say so.  A
+    convergence diagnostic that never reports non-convergence is
+    indistinguishable from one that is not computed at all.
+
+    Thresholds from §5.8: spread measured at 2 on each of three root seeds,
+    R-hat on k at 1.94 to 2.39 against a conventional pass mark of 1.01.
+    """
+    tbl = detectable_table
+    sites = np.sort(np.random.default_rng(7).choice(len(tbl), 6, replace=False))
+    _truth, _data, target = simulated(sites, seed=7, tbl=tbl)
+
+    result = _run_ensembles(tbl, target, make_state, k_values=(3, 9),
+                            trans_dimensional=True, root_seed=2026)
+    agreement = result.agreement()
+
+    assert agreement.n_ensembles == N_ENSEMBLES
+    assert agreement.k_mode_spread >= 1
+    assert agreement.rhat["k"] > 1.5
+
+
+def test_t7_agreement_falls_silent_when_dimension_cannot_move(
+        detectable_table, simulated, make_state):
+    """The negative control, and the reason the rung above means anything.
+
+    With the trans-dimensional block removed, k is fixed by construction, so
+    every ensemble must agree on it and R-hat must be undefined rather than
+    large.  Measured: eight ensembles, modal k = 6 for all of them, spread 0,
+    R-hat nan.
+
+    Without this the fired diagnostic proves nothing: a statistic that always
+    reports disagreement would pass the test above too.
+    """
+    tbl = detectable_table
+    sites = np.sort(np.random.default_rng(7).choice(len(tbl), 6, replace=False))
+    _truth, _data, target = simulated(sites, seed=7, tbl=tbl)
+
+    result = _run_ensembles(tbl, target, make_state, k_values=(6,),
+                            trans_dimensional=False, root_seed=2026,
+                            n_ensembles=4, n_steps=600)
+    agreement = result.agreement()
+
+    modes = [int(np.bincount(np.asarray(t.k)).argmax()) for t in result.traces]
+    assert modes == [6] * 4
+    assert agreement.k_mode_spread == 0
+    assert np.isnan(agreement.rhat["k"])

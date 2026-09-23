@@ -8,8 +8,10 @@ variant, and the experimental-data rung.
 Phases 1–3 are implemented. Phase 5 (PyCCE backend) is out of scope here.
 
 **Status.** Units 4a–4d are implemented and pushed. Unit 4e is blocked on
-experimental data files. Two planned ladder rungs, T7 and T8, were **not**
-written; §4 records what stands in their place and what does not. The sections
+experimental data files. Of the two planned ladder rungs, T7 is written and
+passing; T8's content exists as a unit test rather than a rung. §4 has the
+detail, including two checks specified for T7 that were dropped as tautological
+or false. The sections
 below are left as they were written, with a status note at the head of each
 unit, so the plan reads as a record of what was decided and when — including
 where the outcome differed from the intention.
@@ -281,23 +283,28 @@ fixture, write parser tests against it, implement, then run T6.
 
 ## 4. New ladder rungs
 
-**Status: neither was written.** T7 and T8 do not exist in `tests/theory/`; the
-ladder there still ends at T5. What was built instead, and what that leaves
-uncovered:
+**Status: T7 is now written; T8 remains unwritten.** What exists, and what that
+leaves uncovered:
 
 | rung | specified below | what exists |
 |---|---|---|
-| **T7** | ensemble agreement detects trapped chains | **nothing equivalent.** `test_ensemble.py` checks that `agreement()` computes what it should on synthetic traces, but nothing runs real chains and shows the diagnostic firing on the §5.6 dimension split. The negative control this rung exists for is unexercised. |
+| **T7** | ensemble agreement detects trapped chains | **written and passing**, as two tests in `tests/theory/test_ladder.py`, 50 s. One shows the diagnostic firing on the §5.6 split; the other shows it falling silent when birth–death moves are removed and `k` cannot vary. Calibrated in test-plan §5.8. |
 | **T8** | the Wasserstein variant reduces exactly | **covered, in the wrong place.** `test_zero_weight_gives_an_identical_accepted_path` compares the whole accepted trajectory against `GaussianL2` under one seed — exactly what T8 asks — but as a fast unit test on the four-site table, not a statistical rung. |
 
-So T8's content is present and T7's is not. The honest reading: the ensemble
-machinery is unit-tested and has never been demonstrated to detect the failure
-it was built to detect. `notebooks/ensembles_and_agreement.py` shows ten real
-chains disagreeing with a modal-$k$ spread of 2 and R-hat at 1.84, which is the
-substance of T7 — but a notebook is not an assertion, and nothing fails if that
-stops working.
+T8's content is present in the wrong file; T7 is now a rung.
 
-Writing T7 is the outstanding test debt of this phase.
+**Two of the three checks specified for T7 below were dropped, and the reason is
+worth more than the checks would have been.** "Pooling improves or matches the
+best single-ensemble residual" is a tautology — the pooled trace is the
+concatenation of the ensemble traces, so its minimum residual is identically the
+smallest of theirs. Its obvious non-trivial replacement, that pooling recovers
+the dimension, was measured and is **false**: pooled $|\text{mode}(k) - k|$ came
+out 2, 1, 0 across three root seeds against per-ensemble medians of 1.0, 0.5,
+0.5 — worse on two of three.
+
+That bears on spec §8.6, whose recommendation is to run ensembles and pool them.
+What pooling reliably gives is the *spread*, the statement that dimension is not
+settled; not a better point estimate of it. See test-plan §5.8.
 
 Numbering is topical and continues `test-plan.md` §4. Build order differs from
 numbering: T7 and T8 were to land before T6, which waits on data.
@@ -513,14 +520,12 @@ disagreement with published results can be traced.
 
 Nothing blocking implementation. Four things outstanding:
 
-1. **T7 is unwritten** (§4). The ensemble diagnostic has never been shown to
-   detect the failure it exists for. This is test debt, not a design question.
-2. **The ensemble-count study (§5.2) has not been run**, so the production
+1. **The ensemble-count study (§5.2) has not been run**, so the production
    ensemble count is still the inherited 5 rather than a measured number.
    Everything it needs exists.
-3. **`m5305`'s entitlement to the `shared` QOS**, to confirm at first
+2. **`m5305`'s entitlement to the `shared` QOS**, to confirm at first
    submission rather than now.
-4. **The wall-clock request**, once the production table and *k* range are
+3. **The wall-clock request**, once the production table and *k* range are
    fixed. 30 minutes is roughly 7× the measured single-ensemble runtime.
 
 ---

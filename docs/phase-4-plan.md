@@ -7,6 +7,13 @@ variant, and the experimental-data rung.
 
 Phases 1–3 are implemented. Phase 5 (PyCCE backend) is out of scope here.
 
+**Status.** Units 4a–4d are implemented and pushed. Unit 4e is blocked on
+experimental data files. Two planned ladder rungs, T7 and T8, were **not**
+written; §4 records what stands in their place and what does not. The sections
+below are left as they were written, with a status note at the head of each
+unit, so the plan reads as a record of what was decided and when — including
+where the outcome differed from the intention.
+
 ---
 
 ## 1. Ordering principle
@@ -15,13 +22,13 @@ The same one as phases 1–3: tests first and failing, then implementation, then
 calibration against recorded runs with negative controls. Within the phase, work
 is ordered by what unblocks what.
 
-| unit | what it adds | blocks |
-|---|---|---|
-| **4a** | `post/` — posterior summaries extracted from the test harness | everything below |
-| **4b** | `EnsembleRunner` — independent chains, pooled | 4c, T7 |
-| **4c** | run configuration and Perlmutter submission | T6 at scale |
-| **4d** | Wasserstein likelihood variant | T8 |
-| **4e** | experimental data reader and T6 | — |
+| unit | what it adds | blocks | status |
+|---|---|---|---|
+| **4a** | `post/` — posterior summaries extracted from the test harness | everything below | **done** |
+| **4b** | `EnsembleRunner` — independent chains, pooled | 4c, T7 | **done** |
+| **4c** | run configuration and Perlmutter submission | T6 at scale | **done** |
+| **4d** | Wasserstein likelihood variant | T8 | **done** |
+| **4e** | experimental data reader and T6 | — | **blocked on data** |
 
 4a comes first because every other unit is measured through it. 4d is
 independent of the rest and can move if something else turns out urgent.
@@ -54,6 +61,8 @@ extraction changed a measurement, which is a defect, not a recalibration.
 ## 3. Work units
 
 ### 4a — `post/`
+
+**Done.** 55 unit tests. The extraction was verified by the theory ladder passing 28/28 with no threshold edited. It immediately exposed a defect the three copies had hidden: `false_absence` matched by exact set membership while `detection_rate` matched within a tolerance, reporting FP = 0.224 on a run whose true value is 0.0 — all of it symmetry-orbit rounding in the fourth decimal. It also corrected a claim made in this plan's own reasoning: rounding does *not* merge a symmetry orbit, since its members differ in the fourth decimal. The match tolerance is what merges them.
 
 **New files**
 
@@ -98,6 +107,8 @@ that call `post/`, no threshold edited, and the notebook importing the same
 functions.
 
 ### 4b — `EnsembleRunner`
+
+**Done.** 55 unit tests, plus `Trace.save` and `Trace.load`. Seeds are derived per index as `SeedSequence([root, i])` rather than by spawning, which makes prefix stability structural. Two defects surfaced by running real data rather than by the tests: R-hat reported 0.994 — perfect convergence — for parameters that never moved, because the `within == 0` guard missed the ~1e-37 cancellation residue of a chain held at 3e-3; and `agreement()` raised on a single-ensemble result, which is the M = 1 point of the §5.2 sweep.
 
 Spec §8.6. Several chains per dataset, differing in seed and initialization,
 **never exchanging information** — the distinction from tempering, where rungs
@@ -153,6 +164,8 @@ that pooling stays a local operation.
 - merging traces with different `k_max` or `n_exp` raises rather than padding
 
 ### 4c — configuration and Perlmutter submission
+
+**Done.** 43 unit tests, all passing on the first run. Shipped as specified, plus `configs/nv_ensemble.toml` and a generated `scripts/submit_perlmutter.sh`. The callable logic lives in `config.py` with the scripts as thin argparse wrappers, so it is importable and testable rather than reachable only through a subprocess.
 
 **New files** — `config.py`, `scripts/submit_perlmutter.sh`,
 `scripts/run_ensemble.py`, `scripts/merge_ensembles.py`
@@ -232,6 +245,8 @@ leaves room for the full table and a larger *k* without being wasteful.
 
 ### 4d — Wasserstein likelihood
 
+**Done**, with two departures from what this section specifies below. The penalty is additive in log space, not the product form — that form's logarithm is undefined across almost the whole state space the sampler visits. And ζ and the scale were collapsed into a single `weight`, because only their product ever entered the likelihood. Calibrated in test-plan §5.7: on well-aligned data **no weight improves recovery**, so the calibrated value is zero; on data carrying a diagnosed timing offset it is the better criterion over a window of offsets.
+
 Spec §7.1. Adds `likelihood/wasserstein.py` implementing
 
 ```
@@ -252,6 +267,8 @@ tempering already operates on whatever is installed.
 
 ### 4e — experimental data and T6
 
+**Blocked on data files.** The seam is in place and demonstrated: a `file` data mode raises `NotImplementedError` naming this unit, which `notebooks/configured_runs.py` exercises.
+
 Gated on data files. The reader is designed so **parsing is separable**: a
 `read_experiment(path)` function producing an `ExperimentSet`, tested against a
 small committed fixture, with everything downstream already covered by phases
@@ -264,8 +281,26 @@ fixture, write parser tests against it, implement, then run T6.
 
 ## 4. New ladder rungs
 
+**Status: neither was written.** T7 and T8 do not exist in `tests/theory/`; the
+ladder there still ends at T5. What was built instead, and what that leaves
+uncovered:
+
+| rung | specified below | what exists |
+|---|---|---|
+| **T7** | ensemble agreement detects trapped chains | **nothing equivalent.** `test_ensemble.py` checks that `agreement()` computes what it should on synthetic traces, but nothing runs real chains and shows the diagnostic firing on the §5.6 dimension split. The negative control this rung exists for is unexercised. |
+| **T8** | the Wasserstein variant reduces exactly | **covered, in the wrong place.** `test_zero_weight_gives_an_identical_accepted_path` compares the whole accepted trajectory against `GaussianL2` under one seed — exactly what T8 asks — but as a fast unit test on the four-site table, not a statistical rung. |
+
+So T8's content is present and T7's is not. The honest reading: the ensemble
+machinery is unit-tested and has never been demonstrated to detect the failure
+it was built to detect. `notebooks/ensembles_and_agreement.py` shows ten real
+chains disagreeing with a modal-$k$ spread of 2 and R-hat at 1.84, which is the
+substance of T7 — but a notebook is not an assertion, and nothing fails if that
+stops working.
+
+Writing T7 is the outstanding test debt of this phase.
+
 Numbering is topical and continues `test-plan.md` §4. Build order differs from
-numbering: T7 and T8 land before T6, which waits on data.
+numbering: T7 and T8 were to land before T6, which waits on data.
 
 ### T7 — ensemble agreement detects trapped chains
 
@@ -293,6 +328,13 @@ assumed here.
 
 ### 5.2 — how many ensembles · calibration study
 
+**Not run.** Everything it needs exists — prefix-stable seeds make the sweep
+free, since $M$ ensembles are the first $M$ of a set already computed, and
+`notebooks/ensembles_and_agreement.py` demonstrates the mechanics over
+$M = 1, 2, 3, 5, 7, 10$ on one seed. What is missing is the seed-to-seed spread
+at each $M$, without which no production number can be set: the notebook's own
+sweep is non-monotone, with the pooled mode reading 6, then 8, then 6 again.
+
 Not a pass/fail rung. A recorded sweep of detection accuracy against ensemble
 count, which is what sets the production number in place of the inherited 5.
 
@@ -306,11 +348,15 @@ run under spread-across-*k* and re-run if the policy changes.
 
 ### T8 — the Wasserstein variant reduces exactly
 
-- At ζ = 0 the sampler's accepted path is **identical** to `GaussianL2`'s, given
-  the same seed — not merely similar. Exact reduction is the whole safety
+*Both assertions exist, as unit tests rather than as a ladder rung, and ζ is now
+a single `weight`.*
+
+- At weight 0 the sampler's accepted path is **identical** to `GaussianL2`'s,
+  given the same seed — not merely similar. Exact reduction is the whole safety
   argument for adding the term.
-- At ζ > 0 some configuration pair changes rank relative to ζ = 0. Without this
-  the parameter is decorative.
+  (`test_zero_weight_gives_an_identical_accepted_path`)
+- At weight > 0 some configuration pair changes rank. Without this the parameter
+  is decorative. (`test_the_weight_changes_the_ranking_of_some_pair`)
 
 ### T6 — experimental data · unchanged
 
@@ -448,8 +494,54 @@ Account `m5305`, user `pabigail`, working directory
 the `shared` QOS, one core per task, merged afterwards. Details and the reasoning
 for `shared` over `regular` are in §3, unit 4c.
 
+### Resolved after the fact — the Wasserstein weight
+
+Two decisions this document did not anticipate, both forced by measurement
+after 4d was written:
+
+- The penalty is **additive in log space**. The published product form's
+  logarithm is undefined wherever it is negative, which it already is at
+  $E = -50$ for $\zeta = 0.1$ while ordinary traces sit near $E = -3000$.
+- ζ and the scale are **one parameter**. Only their product entered the
+  likelihood, so the two were perfectly degenerate; collapsing them stops a
+  user tuning a knob that cannot independently do anything.
+
+Both are recorded in `model-specification.md` §11, entries 6–8, so a later
+disagreement with published results can be traced.
+
 ### Open
 
-Nothing blocking. Two items to confirm at first submission rather than now:
-`m5305`'s entitlement to the `shared` QOS, and the wall-clock request once the
-production table and *k* range are fixed.
+Nothing blocking implementation. Four things outstanding:
+
+1. **T7 is unwritten** (§4). The ensemble diagnostic has never been shown to
+   detect the failure it exists for. This is test debt, not a design question.
+2. **The ensemble-count study (§5.2) has not been run**, so the production
+   ensemble count is still the inherited 5 rather than a measured number.
+   Everything it needs exists.
+3. **`m5305`'s entitlement to the `shared` QOS**, to confirm at first
+   submission rather than now.
+4. **The wall-clock request**, once the production table and *k* range are
+   fixed. 30 minutes is roughly 7× the measured single-ensemble runtime.
+
+---
+
+## 7. What phase 4 actually cost, and what it caught
+
+Four units, each scaffolded as failing tests and reviewed before implementation.
+The pattern earned its keep in a specific way worth recording: **every defect
+found in this phase was found by running real data, not by the tests that had
+been approved for the purpose.**
+
+| unit | found by the tests | found by running it |
+|---|---|---|
+| 4a | — | `false_absence` matching by exact membership, reporting FP = 0.224 where the truth is 0.0 |
+| 4b | — | R-hat reporting 0.994 for frozen parameters; `agreement()` raising at M = 1 |
+| 4c | — | — (43 tests, all passed first run) |
+| 4d | — | the default weight making the penalty inert; the product form being unusable |
+
+In two of those cases the test that should have caught it existed and passed on
+a value that happened to hide the bug: `np.ones` has exactly zero variance where
+`3e-3` does not, and a substring search for `sbatch` matches a docstring. The
+lesson is narrow and repeatable — **a constant chosen for convenience can make a
+guard untestable** — and it is the one thing from this phase most worth carrying
+into phase 5.

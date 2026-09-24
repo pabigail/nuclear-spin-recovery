@@ -283,15 +283,18 @@ fixture, write parser tests against it, implement, then run T6.
 
 ## 4. New ladder rungs
 
-**Status: T7 is now written; T8 remains unwritten.** What exists, and what that
-leaves uncovered:
+**Status: both are now written and passing.** T7 is two tests, 50 s; T8 is two
+tests, 10 s. The ladder runs T0 through T8.
 
 | rung | specified below | what exists |
 |---|---|---|
 | **T7** | ensemble agreement detects trapped chains | **written and passing**, as two tests in `tests/theory/test_ladder.py`, 50 s. One shows the diagnostic firing on the §5.6 split; the other shows it falling silent when birth–death moves are removed and `k` cannot vary. Calibrated in test-plan §5.8. |
-| **T8** | the Wasserstein variant reduces exactly | **covered, in the wrong place.** `test_zero_weight_gives_an_identical_accepted_path` compares the whole accepted trajectory against `GaussianL2` under one seed — exactly what T8 asks — but as a fast unit test on the four-site table, not a statistical rung. |
+| **T8** | the Wasserstein variant reduces exactly | **written and passing.** Promoted from the unit suite to a rung: the reduction is now checked through the full hybrid on the detectable table, so it must survive replica expansion inside tempering and birth–death inside RJMCMC rather than only a continuous block on four sites. The unit tests stay — different level, not duplication. Calibrated in test-plan §5.7. |
 
-T8's content is present in the wrong file; T7 is now a rung.
+Writing T8 turned up something the §5.7 sweep had not: **the weight at which
+the penalty starts acting depends on the dataset, not only on the sampler.** The
+rung failed on its first run using the $10^3$ threshold measured in §5.7, because
+on its own noise draw $10^3$ never flips a decision. It asserts at $10^5$.
 
 **Two of the three checks specified for T7 below were dropped, and the reason is
 worth more than the checks would have been.** "Pooling improves or matches the

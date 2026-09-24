@@ -201,6 +201,21 @@ them is removed.
 - Spread exactly 0 and $\hat{R}$ undefined with birth-death moves deleted.
 - **No claim that pooling improves the estimate.** Measured and false; §5.8.
 
+### T8 — the Wasserstein variant reduces exactly  ·  phase 4, passing
+
+The safety argument for offering the variant at all: a user who leaves the
+penalty off must get the calibrated sampler, bit for bit.
+
+- At weight 0, the chain is **identical** to `GaussianL2`'s — site indices,
+  $k$, $\lambda$, offsets, log-probability and the per-step algorithm labels —
+  through the full hybrid, so the reduction survives replica expansion inside
+  tempering and birth–death inside RJMCMC. The unit suite checks the same
+  property on four sites with one continuous block; this rung checks the
+  composition.
+- At a weight above the acting threshold the chain **does** diverge, or the
+  parameter is decorative. Set at $10^5$; see §5.7 on why the threshold is a
+  property of the dataset.
+
 ### T6 — experimental data  ·  phase 4
 
 Criterion A needs no ground truth, so the real CPMG-8 and CPMG-16 measurements at
@@ -469,6 +484,22 @@ Below about $10$ the term cannot flip a single accept/reject decision, so the
 sampler is `GaussianL2` with extra arithmetic. Above about $10^3$ it flips
 decisions immediately and the recovery degrades. The window in which it acts
 without harming is narrow and, on these seeds, empty of benefit.
+
+#### The acting threshold is a property of the dataset
+
+The table above was measured on one noise draw. Writing T8 produced a second,
+and they disagree: on the rung's data, with its own schedule and seed, a weight
+of $10^3$ **never** diverges from least squares in 800 steps, $10^4$ first
+diverges at step 11, and $10^5$ at step 4.
+
+So "below about 10 it is inert, above about $10^3$ it is harmful" describes this
+dataset. The ordering is robust; the boundaries move with the noise draw, the
+schedule and the seed. A user setting a weight is setting it for their data, not
+choosing from a table — which is the same conclusion §5.7 reaches from the other
+direction, arrived at by a rung failing on a threshold borrowed from here.
+
+T8 therefore asserts at $10^5$, two decades above where the penalty stops acting
+on its own data, rather than one.
 
 #### Why, given that the distance does discriminate
 

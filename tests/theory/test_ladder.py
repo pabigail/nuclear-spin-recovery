@@ -18,6 +18,7 @@ import pytest
 from nuclear_spin_recovery import (
     BirthDeathKernel,
     EnsembleRunner,
+    GaussianL2,
     ContinuousReflected,
     DiscreteLatticeWalk,
     GaussianOffset,
@@ -30,7 +31,9 @@ from nuclear_spin_recovery import (
     Schedule,
     State,
     Step,
+    Target,
     Trace,
+    WassersteinL2,
     spread_across_k,
 )
 from .conftest import LAM, LIK_SIGMA
@@ -590,3 +593,91 @@ def test_t7_agreement_falls_silent_when_dimension_cannot_move(
     assert modes == [6] * 4
     assert agreement.k_mode_spread == 0
     assert np.isnan(agreement.rhat["k"])
+
+
+# ---------------------------------------------------------------------------
+# T8 — the Wasserstein variant reduces exactly
+# ---------------------------------------------------------------------------
+
+T8_STEPS = 800
+
+
+def _hybrid_for_t8(table):
+    """RJMCMC, tempering and a cold site walk — every block at once.
+
+    The point of running the full hybrid rather than a single block: the
+    reduction has to survive replica expansion inside tempering and birth-death
+    inside RJMCMC, not just a continuous update.
+    """
+    walk = DiscreteLatticeWalk(NeighborIndex(table.positions, radius=WALK_RADIUS))
+    return Schedule([
+        Step(RJMCMC(ParameterBlock("sites"), BirthDeathKernel(k_max=32)), 40),
+        Step(ParallelTempering(
+            Schedule([Step(RWMH(ParameterBlock("sites"), walk), 1)]),
+            n_replicas=6), 80),
+        Step(RWMH(ParameterBlock("sites"), walk), 40),
+    ])
+
+
+def _t8_chain(table, target, start, likelihood, seed=17):
+    schedule = _hybrid_for_t8(table)
+    trace = Trace(n_sites=len(table), k_max=32, n_exp=1)
+    HybridDriver(schedule).run(start, Target(target.expset, target.model,
+                                             likelihood, target.site_table),
+                               np.random.default_rng(seed),
+                               n_total=T8_STEPS, trace=trace)
+    return trace
+
+
+def test_t8_zero_weight_reproduces_least_squares_through_the_whole_hybrid(
+        detectable_table, simulated, make_state):
+    """At weight 0 the sampler cannot tell the two likelihoods apart.
+
+    Identical, not merely similar, and through every block: birth-death moves,
+    a six-rung tempering ladder and a cold site walk.  Exact reduction is the
+    entire safety argument for offering the variant — a user who leaves the
+    penalty off must get the calibrated sampler, bit for bit.
+
+    The unit suite checks the same property on a four-site table with one
+    continuous block.  This rung checks that it survives the composition.
+    """
+    tbl = detectable_table
+    sites = np.sort(np.random.default_rng(7).choice(len(tbl), 6, replace=False))
+    _truth, _data, target = simulated(sites, seed=7, tbl=tbl)
+    start = make_state(np.random.default_rng(31).choice(len(tbl), 3, replace=False),
+                       tbl=tbl)
+
+    plain = _t8_chain(tbl, target, start, GaussianL2())
+    reduced = _t8_chain(tbl, target, start, WassersteinL2(weight=0.0))
+
+    for field in ("site_idx", "k", "lam", "dA_par", "dA_perp", "log_prob"):
+        assert np.array_equal(np.asarray(getattr(plain, field)),
+                              np.asarray(getattr(reduced, field))), field
+    assert list(plain.algorithm) == list(reduced.algorithm)
+
+
+def test_t8_a_calibrated_weight_actually_changes_the_chain(
+        detectable_table, simulated, make_state):
+    """Above the acting threshold the penalty must do something.
+
+    Without this the parameter is decorative: below some weight the chain is
+    bitwise identical to the least-squares one, so a variant that never
+    diverged would be indistinguishable from one that was never applied.
+
+    The weight is 1e5 rather than the 1e3 of §5.7 because **the threshold is a
+    property of the dataset, not only of the sampler**.  Measured on this rung's
+    own data with this schedule: 1e3 never diverges in 800 steps, 1e4 first
+    diverges at step 11, 1e5 at step 4.  §5.7 saw 1e3 act at step 44 on a
+    different noise draw.  Two decades of margin, not one.
+    """
+    tbl = detectable_table
+    sites = np.sort(np.random.default_rng(7).choice(len(tbl), 6, replace=False))
+    _truth, _data, target = simulated(sites, seed=7, tbl=tbl)
+    start = make_state(np.random.default_rng(31).choice(len(tbl), 3, replace=False),
+                       tbl=tbl)
+
+    plain = _t8_chain(tbl, target, start, GaussianL2())
+    penalised = _t8_chain(tbl, target, start, WassersteinL2(weight=1e5))
+
+    assert not np.array_equal(np.asarray(plain.site_idx),
+                              np.asarray(penalised.site_idx))

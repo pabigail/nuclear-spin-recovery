@@ -110,6 +110,8 @@ PUBLIC_NAMES = [
     "WassersteinL2",
     "signal_measure",
     "wasserstein_signal_distance",
+    "TAU_UNITS",
+    "coupling_posterior",
 ]
 
 

@@ -127,3 +127,36 @@ def by_band(values, magnitude, bands=BANDS):
         if sel.any():
             out[i] = values[sel].mean()
     return out
+
+
+def coupling_posterior(samples, tol=MATCH_TOL):
+    """What the posterior actually contains, ranked by frequency.
+
+    The reference-free counterpart to :func:`detection_rate`.  With ground
+    truth one asks how often each known spin appears; without it -- which is
+    the experimental case -- the only question available is which couplings the
+    posterior contains and how often.
+
+    Returns ``(couplings, frequencies)``: an (n, 2) array of (A_par, A_perp)
+    pairs in kHz and the fraction of samples containing each, sorted by
+    decreasing frequency.  Couplings within ``tol`` of one another are one
+    entry, so a symmetry orbit is reported once rather than six times.
+    """
+    samples = [list(sample) for sample in samples]
+    pairs = [pair for sample in samples for pair in sample]
+    if not pairs:
+        return np.empty((0, 2), dtype=float), np.empty(0, dtype=float)
+
+    # Greedy single-pass clustering.  The table's own orbits differ in the
+    # fourth decimal, so exact grouping would report one physical spin six
+    # times over; the tolerance is what makes this a reading of the physics.
+    representatives = []
+    for pair in pairs:
+        if not matches(pair, representatives, tol):
+            representatives.append(pair)
+
+    frequency = np.array(
+        [np.mean([matches(rep, sample, tol) for sample in samples])
+         for rep in representatives], dtype=float)
+    order = np.argsort(-frequency, kind="stable")
+    return np.asarray(representatives, dtype=float)[order], frequency[order]

@@ -32,7 +32,7 @@ from .ensemble import (
     rhat,
     spread_across_k,
 )
-from .experiment import Experiment, ExperimentSet
+from .experiment import TAU_UNITS, Experiment, ExperimentSet
 from .lattice import SiteTable, read_hyperfine_table, secular_components
 from .neighbors import NeighborIndex
 from .proposals import (
@@ -57,6 +57,7 @@ from .forward import (
 )
 from .post import (
     BANDS,
+    coupling_posterior,
     MATCH_TOL,
     PosteriorSummary,
     band_index,
@@ -112,6 +113,7 @@ __all__ = [
     "State",
     "Step",
     "StretchedExponential",
+    "TAU_UNITS",
     "TWO_PI",
     "Target",
     "Trace",
@@ -119,6 +121,7 @@ __all__ = [
     "add_noise",
     "band_index",
     "by_band",
+    "coupling_posterior",
     "couplings",
     "derive_seeds",
     "detection_rate",

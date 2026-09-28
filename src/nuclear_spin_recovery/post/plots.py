@@ -91,7 +91,18 @@ def plot_detection_by_band(summary, *, ax=None, bands=None, **kwargs):
     Bands with no reference spin come back nan from the summary and are drawn
     as a gap rather than as a zero bar, so missing data does not read as a
     failed recovery.
+
+    Raises when the summary has no reference at all.  Detection is undefined
+    without ground truth, and drawing empty axes would let a reader believe the
+    question had been asked and answered negatively.  On measured data use
+    :func:`plot_coupling_posterior` instead.
     """
+    if np.asarray(summary.R_i).size == 0:
+        raise ValueError(
+            "this summary has no reference, so detection was never computed. "
+            "Empty axes would read as 'asked and answered no'. On measured "
+            "data use coupling_posterior() and plot_coupling_posterior()."
+        )
     ax = _axes(ax)
     bands = BANDS if bands is None else bands
     heights = np.asarray(summary.by_band(bands), dtype=float)
@@ -103,4 +114,51 @@ def plot_detection_by_band(summary, *, ax=None, bands=None, **kwargs):
     ax.set_ylim(0.0, 1.0)
     ax.set_xlabel("coupling magnitude (kHz)")
     ax.set_ylabel("detection rate $R$")
+    return ax
+
+
+def plot_posterior_predictive(summary, tau, observed, *, ax=None, band=95.0,
+                              **kwargs):
+    """Posterior-predictive signals against the measured data.
+
+    Criterion A made visible, and the only one of the two that survives without
+    ground truth.  Draws the central ``band`` percent of the predictive draws
+    as a filled region with the data over it.
+    """
+    ax = _axes(ax)
+    predictive = np.atleast_2d(np.asarray(summary.predictive, dtype=float))
+    tau = np.asarray(tau, dtype=float)
+    edge = (100.0 - float(band)) / 2.0
+    lo, hi = np.percentile(predictive, [edge, 100.0 - edge], axis=0)
+    ax.fill_between(tau, lo, hi, alpha=0.35, color="steelblue",
+                    label=f"{band:g}% of posterior draws", **kwargs)
+    ax.plot(tau, np.asarray(observed, dtype=float), lw=0.8, color="0.3",
+            label="data")
+    ax.set_xlabel(r"$\tau$")
+    ax.set_ylabel("coherence")
+    return ax
+
+
+def plot_coupling_posterior(couplings, frequencies, *, ax=None, top=20,
+                            **kwargs):
+    """What the posterior contains, ranked by how often it contains it.
+
+    The reference-free reading of a recovery: each bar is one coupling, its
+    height the fraction of posterior samples containing it.  A bar near 1 is a
+    spin the data insists on; a forest of short bars is the sampler unable to
+    choose between configurations.
+    """
+    ax = _axes(ax)
+    found = np.atleast_2d(np.asarray(couplings, dtype=float))
+    frequencies = np.asarray(frequencies, dtype=float)
+    shown = min(int(top), frequencies.size)
+    positions = np.arange(shown)
+    kwargs.setdefault("color", "steelblue")
+    ax.bar(positions, frequencies[:shown], **kwargs)
+    ax.set_xticks(positions)
+    ax.set_xticklabels([f"({a:.0f}, {b:.0f})" for a, b in found[:shown]],
+                       rotation=60, ha="right", fontsize=7)
+    ax.set_ylim(0.0, 1.05)
+    ax.set_xlabel(r"$(A_\parallel,\ A_\perp)$  (kHz)")
+    ax.set_ylabel("fraction of posterior samples")
     return ax

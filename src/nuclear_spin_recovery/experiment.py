@@ -46,11 +46,63 @@ class Experiment:
         return int(self.tau.size)
 
 
+#: Accepted spellings for the unit of ``tau``, and the factor to milliseconds.
+TAU_UNITS = {"ms": 1.0, "us": 1e-3, "µs": 1e-3, "ns": 1e-6, "s": 1e3}
+
+
 @dataclass
 class ExperimentSet:
     """Several experiments on the same defect, fit jointly."""
 
     experiments: list
+
+    @classmethod
+    def from_arrays(cls, tau, coherence, n_pulses, b_z, *, sigma, tau_units):
+        """One measured experiment, from plain arrays.
+
+        The entry point for data that was not simulated: the user supplies the
+        interpulse spacings, the measured coherence, the pulse number, the
+        field, and the noise level.
+
+        ``tau_units`` has **no default**, deliberately.  Interpulse spacings are
+        quoted in microseconds as often as in milliseconds, and the package
+        works in milliseconds; a default would silently accept a trace off by
+        three orders of magnitude, which produces a confident fit to the wrong
+        physics rather than an error.
+
+        ``sigma`` is **required** for the same reason in reverse.  Criterion A
+        -- the only criterion available without ground truth -- is the residual
+        measured in units of the noise, and the noise cannot be recovered from
+        a single dynamical-decoupling trace: at this sampling density every
+        estimator is floored by the modulation itself.  Measured on simulated
+        NV data at a true sigma of 0.002, successive differences give 0.062,
+        second differences 0.016, and the scatter in the decayed tail 0.017 --
+        all of them signal structure, overestimating by eight- to thirty-fold.
+        The noise has to come from the measurement.
+        """
+        return cls([_from_arrays(tau, coherence, n_pulses, b_z, sigma=sigma,
+                                 tau_units=tau_units)])
+
+    @classmethod
+    def from_records(cls, records, *, tau_units):
+        """Several measured experiments, from a sequence of mappings.
+
+        Each record carries ``tau``, ``coherence``, ``n_pulses``, ``b_z`` and
+        ``sigma``.  They need not share a grid or a grid length.
+        """
+        records = list(records)
+        if not records:
+            raise ValueError("at least one record is required")
+        built = []
+        for i, record in enumerate(records):
+            missing = sorted({"tau", "coherence", "n_pulses", "b_z", "sigma"}
+                             - set(record))
+            if missing:
+                raise ValueError(f"record {i} is missing {missing}")
+            built.append(_from_arrays(
+                record["tau"], record["coherence"], record["n_pulses"],
+                record["b_z"], sigma=record["sigma"], tau_units=tau_units))
+        return cls(built)
 
     @property
     def n_experiments(self) -> int:
@@ -109,3 +161,45 @@ class ExperimentSet:
             )
         bounds = np.cumsum([len(e) for e in self.experiments])[:-1]
         return list(np.split(flat, bounds, axis=-1))
+
+
+def _from_arrays(tau, coherence, n_pulses, b_z, *, sigma, tau_units):
+    """One validated :class:`Experiment` from user arrays.
+
+    Every check here guards a way a measured trace can be silently wrong rather
+    than loudly broken.  A nan reaching the likelihood makes every acceptance
+    ratio nan, so the chain freezes without reporting anything; spacings out of
+    order mean the arrays were assembled from mismatched columns; the wrong
+    unit produces a confident fit to physics three decades away.
+    """
+    if tau_units not in TAU_UNITS:
+        raise ValueError(
+            f"unknown tau_units {tau_units!r}; known units are "
+            f"{sorted(TAU_UNITS)}")
+    sigma = float(sigma)
+    if not np.isfinite(sigma) or sigma <= 0.0:
+        raise ValueError(
+            f"sigma must be positive and finite, got {sigma}; it is the noise "
+            f"the residual is measured against and cannot be inferred from a "
+            f"single trace")
+
+    tau = np.asarray(tau, dtype=float)
+    coherence = np.asarray(coherence, dtype=float)
+    if tau.shape != coherence.shape:
+        raise ValueError(
+            f"tau has {tau.shape} points and coherence has {coherence.shape}")
+    if not np.all(np.isfinite(tau)):
+        raise ValueError("tau contains non-finite values")
+    if not np.all(np.isfinite(coherence)):
+        raise ValueError(
+            "coherence contains non-finite values; drop those points rather "
+            "than passing them, or a nan reaches every acceptance ratio")
+    if np.any(tau <= 0.0):
+        raise ValueError("tau must be strictly positive")
+    if np.any(np.diff(tau) <= 0.0):
+        raise ValueError(
+            "tau must be strictly increasing; out-of-order spacings usually "
+            "mean the arrays were assembled from mismatched columns")
+
+    return Experiment(tau=tau * TAU_UNITS[tau_units], n_pulses=n_pulses,
+                      b_z=b_z, data=coherence, sigma=sigma)

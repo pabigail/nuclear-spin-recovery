@@ -688,6 +688,78 @@ multimodal *this* posterior is, and a harder bath will need more.
 
 ---
 
+### 5.10 Reading a coupling posterior, and a correction
+
+Without ground truth the only form the question "what did we find" can take is
+`coupling_posterior`: every coupling the posterior contains, ranked by the
+fraction of samples containing it. This section records what that ranking does
+and does not license, because the first reading of it made here was wrong.
+
+**The observation.** A single chain on measured-style arrays — 1,200 steps,
+RJMCMC plus tempering, six spins in the truth — returned seven couplings, six
+of them at frequency 1.00. Five of those six were exactly right. The sixth was
+**(51.6, 113.4)**, held at frequency 1.00, where the truth has
+**(50.2, 104.5)**.
+
+**The first diagnosis was that this is ill-posedness**, the data being unable to
+separate two near-identical couplings. Measuring it refuted that:
+
+| | true site 146 | reported site 64 |
+|---|---|---|
+| coupling (kHz) | (50.19, 104.47) | (51.56, 113.39) |
+| distance from the NV | 8.10 Å | 4.55 Å |
+| RMS residual | **1.015 σ** | **3.817 σ** |
+| $\log L$ | −5.15 | **−72.84** |
+
+Sixty-eight log units apart. The likelihood is not remotely indifferent; it
+prefers the truth overwhelmingly. The two sites are 11.4 Å apart — beyond the
+6 Å walk radius, so no single-spin move connects them — and lie in different
+symmetry orbits.
+
+**It is a mixing failure, and a persistent one.** The chain never visited site
+146 at all: not in 1,200 steps, not in 5,000. It reached the impostor early and
+stayed.
+
+**Ensembles resolve it.** Twenty chains initialised `spread_across_k`:
+
+| | of 20 ensembles |
+|---:|---:|
+| containing the true site 146 | **15** |
+| containing the impostor 64 | **3** |
+
+and the pooled coupling posterior separates cleanly — the six true couplings are
+the six most frequent, and the impostor falls from 1.00 to 0.15:
+
+| $A_\parallel$ | $A_\perp$ | frequency | true? |
+|---:|---:|---:|---|
+| −177.2 | 23.0 | 1.00 | yes |
+| −111.7 | 90.2 | 1.00 | yes |
+| 519.8 | 209.6 | 1.00 | yes |
+| 369.9 | 75.8 | 0.91 | yes |
+| 50.2 | 104.5 | **0.85** | yes — the site one chain never found |
+| 82.0 | 123.7 | 0.58 | yes |
+| 86.3 | 94.6 | 0.42 | no |
+| 51.6 | 113.4 | **0.15** | no — was 1.00 from one chain |
+
+#### What to take from it
+
+**A frequency of 1.00 from a single chain means that chain never left, not that
+the data requires it.** A stuck walker and a certain one produce identical
+output, and nothing in the coupling posterior distinguishes them. That is a
+sharper warning than "the problem is ill-posed", and unlike ill-posedness it
+has a remedy.
+
+Read a frequency as a statement about the posterior that was *sampled*. Whether
+that is the posterior of interest is a question about mixing, which the ranking
+cannot see and the ensemble diagnostics of §5.8 can.
+
+This also agrees with §5.9 from a second direction: that study put 20 ensembles
+as the point where the modal dimension becomes reliable, and 20 is what cleans
+up the coupling ranking here. The measured-data workflow should pool ensembles
+before reading a coupling posterior, not summarise a single chain.
+
+---
+
 ## 6. Test layout
 
 | location | contents | speed |

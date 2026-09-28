@@ -269,7 +269,28 @@ tempering already operates on whatever is installed.
 
 ### 4e — experimental data and T6
 
-**Blocked on data files.** The seam is in place and demonstrated: a `file` data mode raises `NotImplementedError` naming this unit, which `notebooks/configured_runs.py` exercises.
+**Half done.** The *array* path is implemented: `ExperimentSet.from_arrays` and
+`from_records` take the interpulse spacings, the measured coherence, the pulse
+number, the field and the noise, and everything downstream — sampling,
+`summarize(reference=None)`, the reference-free `coupling_posterior` — works
+without ground truth. 30 unit tests. The **file parser** is still blocked on
+example files, and the `file` data mode still raises `NotImplementedError`
+naming this unit.
+
+Two arguments carry no default, both for measured reasons. `tau_units`, because
+spacings are quoted in microseconds as often as milliseconds and a default
+would accept a trace off by a thousand. `sigma`, because it cannot be recovered
+from a single trace: at a true 0.002, successive differences give 0.062, second
+differences 0.016 and decayed-tail scatter 0.017, and the *noiseless* signal
+produces those same numbers — every estimator is floored by the modulation.
+
+Test-plan §5.10 records a correction made here. A single chain reported a
+coupling at frequency 1.00 that was not a true spin, and the first reading of
+that called it ill-posedness. It was not: the likelihood separates the two
+configurations by 68 log units, and the chain had simply never visited the true
+site in 5,000 steps. Pooled over 20 ensembles the ranking is clean. The lesson
+is narrower and more useful than the one first drawn — a frequency of 1.00 from
+one chain means that chain never left.
 
 Gated on data files. The reader is designed so **parsing is separable**: a
 `read_experiment(path)` function producing an `ExperimentSet`, tested against a

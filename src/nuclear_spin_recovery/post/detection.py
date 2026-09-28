@@ -141,6 +141,21 @@ def coupling_posterior(samples, tol=MATCH_TOL):
     pairs in kHz and the fraction of samples containing each, sorted by
     decreasing frequency.  Couplings within ``tol`` of one another are one
     entry, so a symmetry orbit is reported once rather than six times.
+
+    **Pass pooled ensemble samples, not one chain.**  A frequency of 1.00 from
+    a single chain means that chain never left the coupling, which is not the
+    same as the data requiring it -- and the two are indistinguishable in the
+    output.  Measured on NV data (test-plan Sec. 5.10): a single chain reported
+    (51.6, 113.4) at frequency 1.00 for 5,000 steps and never once visited the
+    true site at (50.2, 104.5), 11.4 A away and well outside the walk radius.
+    The likelihood was not indifferent between them -- 67.7 log units, 1.0 sigma
+    residual against 3.8 -- so this was the sampler stuck, not the data
+    speaking.  Pooled over 20 ensembles the true coupling rose to 0.85 and the
+    impostor fell to 0.15.
+
+    Read a frequency as a statement about the posterior you sampled.  Whether
+    that posterior is the target's depends on mixing, which this function
+    cannot see.
     """
     samples = [list(sample) for sample in samples]
     pairs = [pair for sample in samples for pair in sample]

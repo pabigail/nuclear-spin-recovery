@@ -144,9 +144,13 @@ def plot_coupling_posterior(couplings, frequencies, *, ax=None, top=20,
     """What the posterior contains, ranked by how often it contains it.
 
     The reference-free reading of a recovery: each bar is one coupling, its
-    height the fraction of posterior samples containing it.  A bar near 1 is a
-    spin the data insists on; a forest of short bars is the sampler unable to
-    choose between configurations.
+    height the fraction of posterior samples containing it.
+
+    A tall bar is a coupling the sampled posterior insists on -- which is the
+    data speaking only if the chains mixed.  From a single chain a bar at 1.00
+    can be a stuck walker, and looks identical to a certain one; see
+    :func:`~nuclear_spin_recovery.post.detection.coupling_posterior` and
+    test-plan Sec. 5.10.  Feed this pooled ensemble samples.
     """
     ax = _axes(ax)
     found = np.atleast_2d(np.asarray(couplings, dtype=float))

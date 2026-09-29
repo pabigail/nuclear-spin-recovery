@@ -20,6 +20,7 @@ from .config import (
     run_ensemble,
     submission_script,
 )
+from .design import ParticleSet
 from .driver import HybridDriver, Schedule, Step
 from .ensemble import (
     RHAT_PARAMETERS,
@@ -101,6 +102,7 @@ __all__ = [
     "PERLMUTTER_WORKDIR",
     "ParallelTempering",
     "ParameterBlock",
+    "ParticleSet",
     "PosteriorSummary",
     "Proposal",
     "RHAT_PARAMETERS",

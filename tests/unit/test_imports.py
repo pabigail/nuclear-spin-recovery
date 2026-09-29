@@ -40,6 +40,8 @@ MODULES = [
     "nuclear_spin_recovery.post.plots",
     "nuclear_spin_recovery.ensemble",
     "nuclear_spin_recovery.config",
+    "nuclear_spin_recovery.design",
+    "nuclear_spin_recovery.design.particles",
 ]
 
 PUBLIC_NAMES = [
@@ -112,6 +114,7 @@ PUBLIC_NAMES = [
     "wasserstein_signal_distance",
     "TAU_UNITS",
     "coupling_posterior",
+    "ParticleSet",
 ]
 
 

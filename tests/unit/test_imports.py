@@ -43,6 +43,7 @@ MODULES = [
     "nuclear_spin_recovery.design",
     "nuclear_spin_recovery.design.particles",
     "nuclear_spin_recovery.design.utility",
+    "nuclear_spin_recovery.design.selection",
 ]
 
 PUBLIC_NAMES = [
@@ -120,6 +121,11 @@ PUBLIC_NAMES = [
     "ExpectedInformationGain",
     "PredictiveVariance",
     "information_density",
+    "GreedyUtility",
+    "InformationDensity",
+    "NothingToLearn",
+    "PointSelector",
+    "UniformThinning",
 ]
 
 

@@ -10,6 +10,13 @@ See docs/phase-5-plan.md.
 """
 
 from .particles import ParticleSet
+from .selection import (
+    GreedyUtility,
+    InformationDensity,
+    NothingToLearn,
+    PointSelector,
+    UniformThinning,
+)
 from .utility import (
     DesignUtility,
     ExpectedInformationGain,
@@ -20,7 +27,12 @@ from .utility import (
 __all__ = [
     "DesignUtility",
     "ExpectedInformationGain",
+    "GreedyUtility",
+    "InformationDensity",
+    "NothingToLearn",
     "ParticleSet",
+    "PointSelector",
     "PredictiveVariance",
+    "UniformThinning",
     "information_density",
 ]

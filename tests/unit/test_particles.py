@@ -181,6 +181,28 @@ def test_an_orbit_differing_in_the_fourth_figure_merges(near_orbit_table):
     assert ps.n_particles == 1
 
 
+def test_an_orbit_swap_that_reorders_the_couplings_still_merges():
+    """Sorting is not a canonical form under a tolerance.
+
+    Sites 0 and 1 are one orbit (A_par 120.00 / 120.03); site 2 is a different
+    spin whose A_par, 120.02, falls between them.  Swapping 0 for 1 moves that
+    spin past site 2 in sorted order, so an elementwise comparison of sorted
+    couplings pairs each spin with the wrong partner and splits one bath in
+    two.  On the NV table this is not a corner case: 35,580 pairs of distinct
+    spins sit within 0.1 kHz of each other in A_par.
+    """
+    table = SiteTable(
+        distance=np.array([1.5, 1.5, 2.0]),
+        positions=np.array([[1.5, 0, 0], [-1.5, 0, 0], [0, 2.0, 0]], float),
+        a_par=np.array([120.00, 120.03, 120.02]),
+        a_perp=np.array([45.00, 45.02, 10.00]),
+        isotope=np.array(["13C"] * 3),
+        gyro=np.full(3, 6.7283),
+    )
+    ps = ParticleSet.from_trace(trace_from_sites([[0, 2], [1, 2]], table), table)
+    assert ps.n_particles == 1
+
+
 def test_couplings_outside_tolerance_stay_distinct(near_orbit_table):
     ps = ParticleSet.from_trace(
         trace_from_sites([[0, 3], [2, 3]], near_orbit_table), near_orbit_table)

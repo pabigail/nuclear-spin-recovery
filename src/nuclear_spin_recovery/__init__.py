@@ -20,7 +20,13 @@ from .config import (
     run_ensemble,
     submission_script,
 )
-from .design import ParticleSet
+from .design import (
+    DesignUtility,
+    ExpectedInformationGain,
+    ParticleSet,
+    PredictiveVariance,
+    information_density,
+)
 from .driver import HybridDriver, Schedule, Step
 from .ensemble import (
     RHAT_PARAMETERS,
@@ -84,10 +90,12 @@ __all__ = [
     "BirthDeathKernel",
     "ContinuousReflected",
     "DEFAULT_QOS",
+    "DesignUtility",
     "DiscreteLatticeWalk",
     "EnsembleResult",
     "EnsembleRunner",
     "Envelope",
+    "ExpectedInformationGain",
     "Experiment",
     "ExperimentSet",
     "ForwardModel",
@@ -104,6 +112,7 @@ __all__ = [
     "ParameterBlock",
     "ParticleSet",
     "PosteriorSummary",
+    "PredictiveVariance",
     "Proposal",
     "RHAT_PARAMETERS",
     "RJMCMC",
@@ -130,6 +139,7 @@ __all__ = [
     "false_absence",
     "geometric_ladder",
     "gyromagnetic_ratio",
+    "information_density",
     "load_ensembles",
     "matches",
     "merge_run",

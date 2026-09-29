@@ -10,5 +10,17 @@ See docs/phase-5-plan.md.
 """
 
 from .particles import ParticleSet
+from .utility import (
+    DesignUtility,
+    ExpectedInformationGain,
+    PredictiveVariance,
+    information_density,
+)
 
-__all__ = ["ParticleSet"]
+__all__ = [
+    "DesignUtility",
+    "ExpectedInformationGain",
+    "ParticleSet",
+    "PredictiveVariance",
+    "information_density",
+]

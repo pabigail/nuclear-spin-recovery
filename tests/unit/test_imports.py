@@ -42,6 +42,7 @@ MODULES = [
     "nuclear_spin_recovery.config",
     "nuclear_spin_recovery.design",
     "nuclear_spin_recovery.design.particles",
+    "nuclear_spin_recovery.design.utility",
 ]
 
 PUBLIC_NAMES = [
@@ -115,6 +116,10 @@ PUBLIC_NAMES = [
     "TAU_UNITS",
     "coupling_posterior",
     "ParticleSet",
+    "DesignUtility",
+    "ExpectedInformationGain",
+    "PredictiveVariance",
+    "information_density",
 ]
 
 

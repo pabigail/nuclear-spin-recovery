@@ -317,3 +317,18 @@ def test_independent_draws_do_flip_that_ranking():
                                             [1.0, 1.0], rng(seed))) <= 0
         for seed in range(40))
     assert flips >= 5
+
+
+@pytest.mark.parametrize("utility_cls", BOTH)
+def test_a_zero_weight_particle_changes_nothing(utility_cls, recwarn):
+    """Legal, silent, and the same as leaving the particle out.  Appended last
+    so the particle draws, which invert the cumulative weights, are unchanged
+    too."""
+    utility = utility_cls()
+    P = rng(1).normal(0, 0.3, (3, 12))
+    w = np.array([0.5, 0.3, 0.2])
+    padded = np.vstack([P, rng(2).normal(0, 0.3, (2, 12))])
+    without = utility.score(P, w, 0.2, rng(4))
+    with_zero = utility.score(padded, np.r_[w, 0.0, 0.0], 0.2, rng(4))
+    assert with_zero == pytest.approx(without, rel=1e-12)
+    assert not [w for w in recwarn if issubclass(w.category, RuntimeWarning)]

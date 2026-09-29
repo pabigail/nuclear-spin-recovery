@@ -40,6 +40,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+import numpy as np
+from scipy.special import logsumexp
+
+#: Cap on the (draws, particles, points) residual block held at once.  Keeps
+#: memory flat for large K without changing a single number.
+_BLOCK_ELEMENTS = 4_000_000
+
 
 class DesignUtility(ABC):
     """A scalar measure of how informative one candidate is."""
@@ -56,7 +63,42 @@ class DesignUtility(ABC):
 
     def score(self, predictions, weights, noise, rng):
         """Score one candidate. ``predictions`` is ``(K, n_points)``."""
-        raise NotImplementedError
+        return float(self.score_many([predictions], weights, [noise], rng)[0])
+
+
+def _weights(weights, n_particles):
+    """Validated, normalised weights. (K,)"""
+    w = np.asarray(weights, dtype=float).reshape(-1)
+    if w.size != n_particles:
+        raise ValueError(f"{n_particles} particles but {w.size} weights")
+    if not np.all(np.isfinite(w)) or np.any(w < 0):
+        raise ValueError("weights must be finite and non-negative")
+    total = w.sum()
+    if total <= 0.0:
+        raise ValueError("weights sum to zero")
+    return w / total
+
+
+def _noise(noise, n_points):
+    """Per-point effective noise. (n_points,)  Infinite is unmeasured."""
+    s = np.broadcast_to(np.asarray(noise, dtype=float), (n_points,))
+    if np.any(np.isnan(s)) or np.any(s <= 0):
+        raise ValueError("noise must be positive; use inf for an unmeasured point")
+    return s
+
+
+def _candidates(predictions, noise):
+    """Pair each candidate's (K, n) predictions with its noise."""
+    predictions = [np.atleast_2d(np.asarray(p, dtype=float)) for p in predictions]
+    noise = list(noise)
+    if len(noise) != len(predictions):
+        raise ValueError(
+            f"{len(predictions)} candidates but {len(noise)} noise entries")
+    n_particles = {p.shape[0] for p in predictions}
+    if len(n_particles) > 1:
+        raise ValueError("candidates disagree on the number of particles")
+    return [(p, _noise(n, p.shape[1])) for p, n in zip(predictions, noise,
+                                                      strict=True)]
 
 
 def information_density(predictions, weights, noise):
@@ -66,7 +108,12 @@ def information_density(predictions, weights, noise):
     noise variance there.  Zero where every particle predicts the same, which
     is where measuring cannot separate them; zero at an unmeasured point.
     """
-    raise NotImplementedError
+    P = np.atleast_2d(np.asarray(predictions, dtype=float))
+    w = _weights(weights, P.shape[0])
+    s = _noise(noise, P.shape[1])
+    mean = w @ P
+    variance = w @ (P - mean) ** 2
+    return variance / s ** 2
 
 
 class ExpectedInformationGain(DesignUtility):
@@ -78,10 +125,54 @@ class ExpectedInformationGain(DesignUtility):
     """
 
     def __init__(self, n_draws=64, common_random=True):
-        raise NotImplementedError
+        if int(n_draws) < 1:
+            raise ValueError(f"n_draws must be at least 1, got {n_draws}")
+        self.n_draws = int(n_draws)
+        self.common_random = bool(common_random)
 
     def score_many(self, predictions, weights, noise, rng):
-        raise NotImplementedError
+        cands = _candidates(predictions, noise)
+        if not cands:
+            return np.empty(0, dtype=float)
+        n_particles = cands[0][0].shape[0]
+        w = _weights(weights, n_particles)
+        n_max = max(P.shape[1] for P, _ in cands)
+
+        def draw():
+            truth = rng.choice(n_particles, size=self.n_draws, p=w)
+            return truth, rng.standard_normal((self.n_draws, n_max))
+
+        truth, eps = draw()
+        out = np.empty(len(cands), dtype=float)
+        for c, (P, s) in enumerate(cands):
+            if c > 0 and not self.common_random:
+                truth, eps = draw()
+            # Columns are masked rather than dropped from eps, so a point with
+            # infinite noise leaves every other point's draw where it was.
+            measured = np.isfinite(s)
+            out[c] = self._gain(P[:, measured], w, s[measured],
+                                truth, eps[:, : P.shape[1]][:, measured])
+        return out
+
+    @staticmethod
+    def _gain(P, w, s, truth, eps):
+        """Mean of log p(d | k) - log p(d) over the simulated datasets."""
+        n_draws = truth.size
+        if P.shape[0] == 1 or P.shape[1] == 0:
+            return 0.0
+        Q = P / s                                   # (K, n), in noise units
+        data = Q[truth] + eps                       # (M, n)
+        with np.errstate(divide="ignore"):
+            log_w = np.log(w)                       # -inf for a zero weight
+        total = 0.0
+        block = max(1, _BLOCK_ELEMENTS // max(1, Q.size))
+        for lo in range(0, n_draws, block):
+            d = data[lo:lo + block]
+            ll = -0.5 * np.sum((d[:, None, :] - Q[None, :, :]) ** 2, axis=2)
+            log_evidence = logsumexp(log_w[None, :] + ll, axis=1)
+            own = ll[np.arange(d.shape[0]), truth[lo:lo + block]]
+            total += np.sum(own - log_evidence)
+        return float(total / n_draws)
 
 
 class PredictiveVariance(DesignUtility):
@@ -96,4 +187,6 @@ class PredictiveVariance(DesignUtility):
     """
 
     def score_many(self, predictions, weights, noise, rng):
-        raise NotImplementedError
+        cands = _candidates(predictions, noise)
+        return np.array([information_density(P, weights, s).sum()
+                         for P, s in cands], dtype=float)

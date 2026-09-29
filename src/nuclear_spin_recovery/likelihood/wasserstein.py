@@ -129,7 +129,8 @@ class WassersteinL2(Likelihood):
         predicted = model.coherence(state, expset, site_table)
         residual = expset.data_all[None, :] - predicted
         sigma = state.sigma[:, expset.exp_id]
-        gaussian = -0.5 * np.sum((residual / sigma) ** 2, axis=1)
+        weight = expset.weight_all[None, :]
+        gaussian = -0.5 * np.sum(weight * (residual / sigma) ** 2, axis=1)
         if self.weight == 0.0:
             # Short-circuit rather than multiply by zero: the penalty can be
             # nan for a degenerate signal, and 0 * nan is nan.

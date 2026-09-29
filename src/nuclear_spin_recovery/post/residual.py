@@ -67,10 +67,24 @@ def predictive_from_arrays(site_idx, k, dA_par, dA_perp, lam, n_stretch, sigma,
     return model.coherence(state, expset, site_table)
 
 
-def residual_distribution(observed, predictive, noise):
-    """RMS residual of each predictive draw, in units of ``noise``. (n_draws,)"""
+def residual_distribution(observed, predictive, noise, weight=None):
+    """RMS residual of each predictive draw, in units of ``noise``. (n_draws,)
+
+    ``weight`` is the per-point relative measurement time.  Weighted, the mean
+    is taken over the weights rather than over the points, so a point measured
+    four times as long counts four times -- which keeps criterion A and the
+    likelihood in agreement about what a good fit is.  Unit or absent weights
+    give the plain root-mean-square.
+    """
     observed = np.asarray(observed, dtype=float)
     predictive = np.atleast_2d(np.asarray(predictive, dtype=float))
     if predictive.size == 0:
         return np.empty(0, dtype=float)
-    return np.sqrt(np.mean((observed[None, :] - predictive) ** 2, axis=1)) / noise
+    squared = (observed[None, :] - predictive) ** 2
+    if weight is None:
+        return np.sqrt(np.mean(squared, axis=1)) / noise
+    weight = np.asarray(weight, dtype=float)
+    total = weight.sum()
+    if total <= 0.0:
+        raise ValueError("weights sum to zero, so no point was measured")
+    return np.sqrt(np.sum(weight[None, :] * squared, axis=1) / total) / noise

@@ -319,3 +319,41 @@ def test_coupling_posterior_plot_truncates_to_the_top_entries(tiny_site_table):
     found, frequency = coupling_posterior(samples)
     ax = plots.plot_coupling_posterior(found, frequency, top=2)
     assert len(ax.patches) == 2
+
+
+# --------------------------------------------------------------------------
+# per-point measurement weights on a measured trace
+# --------------------------------------------------------------------------
+
+
+def test_from_arrays_accepts_a_weight(coherence):
+    """The output of an adaptive design, or uneven repetition counts."""
+    weight = np.linspace(1.0, 4.0, TAU_US.size)
+    built = ExperimentSet.from_arrays(tau=TAU_US, coherence=coherence,
+                                      n_pulses=16, b_z=311.0, sigma=0.004,
+                                      tau_units="us", weight=weight)
+    assert built.weight_all == pytest.approx(weight)
+
+
+def test_weight_is_optional(measured):
+    assert measured.experiments[0].weight is None
+    assert measured.weight_all == pytest.approx(np.ones(TAU_US.size))
+
+
+def test_a_mismatched_weight_length_raises(coherence):
+    with pytest.raises(ValueError):
+        ExperimentSet.from_arrays(tau=TAU_US, coherence=coherence,
+                                  n_pulses=16, b_z=311.0, sigma=0.004,
+                                  tau_units="us", weight=np.ones(5))
+
+
+def test_records_may_mix_weighted_and_unweighted(coherence):
+    built = ExperimentSet.from_records([
+        {"tau": TAU_US, "coherence": coherence, "n_pulses": 8, "b_z": 311.0,
+         "sigma": 0.004, "weight": np.full(TAU_US.size, 3.0)},
+        {"tau": TAU_US, "coherence": coherence, "n_pulses": 16, "b_z": 311.0,
+         "sigma": 0.004},
+    ], tau_units="us")
+    out = built.weight_all
+    assert out[:TAU_US.size] == pytest.approx(3.0)
+    assert out[TAU_US.size:] == pytest.approx(1.0)

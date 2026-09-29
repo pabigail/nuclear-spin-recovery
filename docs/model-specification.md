@@ -319,9 +319,31 @@ and is what the model assumes.
 
 For data $\mathbf{d}$ across experiments indexed by $e$ with points $j$:
 
-$$\log\mathcal{L}(\mathbf{d}\mid\theta) = -\sum_e \frac{1}{2\sigma_e^2}\sum_j \left(d_{e,j} - f_e(\tau_{e,j})\right)^2.$$
+$$\log\mathcal{L}(\mathbf{d}\mid\theta) = -\sum_e \frac{1}{2\sigma_e^2}\sum_j w_{e,j}\left(d_{e,j} - f_e(\tau_{e,j})\right)^2.$$
 
 All computation is in log space.
+
+**Per-point measurement weights.** $w_{e,j}$ is the averaging time at point $j$
+relative to the rest of its experiment, and is $1$ everywhere unless set — so
+the expression above reduces *exactly* to the unweighted sum, which every
+threshold calibrated in `test-plan.md` §5 depends on.
+
+Its meaning follows from how the data is acquired. Coherence at a point is an
+average over repetitions, so a point measured four times as long has a quarter
+the variance: its effective noise is $\sigma_e/\sqrt{w_{e,j}}$ and its squared
+residual enters weighted by $w_{e,j}$. A weight of zero drops the point
+entirely, which is what lets a design express "do not measure here".
+
+It is expressed as a weight rather than as an explicit per-point $\sigma_{e,j}$
+because $\sigma_e$ is a **sampled** parameter (§6). Replacing it with an array
+fixed by the experiment would leave the sampler nothing to update and discard
+the temperature role described below. The weight factorises cleanly: the
+experiment says how the effort was distributed, the sampler says how noisy the
+measurement was overall.
+
+Simulation, the residual of §9.2, and the Wasserstein variant below all carry
+the same weights, so that the likelihood and criterion A cannot disagree about
+what a good fit is.
 
 $\sigma_e$ plays a dual role that deserves stating plainly. It is a noise
 estimate, but it also acts as a temperature on the likelihood surface: too small
@@ -337,10 +359,14 @@ whose features are absent. The $L^2$ residual cannot express that distinction: a
 modulation dip displaced by one sampling interval is penalized as heavily as one
 that never appears.
 
-$$\log \mathcal{L}_{\text{mod}}(\mathbf{d}\mid\theta) = -\frac{1}{2\sigma_e^2}\sum_j (d_j - f_j)^2 \;-\; w\, \widehat{W}\!\left(f,\mathbf{d}\right),$$
+$$\log \mathcal{L}_{\text{mod}}(\mathbf{d}\mid\theta) = -\frac{1}{2\sigma_e^2}\sum_j w_{e,j}(d_j - f_j)^2 \;-\; \lambda_W\, \widehat{W}\!\left(f,\mathbf{d}\right),$$
 
 with $\widehat{W}$ the normalized 1-Wasserstein distance defined below and
-$w \ge 0$ a single weight. The default is $w = 0$, which recovers the Gaussian
+$\lambda_W \ge 0$ a single weight — written $\lambda_W$ here to keep it
+distinct from the per-point measurement weights $w_{e,j}$ of the residual term,
+which are a different quantity entirely. In code it is the `weight` argument of
+`WassersteinL2`, and $w_{e,j}$ is the `weight` field of `Experiment`; they never
+appear in the same call, but the shared name is worth knowing about. The default is $\lambda_W = 0$, which recovers the Gaussian
 likelihood **exactly** — not to within a tolerance; the penalty term is
 short-circuited rather than multiplied by zero, since $0 \times \mathrm{NaN}$
 is $\mathrm{NaN}$.
@@ -349,8 +375,8 @@ is $\mathrm{NaN}$.
 $\zeta$ and, implicitly, a scale converting a distance into log-likelihood
 units. Only their product ever enters, so the two are perfectly degenerate —
 $(\zeta, s) = (0.2, 5000)$ and $(1.0, 1000)$ give bitwise identical values —
-and they are collapsed here into $w$. Its units are log-likelihood per unit of
-normalized transport, and it spans decades rather than the unit interval: the
+and they are collapsed here into $\lambda_W$. Its units are log-likelihood per
+unit of normalized transport, and it spans decades rather than the unit interval: the
 calibration sweeps it from $0$ to $10^6$.
 
 *Two definitions the distance requires.* A Wasserstein distance is defined
@@ -378,12 +404,13 @@ Concatenating the grids first would permit mass to move between experiments,
 which corresponds to nothing physical: each carries its own $\tau$ axis, span
 and pulse number.
 
-The weight $w$ exists because the two terms are not naturally commensurate, and
-it is a **calibrated parameter whose calibrated value is zero**. Nothing in the
+The weight $\lambda_W$ exists because the two terms are not naturally
+commensurate, and it is a **calibrated parameter whose calibrated value is
+zero**. Nothing in the
 physics fixes how many $\sigma^2$ a full-window displacement is worth, and the
 sweep in the test plan §5.7 finds no value that improves recovery on
-well-aligned data: below $w \approx 10$ the term cannot flip a single
-accept/reject decision, and above $w \approx 10^3$ the recovery degrades.
+well-aligned data: below $\lambda_W \approx 10$ the term cannot flip a single
+accept/reject decision, and above $\lambda_W \approx 10^3$ the recovery degrades.
 
 The term earns its place in a different regime. On data carrying a systematic
 timing offset it is substantially the better criterion over a window of
@@ -391,9 +418,9 @@ offsets — at one sampling interval a wrong configuration outscores the right o
 4.8% of the time under least squares and 0.2% under transport — and worse
 outside that window. §5.7 records both measurements.
 
-The penalty is bounded by $w$, since $\widehat{W} \le 1$. That bound is the
-most the transport term can move the log-likelihood, and it is the quantity to
-reason about when choosing $w$.
+The penalty is bounded by $\lambda_W$, since $\widehat{W} \le 1$. That bound is
+the most the transport term can move the log-likelihood, and it is the quantity
+to reason about when choosing it.
 
 *Deviation from the published form.* The methods paper writes this penalty as a
 product,

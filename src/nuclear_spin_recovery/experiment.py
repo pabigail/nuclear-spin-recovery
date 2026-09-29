@@ -22,6 +22,7 @@ class Experiment:
     b_z: float                 # G
     data: np.ndarray | None = None      # (n_points,) measured coherence
     sigma: float | None = None          # noise std, initial value
+    weight: np.ndarray | None = None    # (n_points,) relative measurement time
 
     def __post_init__(self):
         self.tau = np.asarray(self.tau, dtype=float)
@@ -41,6 +42,20 @@ class Experiment:
                 raise ValueError(
                     f"data has {self.data.shape} points, tau has {self.tau.shape}"
                 )
+        if self.weight is not None:
+            self.weight = np.asarray(self.weight, dtype=float)
+            if self.weight.shape != self.tau.shape:
+                raise ValueError(
+                    f"weight has {self.weight.shape} points, tau has "
+                    f"{self.tau.shape}"
+                )
+            if not np.all(np.isfinite(self.weight)):
+                raise ValueError("weight contains non-finite values")
+            if np.any(self.weight < 0.0):
+                raise ValueError(
+                    "weight must be non-negative; it is a relative measurement "
+                    "time, and a negative one would reward disagreement"
+                )
 
     def __len__(self) -> int:
         return int(self.tau.size)
@@ -57,7 +72,8 @@ class ExperimentSet:
     experiments: list
 
     @classmethod
-    def from_arrays(cls, tau, coherence, n_pulses, b_z, *, sigma, tau_units):
+    def from_arrays(cls, tau, coherence, n_pulses, b_z, *, sigma, tau_units,
+                    weight=None):
         """One measured experiment, from plain arrays.
 
         The entry point for data that was not simulated: the user supplies the
@@ -79,16 +95,21 @@ class ExperimentSet:
         second differences 0.016, and the scatter in the decayed tail 0.017 --
         all of them signal structure, overestimating by eight- to thirty-fold.
         The noise has to come from the measurement.
+
+        ``weight`` is optional and is the relative averaging time at each point
+        -- the output of an adaptive design, or the repetition counts of an
+        unevenly acquired trace.  Omitted, every point counts once.
         """
         return cls([_from_arrays(tau, coherence, n_pulses, b_z, sigma=sigma,
-                                 tau_units=tau_units)])
+                                 tau_units=tau_units, weight=weight)])
 
     @classmethod
     def from_records(cls, records, *, tau_units):
         """Several measured experiments, from a sequence of mappings.
 
         Each record carries ``tau``, ``coherence``, ``n_pulses``, ``b_z`` and
-        ``sigma``.  They need not share a grid or a grid length.
+        ``sigma``, and may carry ``weight``.  They need not share a grid or a
+        grid length, and need not agree on whether they are weighted.
         """
         records = list(records)
         if not records:
@@ -101,7 +122,8 @@ class ExperimentSet:
                 raise ValueError(f"record {i} is missing {missing}")
             built.append(_from_arrays(
                 record["tau"], record["coherence"], record["n_pulses"],
-                record["b_z"], sigma=record["sigma"], tau_units=tau_units))
+                record["b_z"], sigma=record["sigma"], tau_units=tau_units,
+                weight=record.get("weight")))
         return cls(built)
 
     @property
@@ -144,6 +166,24 @@ class ExperimentSet:
         return np.array([e.b_z for e in self.experiments])[self.exp_id]
 
     @property
+    def weight_all(self):
+        """Relative measurement time per point. (n_points,)
+
+        One everywhere unless an experiment sets it, so the weighted
+        likelihood reduces exactly to the unweighted one by default.
+
+        A weight is how much averaging a point received relative to the rest,
+        so the effective noise there is ``sigma_e / sqrt(w_j)``: doubling the
+        repetitions halves the variance.  Expressed as a weight rather than as
+        a per-point sigma because ``sigma_e`` is a *sampled* parameter -- a
+        literal per-point array would leave nothing for the sampler to update.
+        """
+        self._require_non_empty()
+        return np.concatenate([
+            np.ones(len(e)) if e.weight is None else e.weight
+            for e in self.experiments])
+
+    @property
     def data_all(self):
         """Measured coherence, concatenated. (n_points,)"""
         self._require_non_empty()
@@ -163,7 +203,8 @@ class ExperimentSet:
         return list(np.split(flat, bounds, axis=-1))
 
 
-def _from_arrays(tau, coherence, n_pulses, b_z, *, sigma, tau_units):
+def _from_arrays(tau, coherence, n_pulses, b_z, *, sigma, tau_units,
+                 weight=None):
     """One validated :class:`Experiment` from user arrays.
 
     Every check here guards a way a measured trace can be silently wrong rather
@@ -201,5 +242,11 @@ def _from_arrays(tau, coherence, n_pulses, b_z, *, sigma, tau_units):
             "tau must be strictly increasing; out-of-order spacings usually "
             "mean the arrays were assembled from mismatched columns")
 
+    if weight is not None:
+        weight = np.asarray(weight, dtype=float)
+        if weight.shape != tau.shape:
+            raise ValueError(
+                f"weight has {weight.shape} points and tau has {tau.shape}")
+
     return Experiment(tau=tau * TAU_UNITS[tau_units], n_pulses=n_pulses,
-                      b_z=b_z, data=coherence, sigma=sigma)
+                      b_z=b_z, data=coherence, sigma=sigma, weight=weight)

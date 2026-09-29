@@ -1,21 +1,24 @@
 # Rewrite
 
-This branch (`claude-rewrite`) is a ground-up reimplementation of the sampler
-that produced the results in arXiv:2506.19259 and arXiv:2506.18802. The physics
-is unchanged; the software architecture, the test suite, and the written
-specification are new.
+This is a ground-up reimplementation of the sampler that produced the results
+in arXiv:2506.19259 and arXiv:2506.18802. The physics is unchanged; the software
+architecture, the test suite, and the written specification are new.
+
+It was developed on a branch called `claude-rewrite` and merged into `main` in
+September 2026. The pre-rewrite research code is preserved on
+`old_rjmcmc_code`.
 
 ## Timeline
 
 | Period | Work | Location |
 |---|---|---|
-| 2024-07 – 2025-11 | Original research implementation, 89 commits | `main` |
-| 2025-12 – 2026-06 | Continued research branches (`joss_submission`, `oop_mcmc_rewrite`, `exp_for_chris`) | public repo |
+| 2024-07 – 2025-11 | Original research implementation, 89 commits | now an ancestor of `main` |
+| 2025-12 – 2026-06 | Continued research, several branches, all now consolidated | `old_rjmcmc_code` |
 | 2026-09-16 – 2026-09-18 | Rewrite, 20 commits | imported here |
 
 The rewrite was carried out in a separate private repository over three days and
-imported into this branch on 2026-09-18 with `--allow-unrelated-histories`, so
-both lineages remain visible in `git log`.
+imported on 2026-09-18 with `--allow-unrelated-histories`, so both lineages
+remain visible in `git log`.
 
 Development proceeded in phases, each one scaffolded as failing tests before any
 implementation: phase 1 (data layer and analytic forward model), phase 2 (RWMH,

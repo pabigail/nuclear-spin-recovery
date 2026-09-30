@@ -111,8 +111,11 @@ def information_density(predictions, weights, noise):
     P = np.atleast_2d(np.asarray(predictions, dtype=float))
     w = _weights(weights, P.shape[0])
     s = _noise(noise, P.shape[1])
-    mean = w @ P
-    variance = w @ (P - mean) ** 2
+    # Deviations from the first particle, so identical predictions give a
+    # variance of exactly zero rather than whatever rounding leaves when the
+    # normalised weights sum to 1 +- 1e-16.  Selectors test for zero.
+    D = P - P[:1]
+    variance = w @ (D - w @ D) ** 2
     return variance / s ** 2
 
 

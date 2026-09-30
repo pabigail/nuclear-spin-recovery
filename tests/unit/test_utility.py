@@ -122,6 +122,17 @@ def test_density_is_zero_where_particles_agree_and_positive_where_not():
     assert np.all(dens[4:] > 0)
 
 
+def test_density_is_exactly_zero_for_identical_predictions():
+    """Exactly, because selectors test for zero.  Centring on the weighted
+    mean left rounding residue whenever the normalised weights missed 1 by an
+    ulp: nonzero on 869 of 1000 random rows at weights 0.5/0.3/0.2."""
+    w = np.array([0.5, 0.3, 0.2])
+    gen = rng(0)
+    for _ in range(200):
+        P = np.tile(gen.normal(0.5, 0.3, 20), (3, 1))
+        assert np.all(information_density(P, w, 0.05) == 0.0)
+
+
 def test_density_matches_a_hand_computation():
     """Predictions 0 and 2 at equal weight: variance 1; noise 0.5: density 4."""
     P = np.array([[0.0], [2.0]])

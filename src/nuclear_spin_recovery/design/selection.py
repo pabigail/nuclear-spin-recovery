@@ -45,6 +45,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+import numpy as np
+
+from .utility import DesignUtility, _noise, _weights, information_density
+
+#: A greedy first step scoring at or below this has found nothing.  EIG on
+#: identical predictions is zero only to rounding -- the evidence carries
+#: log(sum w), and normalised weights sum to 1 +- 1e-16 -- so exact zero is
+#: not a usable test for it.  In nats, or in units of density.
+_NOTHING = 1e-12
+
 
 class NothingToLearn(ValueError):
     """The particles agree everywhere, so no point is more informative than
@@ -68,6 +78,22 @@ class PointSelector(ABC):
         """
 
 
+def _inputs(predictions, weights, noise, budget):
+    """Validated ``(P, w, sigma, budget)`` shared by every selector."""
+    P = np.atleast_2d(np.asarray(predictions, dtype=float))
+    w = _weights(weights, P.shape[0])
+    s = _noise(noise, P.shape[1])
+    budget = float(budget)
+    if not np.isfinite(budget) or budget <= 0:
+        raise ValueError(f"budget must be positive, got {budget}")
+    return P, w, s, budget
+
+
+def _point_count(n_points, n_grid):
+    if not 1 <= n_points <= n_grid:
+        raise ValueError(f"cannot choose {n_points} of {n_grid} points")
+
+
 class UniformThinning(PointSelector):
     """``n_points`` indices evenly spaced over the grid, equal weight each.
 
@@ -76,10 +102,16 @@ class UniformThinning(PointSelector):
     """
 
     def __init__(self, n_points):
-        raise NotImplementedError
+        self.n_points = int(n_points)
 
     def select(self, predictions, weights, noise, budget, rng):
-        raise NotImplementedError
+        P, _, _, budget = _inputs(predictions, weights, noise, budget)
+        n_grid = P.shape[1]
+        _point_count(self.n_points, n_grid)
+        # Spacing of (n_grid - 1) / (n_points - 1) >= 1 keeps rounded indices
+        # distinct.
+        idx = np.round(np.linspace(0, n_grid - 1, self.n_points)).astype(int)
+        return idx, np.full(self.n_points, budget / self.n_points)
 
 
 class InformationDensity(PointSelector):
@@ -93,10 +125,28 @@ class InformationDensity(PointSelector):
     """
 
     def __init__(self, power=0.5, prune_fraction=0.05):
-        raise NotImplementedError
+        if power < 0:
+            raise ValueError(f"power must be non-negative, got {power}")
+        if not 0 <= prune_fraction < 1:
+            raise ValueError(
+                f"prune_fraction must be in [0, 1), got {prune_fraction}")
+        self.power = float(power)
+        self.prune_fraction = float(prune_fraction)
 
     def select(self, predictions, weights, noise, budget, rng):
-        raise NotImplementedError
+        P, w, s, budget = _inputs(predictions, weights, noise, budget)
+        density = information_density(P, w, s)
+        if not np.any(density > 0):
+            raise NothingToLearn(
+                "the particles agree at every point; there is no information "
+                "to allocate time by")
+        # Masked, not raised to the power directly: 0 ** 0 is 1, which at
+        # power 0 would hand time to points that cannot separate anything.
+        allocation = np.where(density > 0, density ** self.power, 0.0)
+        keep = (allocation > 0) & (
+            allocation >= self.prune_fraction * allocation.max())
+        idx = np.flatnonzero(keep)
+        return idx, budget * allocation[idx] / allocation[idx].sum()
 
 
 class GreedyUtility(PointSelector):
@@ -111,7 +161,29 @@ class GreedyUtility(PointSelector):
     """
 
     def __init__(self, utility, n_points):
-        raise NotImplementedError
+        if not isinstance(utility, DesignUtility):
+            raise TypeError(f"{type(utility).__name__} is not a DesignUtility")
+        self.utility = utility
+        self.n_points = int(n_points)
 
     def select(self, predictions, weights, noise, budget, rng):
-        raise NotImplementedError
+        P, w, s, budget = _inputs(predictions, weights, noise, budget)
+        n_grid = P.shape[1]
+        _point_count(self.n_points, n_grid)
+        share = budget / self.n_points
+        effective = s / np.sqrt(share)
+
+        chosen = []
+        remaining = list(range(n_grid))
+        for step in range(self.n_points):
+            sets = [sorted([*chosen, j]) for j in remaining]
+            scores = self.utility.score_many(
+                [P[:, cols] for cols in sets], w,
+                [effective[cols] for cols in sets], rng)
+            best = int(np.argmax(scores))
+            if step == 0 and scores[best] <= _NOTHING:
+                raise NothingToLearn(
+                    "no single point scores above zero; the particles agree "
+                    "wherever they can be measured")
+            chosen.append(remaining.pop(best))
+        return np.array(sorted(chosen), dtype=int), np.full(self.n_points, share)

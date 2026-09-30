@@ -14,6 +14,7 @@ from .particles import ParticleSet
 from .selection import (
     GreedyUtility,
     InformationDensity,
+    LeastInformative,
     NothingToLearn,
     PointSelector,
     UniformThinning,
@@ -31,6 +32,7 @@ __all__ = [
     "ExperimentDesigner",
     "GreedyUtility",
     "InformationDensity",
+    "LeastInformative",
     "NothingToLearn",
     "ParticleSet",
     "PointSelector",

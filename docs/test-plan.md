@@ -216,6 +216,27 @@ penalty off must get the calibrated sampler, bit for bit.
   parameter is decorative. Set at $10^5$; see §5.7 on why the threshold is a
   property of the dataset.
 
+### T9 — adaptive design beats a uniform grid  ·  phase 5, not yet calibrated
+
+The claim the design engine rests on, with a control at each end. One round of
+the loop on the detectable table: fit a sparse, noisy first experiment, design a
+follow-up of the **same total measurement time** three ways, measure each at the
+truth with noise $\sigma/\sqrt{w_j}$, and refit on both. Every refit shares its
+starts and root seed, so the comparison is paired.
+
+- **Positive.** Adaptive (EIG ranking, information-density allocation) beats the
+  same time spread uniformly, on mean $R_i$ after the refit.
+- **Negative control.** The same time on the *least* informative points does
+  worse than uniform. Without it the positive is consistent with "any extra
+  measurement helps", which is not the claim.
+- **Degenerate control.** A posterior collapsed onto one bath is **declined** —
+  the designer raises `NothingToLearn` — while the uniform design, which needs
+  no posterior, is still built. Stronger than the plan's "indistinguishable
+  from uniform": unit 5d refuses to rank what cannot be ranked.
+
+Equal time, not equal point count: a design that wins by measuring more is not a
+design. Thresholds pending the seed sweep in `scripts/calibrate_t9.py`; §5.11.
+
 ### T6 — experimental data  ·  phase 4
 
 Criterion A needs no ground truth, so the real CPMG-8 and CPMG-16 measurements at
@@ -758,6 +779,22 @@ as the point where the modal dimension becomes reliable, and 20 is what cleans
 up the coupling ranking here. The measured-data workflow should pool ensembles
 before reading a coupling posterior, not summarise a single chain.
 
+### 5.11 T9 — adaptive design
+
+*Not yet calibrated.* Conditions: the 165-site detectable table,
+$k_{\text{true}} = 6$, a first experiment of 20 points at noise 0.02 fitted by
+four pooled ensembles of 1,200 steps with 400 discarded, and a follow-up budget
+equal to the first experiment's time. Piloted on seed 7: effective particle
+size 5.5, median residual 1.00 $\sigma$, $R_i$ = 1.00, 0.01, 0.16, 0.11, 1.00,
+1.00 — ambiguous, but at the noise, so criterion A holds and $R$ measures what
+the data identifies.
+
+Two metrics are recorded. Mean $R_i$ after the refit is the rung's assertion.
+Posterior mass on the true bath after *reweighting the first posterior's
+particles* by the follow-up likelihood isolates the design from the sampler,
+at the price of reading zero whenever the first posterior never visited the
+truth.
+
 ---
 
 ## 6. Test layout
@@ -765,7 +802,7 @@ before reading a coupling posterior, not summarise a single chain.
 | location | contents | speed |
 |---|---|---|
 | `tests/unit/` | deterministic units: loaders, array invariants, acceptance algebra, proposal ratios | sub-second |
-| `tests/theory/` | statistical rungs T0–T6, marked `slow`, fixed seeds | tens of seconds |
+| `tests/theory/` | statistical rungs T0–T9, marked `slow`, fixed seeds | tens of seconds |
 
 The working loop is `pytest -m "not slow"`. The full suite runs before every
 commit.

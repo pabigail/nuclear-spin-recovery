@@ -28,6 +28,7 @@ from nuclear_spin_recovery import (
     ExpectedInformationGain,
     GreedyUtility,
     InformationDensity,
+    LeastInformative,
     NothingToLearn,
     PointSelector,
     PredictiveVariance,
@@ -72,8 +73,9 @@ SELECTORS = {
     "density": lambda: InformationDensity(),
     "greedy_pv": lambda: GreedyUtility(PredictiveVariance(), 4),
     "greedy_eig": lambda: GreedyUtility(ExpectedInformationGain(), 4),
+    "least": lambda: LeastInformative(4),
 }
-DETERMINISTIC = ["uniform", "density", "greedy_pv"]
+DETERMINISTIC = ["uniform", "density", "greedy_pv", "least"]
 
 
 # --------------------------------------------------------------------------
@@ -87,7 +89,8 @@ def test_point_selector_is_abstract():
 
 
 def test_selectors_are_point_selectors():
-    for cls in (UniformThinning, InformationDensity, GreedyUtility):
+    for cls in (UniformThinning, InformationDensity, GreedyUtility,
+                LeastInformative):
         assert issubclass(cls, PointSelector)
 
 
@@ -306,3 +309,56 @@ def test_greedy_on_a_collapsed_posterior_raises(utility_cls):
     with pytest.raises(NothingToLearn):
         GreedyUtility(utility_cls(), 4).select(collapsed(), [1.0], SIGMA, 4.0,
                                                rng())
+
+
+# --------------------------------------------------------------------------
+# LeastInformative -- the anti-design, T9's negative control
+# --------------------------------------------------------------------------
+
+
+def test_least_informative_takes_the_lowest_density_points():
+    """Densities 16, 1, 9, 0, 4: the lowest two are indices 3 and 1."""
+    P, w = ladder_of_density([4.0, 1.0, 3.0, 0.0, 2.0])
+    idx, weight = LeastInformative(2).select(P, w, 1.0, 6.0, rng())
+    assert list(idx) == [1, 3]
+    np.testing.assert_allclose(weight, [3.0, 3.0])
+
+
+def test_least_informative_spends_its_time_where_the_particles_agree():
+    idx, _ = LeastInformative(4).select(scene(), W3, SIGMA, 4.0, rng())
+    assert np.all(np.asarray(idx) < INFORMATIVE)
+
+
+def test_least_informative_breaks_ties_by_index():
+    idx, _ = LeastInformative(3).select(collapsed(), [1.0], SIGMA, 3.0, rng())
+    assert list(idx) == [0, 1, 2]
+
+
+def test_least_informative_works_on_a_collapsed_posterior():
+    """A control; T9's degenerate case needs it to keep working."""
+    idx, weight = LeastInformative(4).select(collapsed(), [1.0], SIGMA, 4.0,
+                                             rng())
+    assert len(idx) == 4
+    assert np.sum(weight) == pytest.approx(4.0)
+
+
+def test_least_informative_never_chooses_an_unmeasurable_point():
+    """Infinite noise has zero density, the lowest there is -- which is exactly
+    why it must be excluded rather than ranked."""
+    noise = np.full(N_GRID, SIGMA)
+    noise[:2] = np.inf
+    idx, _ = LeastInformative(3).select(collapsed(), [1.0], noise, 3.0, rng())
+    assert list(idx) == [2, 3, 4]
+
+
+def test_least_informative_raises_if_too_few_points_are_measurable():
+    noise = np.full(N_GRID, np.inf)
+    noise[:3] = SIGMA
+    with pytest.raises(ValueError):
+        LeastInformative(4).select(scene(), W3, noise, 4.0, rng())
+
+
+@pytest.mark.parametrize("n_points", [0, N_GRID + 1])
+def test_least_informative_point_count_must_fit_the_grid(n_points):
+    with pytest.raises(ValueError):
+        LeastInformative(n_points).select(scene(), W3, SIGMA, 4.0, rng())

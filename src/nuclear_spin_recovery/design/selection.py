@@ -20,13 +20,17 @@ Three selectors:
   improves a :class:`~nuclear_spin_recovery.design.utility.DesignUtility`,
   repeat.  Every kept point receives an equal share of the budget.
 - :class:`UniformThinning` -- the control: evenly spaced in index, equal time.
+- :class:`LeastInformative` -- the anti-design: the lowest-density points,
+  equal time.  T9's negative control, without which "adaptive beats uniform"
+  is consistent with "any extra measurement helps".
 
 **Nothing to learn is an error, not a grid.**  If the particles agree at every
 point -- one particle, or several that predict identically -- there is no
 information to allocate by, and a selector that relies on it raises
 :class:`NothingToLearn` rather than silently returning something uniform.  The
-designer is what reports it.  :class:`UniformThinning` never raises: it is the
-control, and T9's degenerate case needs it to keep working.
+designer is what reports it.  :class:`UniformThinning` and
+:class:`LeastInformative` never raise: they are T9's controls, and its
+degenerate case needs them to keep working.
 
 **A measured caveat on greedy EIG.**  The EIG estimate is Monte Carlo, and
 adding an informative point can *lower* it even though the true value cannot
@@ -112,6 +116,23 @@ class UniformThinning(PointSelector):
         # distinct.
         idx = np.round(np.linspace(0, n_grid - 1, self.n_points)).astype(int)
         return idx, np.full(self.n_points, budget / self.n_points)
+
+
+class LeastInformative(PointSelector):
+    """The ``n_points`` measurable points of lowest information density,
+    equal weight each.
+
+    Ties -- most often among points of zero density -- go to the lower index,
+    so the choice is deterministic.  Points with infinite noise cannot be
+    measured and are never chosen; if fewer than ``n_points`` can be, this
+    raises ValueError.  Never raises :class:`NothingToLearn`.
+    """
+
+    def __init__(self, n_points):
+        raise NotImplementedError
+
+    def select(self, predictions, weights, noise, budget, rng):
+        raise NotImplementedError
 
 
 class InformationDensity(PointSelector):

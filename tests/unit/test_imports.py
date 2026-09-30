@@ -128,6 +128,7 @@ PUBLIC_NAMES = [
     "PointSelector",
     "UniformThinning",
     "ExperimentDesigner",
+    "LeastInformative",
 ]
 
 

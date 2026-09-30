@@ -9,6 +9,7 @@ same to the designer.
 See docs/phase-5-plan.md.
 """
 
+from .designer import ExperimentDesigner
 from .particles import ParticleSet
 from .selection import (
     GreedyUtility,
@@ -27,6 +28,7 @@ from .utility import (
 __all__ = [
     "DesignUtility",
     "ExpectedInformationGain",
+    "ExperimentDesigner",
     "GreedyUtility",
     "InformationDensity",
     "NothingToLearn",

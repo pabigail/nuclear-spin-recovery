@@ -44,6 +44,7 @@ MODULES = [
     "nuclear_spin_recovery.design.particles",
     "nuclear_spin_recovery.design.utility",
     "nuclear_spin_recovery.design.selection",
+    "nuclear_spin_recovery.design.designer",
 ]
 
 PUBLIC_NAMES = [
@@ -126,6 +127,7 @@ PUBLIC_NAMES = [
     "NothingToLearn",
     "PointSelector",
     "UniformThinning",
+    "ExperimentDesigner",
 ]
 
 

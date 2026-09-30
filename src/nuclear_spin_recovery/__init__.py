@@ -23,6 +23,7 @@ from .config import (
 from .design import (
     DesignUtility,
     ExpectedInformationGain,
+    ExperimentDesigner,
     GreedyUtility,
     InformationDensity,
     NothingToLearn,
@@ -102,6 +103,7 @@ __all__ = [
     "Envelope",
     "ExpectedInformationGain",
     "Experiment",
+    "ExperimentDesigner",
     "ExperimentSet",
     "ForwardModel",
     "GaussianL2",

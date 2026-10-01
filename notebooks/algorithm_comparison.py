@@ -1,3 +1,19 @@
+# ---
+# jupyter:
+#   jupytext:
+#     cell_metadata_filter: -all
+#     formats: ipynb,py:percent
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.5
+#   kernelspec:
+#     display_name: nuclear-spin-recovery
+#     language: python
+#     name: nuclear_spin_recovery
+# ---
+
 # %% [markdown]
 # # Choosing a sampler: algorithms, combinations, and the knobs
 #

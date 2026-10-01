@@ -47,5 +47,6 @@ pytest                   # full suite, ~4 min
 pytest -m "not slow"     # fast subset, ~1 s
 ```
 
-Notebooks in `notebooks/` are paired with `.py:percent` files via jupytext.
-Edit either; only the `.py` is committed.
+Notebooks in `notebooks/` are committed both as `.ipynb` and as paired
+`.py:percent` files via jupytext. Edit either, then run
+`jupytext --sync notebooks/<name>.py` so the pair stays in step.

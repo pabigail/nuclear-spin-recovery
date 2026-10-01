@@ -11,6 +11,15 @@ evenly over each candidate's grid before scoring it, so a candidate with more
 points carries more noise per point.  A design that wins by measuring more is
 not a design (docs/phase-5-plan.md Sec. 6, question 2).
 
+**Time is wall-clock time when a cost model is given.**  ``cost`` maps a
+candidate to the time of one unit of weight at each of its points --
+:class:`~nuclear_spin_recovery.design.cost.SequenceDuration` for CPMG, where a
+repetition at the same tau takes sixteen times longer at N = 64 than at
+N = 4.  Each point's share of the budget then buys ``share / cost`` units of
+weight, so an expensive point is measured with fewer repetitions and more
+noise, and a long sequence wins only if what it resolves is worth the time.
+Without a cost model every point costs 1, as before.
+
 **Where a candidate's envelope comes from.**  Predictions need lambda, the
 stretch exponent and sigma, and these are per-experiment and sampled -- lambda
 in particular changes with pulse number, since decoupling extends coherence
@@ -18,8 +27,26 @@ in particular changes with pulse number, since decoupling extends coherence
 envelope sampled for the **measured experiment with the same pulse number and
 field**.  A candidate at a pulse number or field never measured has no sampled
 envelope and raises: guessing one would design against a decay the posterior
-knows nothing about.  The old ``adaptive_exp.py`` had every candidate carry its
+knows nothing about -- unless the designer is given ``envelope``, a
+:class:`~nuclear_spin_recovery.design.extrapolation.DecouplingScaling`.  Then
+an unmeasured pulse number takes lambda scaled from the measured experiment at
+the same field nearest in log N.  A measured pulse number always uses its own
+sampled lambda; the scaling only fills gaps.  The old ``adaptive_exp.py`` had every candidate carry its
 own T2 and noise by hand; here they come from the posterior.
+
+**The design is about the spins, not the envelope.**  The envelope -- lambda
+and the stretch exponent -- is a nuisance parameter: it has to be there to
+predict a signal, but nothing physical is learned from it.  By default every
+particle is therefore predicted with **one shared envelope**, the
+particle-weighted posterior mean for the matched experiment.  Hypotheses then
+differ only where their spins differ, and expected information gain is
+information about the bath alone.  With per-particle envelopes instead, two
+baths that happen to carry different lambdas disagree wherever the envelope
+dominates -- late tau above all -- and the design pays to learn lambda.
+Measured on a CPMG-4 posterior whose particles' lambdas spanned 4.1 to
+4.9 us: 15% of the EIG of the 4.8-6.4 us window came from lambda alone, and
+none of the winning early window's.  ``shared_envelope=False`` restores the
+per-particle form.
 
 **Noise** is the particle-weighted mean of the sampled sigma for the matched
 experiment, unless the candidate sets ``sigma`` itself -- which is how to ask
@@ -67,10 +94,15 @@ class ExperimentDesigner:
     order of the particles' envelope columns.  ``utility`` is a
     :class:`~nuclear_spin_recovery.design.utility.DesignUtility`, ``selector``
     a :class:`~nuclear_spin_recovery.design.selection.PointSelector`; anything
-    else raises TypeError.
+    else raises TypeError.  ``cost``, if given, is called on a candidate
+    Experiment and returns the time of one unit of weight at each point.
+    ``envelope``, if given, extrapolates lambda to pulse numbers not yet
+    measured.  ``shared_envelope`` (default True) predicts every particle with
+    the posterior-mean envelope, so that only the spins are designed for.
     """
 
-    def __init__(self, utility, selector, model, site_table, measured):
+    def __init__(self, utility, selector, model, site_table, measured,
+                 cost=None, envelope=None, shared_envelope=True):
         if not isinstance(utility, DesignUtility):
             raise TypeError(f"{type(utility).__name__} is not a DesignUtility")
         if not isinstance(selector, PointSelector):
@@ -80,6 +112,19 @@ class ExperimentDesigner:
         self.model = model
         self.site_table = site_table
         self.measured = measured
+        self.cost = cost
+        self.envelope = envelope
+        self.shared_envelope = bool(shared_envelope)
+
+    def cost_of(self, experiment):
+        """Time of one unit of weight at each point of ``experiment``."""
+        if self.cost is None:
+            return np.ones(len(experiment.tau))
+        c = np.asarray(self.cost(experiment), dtype=float)
+        if c.shape != experiment.tau.shape or not np.all(np.isfinite(c)) \
+                or np.any(c <= 0):
+            raise ValueError("cost must return a positive finite value per point")
+        return c
 
     def _matched_experiment(self, cand):
         """Index of the measured experiment whose envelope ``cand`` uses."""
@@ -94,6 +139,42 @@ class ExperimentDesigner:
         raise ValueError(
             f"no measured experiment at n_pulses={cand.n_pulses} and "
             f"b_z={cand.b_z} G; the posterior holds no envelope at that field")
+
+    def _envelope_for(self, particles, cand):
+        """Each particle's (lam, n_stretch, sigma) for ``cand``, as (K, 1).
+
+        The matched measured experiment's sampled values when there is one;
+        otherwise, with an ``envelope``, lambda scaled from the measured
+        experiment at the same field nearest in log N.  With a shared envelope
+        lambda and the stretch exponent are replaced by their particle-weighted
+        means, the same for every particle.
+        """
+        lam, n_stretch, sigma = self._per_particle_envelope(particles, cand)
+        if self.shared_envelope:
+            w = particles.weight
+            lam = np.full_like(lam, w @ lam[:, 0])
+            n_stretch = np.full_like(n_stretch, w @ n_stretch[:, 0])
+        return lam, n_stretch, sigma
+
+    def _per_particle_envelope(self, particles, cand):
+        try:
+            e = self._matched_experiment(cand)
+        except ValueError:
+            if self.envelope is None:
+                raise
+            same_field = [
+                (i, m.n_pulses) for i, m in enumerate(self.measured.experiments)
+                if m.n_pulses > 0
+                and np.isclose(m.b_z, cand.b_z, rtol=_SAME, atol=0)]
+            if not same_field or cand.n_pulses <= 0:
+                raise
+            ref, n_ref = min(same_field, key=lambda p: (
+                abs(np.log(p[1] / cand.n_pulses)), p[1]))
+            lam = self.envelope.scale(particles.lam[:, [ref]], n_ref,
+                                      cand.n_pulses)
+            return lam, particles.n_stretch[:, [ref]], particles.sigma[:, [ref]]
+        return (particles.lam[:, [e]], particles.n_stretch[:, [e]],
+                particles.sigma[:, [e]])
 
     def _prepare(self, particles, candidates, budget):
         """Predictions and unit-weight noise for each candidate."""
@@ -111,25 +192,24 @@ class ExperimentDesigner:
 
         prepared = []
         for cand in candidates:
-            e = self._matched_experiment(cand)
+            lam, n_stretch, sig = self._envelope_for(particles, cand)
             # Rebuilt bare: the candidate's own data or weights, if it has
             # any, are not what is being predicted.
             bare = ExperimentSet([Experiment(tau=cand.tau, n_pulses=cand.n_pulses,
                                              b_z=cand.b_z)])
             P = predictive_from_arrays(
                 particles.site_idx, particles.k, particles.dA_par,
-                particles.dA_perp, particles.lam[:, [e]],
-                particles.n_stretch[:, [e]], particles.sigma[:, [e]],
+                particles.dA_perp, lam, n_stretch, sig,
                 bare, self.site_table, self.model, k_max=particles.k_max)
             sigma = (float(cand.sigma) if cand.sigma is not None
-                     else float(particles.weight @ particles.sigma[:, e]))
-            prepared.append((cand, P, sigma))
+                     else float(particles.weight @ sig[:, 0]))
+            prepared.append((cand, P, sigma, self.cost_of(cand)))
 
         # Decided on density, which is deterministic; an EIG estimate on
         # agreeing particles is Monte Carlo noise of either sign.
         informative = particles.n_particles > 1 and any(
             information_density(P, particles.weight, sigma).max() > _NOTHING
-            for _, P, sigma in prepared)
+            for _, P, sigma, _ in prepared)
         if not informative:
             raise NothingToLearn(
                 "the posterior has collapsed: its particles agree at every "
@@ -147,11 +227,12 @@ class ExperimentDesigner:
         return self._score(particles, prepared, budget, rng)
 
     def _score(self, particles, prepared, budget, rng):
-        # Equal time: each candidate's points share the whole budget evenly.
-        noise = [np.full(P.shape[1], sigma / np.sqrt(budget / P.shape[1]))
-                 for _, P, sigma in prepared]
+        # Equal time: each candidate's points share the whole budget evenly,
+        # and a point's share buys share / cost units of weight.
+        noise = [sigma / np.sqrt((budget / P.shape[1]) / c)
+                 for _, P, sigma, c in prepared]
         return np.asarray(self.utility.score_many(
-            [P for _, P, _ in prepared], particles.weight, noise, rng),
+            [P for _, P, _, _ in prepared], particles.weight, noise, rng),
             dtype=float)
 
     def propose(self, particles, candidates, *, budget, rng, exclude=None):
@@ -164,7 +245,7 @@ class ExperimentDesigner:
 
         Returns an Experiment on the chosen candidate's pulse number and field,
         its tau a subset of that candidate's, its weights from the selector
-        summing to ``budget``, its sigma the noise it was designed against, and
+        spending ``budget`` -- ``sum(weight * cost) == budget`` -- its sigma the noise it was designed against, and
         no data.
         """
         candidates = [self._without_excluded(c, exclude) for c in candidates]
@@ -174,10 +255,10 @@ class ExperimentDesigner:
 
         prepared, budget = self._prepare(particles, candidates, budget)
         scores = self._score(particles, prepared, budget, rng)
-        cand, P, sigma = prepared[int(np.argmax(scores))]
+        cand, P, sigma, c = prepared[int(np.argmax(scores))]
 
         idx, weight = self.selector.select(P, particles.weight, sigma, budget,
-                                           rng)
+                                           rng, cost=c)
         idx = np.asarray(idx, dtype=int)
         order = np.argsort(cand.tau[idx], kind="stable")
         return Experiment(tau=cand.tau[idx][order], n_pulses=cand.n_pulses,

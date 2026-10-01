@@ -352,3 +352,48 @@ def test_the_proposal_goes_straight_back_into_the_likelihood(
     np.testing.assert_array_equal(data.experiments[0].weight, out.weight)
     assert np.all(np.isfinite(
         GaussianL2().log_prob(truth, data, model, tiny_site_table)))
+
+
+# --------------------------------------------------------------------------
+# the envelope is a nuisance: design for the spins only
+# --------------------------------------------------------------------------
+
+
+def _with_lams(configs, weight, lam16):
+    """Particles whose N = 16 lambda differs from particle to particle."""
+    ps = particles_of(configs, weight)
+    ps.lam[:, 1] = lam16
+    return ps
+
+
+def test_baths_that_differ_only_in_lambda_carry_nothing_to_learn(designer):
+    """The same spins under two decay constants are one physical hypothesis.
+    With the shared envelope the designer sees no disagreement at all."""
+    ps = _with_lams([[0, 2], [0, 2]], [0.5, 0.5], [1e-3, 6e-3])
+    with pytest.raises(NothingToLearn):
+        designer.rank(ps, [candidate(INFORMATIVE_TAU)], budget=4.0, rng=rng())
+
+
+def test_per_particle_envelopes_would_pay_to_learn_lambda(
+        tiny_site_table, model, measured):
+    """The control: switched off, the same pair looks informative -- which
+    is exactly the design value the default refuses to chase."""
+    ps = _with_lams([[0, 2], [0, 2]], [0.5, 0.5], [1e-3, 6e-3])
+    d = ExperimentDesigner(PredictiveVariance(), InformationDensity(), model,
+                           tiny_site_table, measured, shared_envelope=False)
+    score = d.rank(ps, [candidate(INFORMATIVE_TAU)], budget=4.0, rng=rng())[0]
+    assert score > 0
+
+
+def test_the_shared_envelope_is_the_weighted_mean(
+        tiny_site_table, model, measured, designer):
+    """Different baths with different lambdas score exactly as the same baths
+    all given the posterior-mean lambda."""
+    w = [0.5, 0.3, 0.2]
+    lams = np.array([2e-3, 3e-3, 5e-3])
+    spread = _with_lams([[0, 2], [0], [2]], w, lams)
+    mean = _with_lams([[0, 2], [0], [2]], w, np.full(3, np.dot(w, lams)))
+    cands = [candidate(INFORMATIVE_TAU)]
+    np.testing.assert_allclose(
+        designer.rank(spread, cands, budget=4.0, rng=rng()),
+        designer.rank(mean, cands, budget=4.0, rng=rng()), rtol=1e-12)

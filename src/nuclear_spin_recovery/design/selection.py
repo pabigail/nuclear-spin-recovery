@@ -10,7 +10,16 @@ at equal budget rather than equal point count is what makes T9 fair: a design
 that wins by measuring more is not a design (docs/phase-5-plan.md Sec. 6,
 question 2).
 
-Three selectors:
+**Points can cost different amounts of time.**  Every ``select`` takes an
+optional ``cost``, the time of one unit of weight at each point -- for CPMG,
+:class:`~nuclear_spin_recovery.design.cost.SequenceDuration`.  The budget is
+then total time, ``sum_j w_j c_j``, and a weight still means relative
+repetitions, so the likelihood is untouched.  Information per unit time at a
+point is its density divided by its cost: an expensive point has to earn it.
+With no cost every point costs 1 and the budget is the sum of the weights, so
+every result below is exactly what it was before costs existed.
+
+Selectors:
 
 - :class:`InformationDensity` -- the rule from ``adaptive_exp.py``: time
   proportional to ``density ** power``, then points below ``prune_fraction``
@@ -18,7 +27,7 @@ Three selectors:
   constants there and are parameters here.
 - :class:`GreedyUtility` -- the direct comparison: add the point that most
   improves a :class:`~nuclear_spin_recovery.design.utility.DesignUtility`,
-  repeat.  Every kept point receives an equal share of the budget.
+  repeat.  Every kept point receives an equal share of the time.
 - :class:`UniformThinning` -- the control: evenly spaced in index, equal time.
 - :class:`LeastInformative` -- the anti-design: the lowest-density points,
   equal time.  T9's negative control, without which "adaptive beats uniform"
@@ -70,27 +79,46 @@ class PointSelector(ABC):
     """Spend a measurement budget over a candidate's points."""
 
     @abstractmethod
-    def select(self, predictions, weights, noise, budget, rng):
+    def select(self, predictions, weights, noise, budget, rng, cost=None):
         """Choose points and their measurement time.
 
         ``predictions`` is ``(K, n_points)``; ``noise`` the **unit-weight**
         noise, broadcastable to ``(n_points,)``, infinite where a point cannot
-        be measured; ``budget`` the total weight to spend, positive.
+        be measured; ``budget`` the total time to spend, positive; ``cost``
+        the time of one unit of weight at each point, positive, or None for 1.
 
         Returns ``(indices, weight)``: distinct indices in increasing order,
-        so tau stays sorted, and positive weights summing to ``budget``.
+        so tau stays sorted, and positive weights with
+        ``sum(weight * cost[indices]) == budget``.
         """
 
 
-def _inputs(predictions, weights, noise, budget):
-    """Validated ``(P, w, sigma, budget)`` shared by every selector."""
+def _inputs(predictions, weights, noise, budget, cost=None):
+    """Validated ``(P, w, sigma, budget, cost)`` shared by every selector."""
     P = np.atleast_2d(np.asarray(predictions, dtype=float))
     w = _weights(weights, P.shape[0])
     s = _noise(noise, P.shape[1])
     budget = float(budget)
     if not np.isfinite(budget) or budget <= 0:
         raise ValueError(f"budget must be positive, got {budget}")
-    return P, w, s, budget
+    return P, w, s, budget, _cost(cost, P.shape[1])
+
+
+def _cost(cost, n_points):
+    """Per-point cost of one unit of weight. (n_points,)  None is all ones."""
+    if cost is None:
+        return np.ones(n_points)
+    c = np.asarray(cost, dtype=float)
+    if c.shape != (n_points,):
+        raise ValueError(f"cost has shape {c.shape}, expected ({n_points},)")
+    if not np.all(np.isfinite(c)) or np.any(c <= 0):
+        raise ValueError("cost must be finite and positive at every point")
+    return c
+
+
+def _equal_time(budget, cost, idx):
+    """Weights giving every point in ``idx`` the same share of the time."""
+    return (budget / len(idx)) / cost[idx]
 
 
 def _point_count(n_points, n_grid):
@@ -99,7 +127,7 @@ def _point_count(n_points, n_grid):
 
 
 class UniformThinning(PointSelector):
-    """``n_points`` indices evenly spaced over the grid, equal weight each.
+    """``n_points`` indices evenly spaced over the grid, equal time each.
 
     Spacing is in index, not in tau: the selector never sees tau, and on the
     uniform grids this project uses the two are the same thing.
@@ -108,19 +136,19 @@ class UniformThinning(PointSelector):
     def __init__(self, n_points):
         self.n_points = int(n_points)
 
-    def select(self, predictions, weights, noise, budget, rng):
-        P, _, _, budget = _inputs(predictions, weights, noise, budget)
+    def select(self, predictions, weights, noise, budget, rng, cost=None):
+        P, _, _, budget, c = _inputs(predictions, weights, noise, budget, cost)
         n_grid = P.shape[1]
         _point_count(self.n_points, n_grid)
         # Spacing of (n_grid - 1) / (n_points - 1) >= 1 keeps rounded indices
         # distinct.
         idx = np.round(np.linspace(0, n_grid - 1, self.n_points)).astype(int)
-        return idx, np.full(self.n_points, budget / self.n_points)
+        return idx, _equal_time(budget, c, idx)
 
 
 class LeastInformative(PointSelector):
-    """The ``n_points`` measurable points of lowest information density,
-    equal weight each.
+    """The ``n_points`` measurable points of lowest information per unit time,
+    equal time each.
 
     Ties -- most often among points of zero density -- go to the lower index,
     so the choice is deterministic.  Points with infinite noise cannot be
@@ -131,14 +159,17 @@ class LeastInformative(PointSelector):
     def __init__(self, n_points):
         raise NotImplementedError
 
-    def select(self, predictions, weights, noise, budget, rng):
+    def select(self, predictions, weights, noise, budget, rng, cost=None):
         raise NotImplementedError
 
 
 class InformationDensity(PointSelector):
-    """Time proportional to ``information_density ** power``, pruned.
+    """Time proportional to ``(information_density / cost) ** power``, pruned.
 
-    ``power = 0.5`` is the old rule, described there as a near-optimal
+    Density divided by cost is information per unit time; with no cost it is
+    the density itself, and this is the old rule exactly.  Each point's weight
+    is the time it receives divided by its cost.  ``power = 0.5`` is the old
+    rule, described there as a near-optimal
     D-design allocation; that claim is T9's to test.  Points whose allocation
     falls below ``prune_fraction`` of the largest are dropped and the budget is
     renormalised over the survivors.  A point of zero density receives zero
@@ -154,20 +185,21 @@ class InformationDensity(PointSelector):
         self.power = float(power)
         self.prune_fraction = float(prune_fraction)
 
-    def select(self, predictions, weights, noise, budget, rng):
-        P, w, s, budget = _inputs(predictions, weights, noise, budget)
-        density = information_density(P, w, s)
-        if not np.any(density > 0):
+    def select(self, predictions, weights, noise, budget, rng, cost=None):
+        P, w, s, budget, c = _inputs(predictions, weights, noise, budget, cost)
+        rate = information_density(P, w, s) / c
+        if not np.any(rate > 0):
             raise NothingToLearn(
                 "the particles agree at every point; there is no information "
                 "to allocate time by")
         # Masked, not raised to the power directly: 0 ** 0 is 1, which at
         # power 0 would hand time to points that cannot separate anything.
-        allocation = np.where(density > 0, density ** self.power, 0.0)
+        allocation = np.where(rate > 0, rate ** self.power, 0.0)
         keep = (allocation > 0) & (
             allocation >= self.prune_fraction * allocation.max())
         idx = np.flatnonzero(keep)
-        return idx, budget * allocation[idx] / allocation[idx].sum()
+        time = budget * allocation[idx] / allocation[idx].sum()
+        return idx, time / c[idx]
 
 
 class GreedyUtility(PointSelector):
@@ -175,8 +207,9 @@ class GreedyUtility(PointSelector):
 
     Each step scores every remaining point added to the current set, in one
     :meth:`~nuclear_spin_recovery.design.utility.DesignUtility.score_many`
-    call so that common random numbers apply, and keeps the best.  Points are
-    scored at the weight they will finally receive, ``budget / n_points``.
+    call so that common random numbers apply, and keeps the best.  Every point
+    gets the same share of the time, ``budget / n_points``, and is scored at
+    the weight that buys: ``share / cost``.
     Raises :class:`NothingToLearn` if the first step finds no point that scores
     above zero.
     """
@@ -187,12 +220,12 @@ class GreedyUtility(PointSelector):
         self.utility = utility
         self.n_points = int(n_points)
 
-    def select(self, predictions, weights, noise, budget, rng):
-        P, w, s, budget = _inputs(predictions, weights, noise, budget)
+    def select(self, predictions, weights, noise, budget, rng, cost=None):
+        P, w, s, budget, c = _inputs(predictions, weights, noise, budget, cost)
         n_grid = P.shape[1]
         _point_count(self.n_points, n_grid)
-        share = budget / self.n_points
-        effective = s / np.sqrt(share)
+        point_weight = (budget / self.n_points) / c
+        effective = s / np.sqrt(point_weight)
 
         chosen = []
         remaining = list(range(n_grid))
@@ -207,4 +240,5 @@ class GreedyUtility(PointSelector):
                     "no single point scores above zero; the particles agree "
                     "wherever they can be measured")
             chosen.append(remaining.pop(best))
-        return np.array(sorted(chosen), dtype=int), np.full(self.n_points, share)
+        idx = np.array(sorted(chosen), dtype=int)
+        return idx, point_weight[idx]

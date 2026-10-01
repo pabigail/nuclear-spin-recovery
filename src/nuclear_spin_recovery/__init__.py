@@ -21,6 +21,7 @@ from .config import (
     submission_script,
 )
 from .design import (
+    DecouplingScaling,
     DesignUtility,
     ExpectedInformationGain,
     ExperimentDesigner,
@@ -31,6 +32,7 @@ from .design import (
     ParticleSet,
     PointSelector,
     PredictiveVariance,
+    SequenceDuration,
     UniformThinning,
     information_density,
 )
@@ -97,6 +99,7 @@ __all__ = [
     "BirthDeathKernel",
     "ContinuousReflected",
     "DEFAULT_QOS",
+    "DecouplingScaling",
     "DesignUtility",
     "DiscreteLatticeWalk",
     "EnsembleResult",
@@ -133,6 +136,7 @@ __all__ = [
     "RunConfig",
     "SUPPORTED_ISOTOPES",
     "Schedule",
+    "SequenceDuration",
     "SiteTable",
     "State",
     "Step",

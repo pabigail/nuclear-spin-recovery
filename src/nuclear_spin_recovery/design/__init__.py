@@ -9,7 +9,9 @@ same to the designer.
 See docs/phase-5-plan.md.
 """
 
+from .cost import SequenceDuration
 from .designer import ExperimentDesigner
+from .extrapolation import DecouplingScaling
 from .particles import ParticleSet
 from .selection import (
     GreedyUtility,
@@ -27,6 +29,7 @@ from .utility import (
 )
 
 __all__ = [
+    "DecouplingScaling",
     "DesignUtility",
     "ExpectedInformationGain",
     "ExperimentDesigner",
@@ -37,6 +40,7 @@ __all__ = [
     "ParticleSet",
     "PointSelector",
     "PredictiveVariance",
+    "SequenceDuration",
     "UniformThinning",
     "information_density",
 ]

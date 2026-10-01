@@ -45,6 +45,8 @@ MODULES = [
     "nuclear_spin_recovery.design.utility",
     "nuclear_spin_recovery.design.selection",
     "nuclear_spin_recovery.design.designer",
+    "nuclear_spin_recovery.design.cost",
+    "nuclear_spin_recovery.design.extrapolation",
 ]
 
 PUBLIC_NAMES = [
@@ -129,6 +131,8 @@ PUBLIC_NAMES = [
     "UniformThinning",
     "ExperimentDesigner",
     "LeastInformative",
+    "SequenceDuration",
+    "DecouplingScaling",
 ]
 
 

@@ -5,8 +5,8 @@ Companion to `model-specification.md` and `test-plan.md`. Covers one question:
 existing `ForwardModel` interface** — optionally installed, identical to the
 analytic model at CCE-1, and extensible to higher orders?
 
-Phases 1–5 are implemented. This plan is not yet approved: Sec. 8 lists the
-decisions that are still open, and no code or tests have been written.
+Phases 1–5 are implemented. The design decisions are settled and recorded in
+Sec. 8; no code or tests have been written yet.
 
 ---
 
@@ -143,6 +143,16 @@ CCE-2 and above need information that CCE-1 does not:
 `PyCCEForward` with `order >= 2` raises a clear error when the site table lacks
 the extra fields, and does not fall back to an assumed azimuth.
 
+Two choices fix what the higher-order model computes (Sec. 8):
+
+- **Clusters are built from the state's spins only.** The bath handed to PyCCE
+  is the k active spins of the configuration. Everything else — unresolved
+  spins, other impurities — stays in the envelope, as in the analytic model.
+- **Offsets act along the site's existing azimuth.** `dA_perp` is a scalar
+  offset on a magnitude. The perpendicular vector `(A_xz, A_yz)` is rescaled to
+  the magnitude `a_perp + dA_perp` with its direction unchanged, so a zero
+  offset reduces exactly to the table's tensor.
+
 ---
 
 ## 6. Configuration
@@ -165,8 +175,6 @@ when the configuration is loaded, not when the first job starts.
 
 ## 7. Tests
 
-To be written after the decisions in Sec. 8 are settled.
-
 **Without PyCCE.** A subprocess test that blocks `pycce` from importing,
 mirroring `test_importing_post_does_not_import_matplotlib`:
 
@@ -175,10 +183,10 @@ mirroring `test_importing_post_does_not_import_matplotlib`:
 - constructing `PyCCEForward` raises the error that names the extra.
 
 **CCE-1 equivalence.** Skipped when PyCCE is absent. `PyCCEForward(order=1)`
-against `AnalyticCCE1`, on the tiny site table and on a slow case from
-`nv-2.txt`, covering:
+against `AnalyticCCE1`, to an absolute tolerance of 1e-10 on coherence, on the
+tiny site table and on a slow case from `nv-2.txt`, covering:
 
-- even pulse numbers;
+- even pulse numbers N >= 2 only (Sec. 2.1);
 - two experiments with different grids, grid lengths and fields;
 - a mixed 13C / 29Si bath;
 - non-zero `dA_par` and `dA_perp` offsets;
@@ -194,6 +202,8 @@ against `AnalyticCCE1`, on the tiny site table and on a slow case from
 - It is unchanged by the order of the slots, and by a joint rotation of all
   positions and tensors about z.
 - It changes when one spin's azimuth changes at fixed `(a_par, a_perp)`.
+- A non-zero `dA_perp` changes the magnitude of the perpendicular component and
+  leaves its azimuth where it was.
 - It raises when the site table has no perpendicular components.
 
 **CI.** Two environments, one with the extra and one without.
@@ -207,29 +217,38 @@ single-spin move recomputes only the clusters containing that spin. Non-zero
 
 ---
 
-## 8. Open decisions
+## 8. Decisions
 
-1. **What "the same numerical result" means.** Bitwise equality is not
+1. **Equivalence is to a numerical tolerance.** Bitwise equality is not
    achievable: PyCCE diagonalises numerically and the analytic model is a
-   closed form. Proposed: an absolute tolerance of 1e-10 on coherence.
-2. **Odd N and N = 0.** The models disagree there (Sec. 2.1), and the exact
-   propagation suggests the analytic formula is the one that does not apply.
-   Proposed: scope the equivalence test to even N >= 2, and treat the analytic
-   model's behaviour at other N as a separate issue.
-3. **NumPy 2.** Either restore `np.unicode_ = np.str_` immediately before
-   importing PyCCE, which mutates NumPy's namespace, or pin `numpy<2` in the
-   extra, which downgrades the environment. Proposed: the alias, confined to
-   the lazy import.
-4. **Which spins form clusters at higher order.** Only the k spins in the
-   state, with the envelope standing in for everything else, or also a fixed
-   background bath. Proposed: state spins only, to start.
-5. **Offsets at higher order.** `dA_perp` is a scalar offset on a magnitude.
-   Proposed: apply it along the site's existing azimuth.
-6. **Symmetry groups.** `SiteTable.symmetry_groups` treats sites with equal
-   `(a_par, a_perp)` as indistinguishable. That is no longer true at CCE-2,
-   which affects the detection metrics in `post/`. It can be handled in this
-   phase or deferred.
-7. **Scope.** Conventional CCE with a maximally mixed bath is assumed. It is
-   deterministic, which the sampler requires. Generalised CCE, second-order
-   corrections and bath-state sampling need the full hyperfine tensor, and
-   sampling makes the likelihood noisy; they are left out.
+   closed form. The CCE-1 test uses an absolute tolerance of 1e-10 on
+   coherence.
+2. **The comparison with the analytic model is tested at even N >= 2 only.**
+   The models disagree at N = 0 and odd N (Sec. 2.1), where the analytic
+   expression does not describe the sequence. That behaviour of the analytic
+   model is outside this phase.
+3. **NumPy 2 is handled with the alias.** `np.unicode_ = np.str_` is restored
+   immediately before PyCCE is imported, inside the lazy import and nowhere
+   else. NumPy is not pinned.
+4. **Clusters are built from the state's spins only.** No background bath; the
+   envelope stands in for everything that is not in the configuration.
+5. **Offsets act along the site's existing azimuth** at higher order (Sec. 5).
+6. **Symmetry groups are deferred.** `SiteTable.symmetry_groups` treats sites
+   with equal `(a_par, a_perp)` as indistinguishable, which is no longer true
+   at CCE-2 and affects the detection metrics in `post/`. It is left as it is
+   in this phase and revisited later.
+7. **This phase is conventional CCE only,** with a maximally mixed bath. It is
+   deterministic, which the sampler requires.
+
+---
+
+## 9. Out of scope
+
+- **Generalised CCE.** It may be wanted later. It would be a separate
+  `ForwardModel` beside `PyCCEForward`, not an option on it: it needs the full
+  hyperfine tensor and the central-spin Hamiltonian, which conventional CCE
+  does not.
+- **Second-order corrections and bath-state sampling.** Sampling bath states
+  makes the likelihood noisy, which the sampler cannot use as it stands.
+- **The analytic model at N = 0 and odd N** (Sec. 8, item 2).
+- **Symmetry groups at CCE-2** (Sec. 8, item 6).

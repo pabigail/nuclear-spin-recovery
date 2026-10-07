@@ -284,6 +284,51 @@ and explicit, and enters the acceptance ratio directly.
 When the constraint is not relaxed, all offsets are identically zero and the
 model reduces exactly to the published one.
 
+**Whose offset it is.** Written as above, the offset $\delta_i$ belongs to spin
+$i$ and travels with it: a spin that moves from one site to another keeps its
+offset, and applies to the new site a correction fitted at the old one. That is
+the default, and it is what every result before this section was extended was
+produced with.
+
+The alternative is **site memory**, in which an offset belongs to a site. Every
+site $s$ of the table carries its own pair $(\delta_{\parallel}(s),
+\delta_{\perp}(s))$ whether or not a spin is on it, and a spin on site $s$ has
+couplings
+
+$$A_{\parallel,i} = A_{\parallel}^{\text{DFT}}(s_i) + \delta_{\parallel}(s_i), \qquad A_{\perp,i} = A_{\perp}^{\text{DFT}}(s_i) + \delta_{\perp}(s_i).$$
+
+A spin arriving at a site — by a site move, a birth, or a tempering swap —
+takes up the offset that site was last left with, and a site that has never
+been occupied has $\delta = 0$. The offset walk updates the offset of an
+occupied site only.
+
+With site memory no move changes which site an offset belongs to: a site move
+and a birth or death change which offsets the likelihood reads, and nothing
+else. Their acceptance ratios therefore contain no offset prior term, whatever
+the prior is. This is what allows the prior to differ from site to site.
+
+**Site-scaled widths.** With site memory the prior width may be set by the site,
+
+$$s_{\parallel}(s) = \max\bigl(f_0,\; f_{\parallel}\,|A_{\parallel}^{\text{DFT}}(s)|\bigr), \qquad s_{\perp}(s) = \max\bigl(f_0,\; f_{\perp}\,|A_{\perp}^{\text{DFT}}(s)|\bigr),$$
+
+so that a strongly coupled site, whose DFT error in kHz is larger, is allowed to
+move further. The fractions $f_{\parallel}, f_{\perp}$ and the floor $f_0$ are
+set by the user and default to zero, which pins every offset and recovers the
+constrained model. The floor keeps a component whose table value is near zero
+from being pinned. The prior is $\mathcal{N}(0, s^2)$ by default, with the walk
+bounded at five widths; a flat prior on $[-s, s]$ is available.
+
+Site-scaled widths require site memory. Without it a site move would carry an
+offset drawn under one site's prior into another's, and the move's acceptance
+ratio would need the ratio of the two priors.
+
+**Unoccupied sites.** The likelihood does not depend on the offset of a site
+with no spin on it, so its conditional distribution is its prior. By default
+such a site is left alone and keeps the offset it was last given, for as long
+as it stays unoccupied. Optionally one unoccupied site is redrawn from its
+prior after each offset step. Both target the same distribution; they differ in
+how long a site's history persists.
+
 ---
 
 ## 6. Parameter inventory

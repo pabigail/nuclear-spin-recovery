@@ -38,6 +38,9 @@ class ParallelTempering(Algorithm):
         if np.any(np.diff(betas) > 0):
             raise ValueError("inverse temperatures must be non-increasing")
         self.betas = betas
+        #: ``(a, b, accepted)`` for the most recent swap attempt, or None
+        #: before the first.  A diagnostic: nothing in the sampler reads it.
+        self.last_swap = None
 
     @property
     def block(self):
@@ -86,15 +89,17 @@ class ParallelTempering(Algorithm):
         """
         if self.n_replicas < 2:
             return state
-        a, b = rng.choice(self.n_replicas, size=2, replace=False)
+        a, b = (int(j) for j in rng.choice(self.n_replicas, size=2,
+                                           replace=False))
         untempered = target.log_prob(state, beta=1.0)
         log_alpha = (self.betas[a] - self.betas[b]) * (
             untempered[b] - untempered[a])
-        if np.log(rng.uniform()) >= log_alpha:
+        accepted = bool(np.log(rng.uniform()) < log_alpha)
+        self.last_swap = (a, b, accepted)
+        if not accepted:
             return state
         out = state.copy()
-        for name in ("site_idx", "k", "lam", "n_stretch", "sigma",
-                     "dA_par", "dA_perp"):
+        for name in out.replica_fields():
             arr = getattr(out, name)
             arr[[a, b]] = arr[[b, a]]
         out.occupied[[a, b]] = out.occupied[[b, a]]
@@ -119,8 +124,7 @@ class ParallelTempering(Algorithm):
 def _extract(state, j):
     """Replica j as a standalone single-replica state."""
     out = state.collapse_to_cold()
-    for name in ("site_idx", "k", "lam", "n_stretch", "sigma",
-                 "dA_par", "dA_perp"):
+    for name in state.replica_fields():
         getattr(out, name)[0] = getattr(state, name)[j]
     out.occupied[0] = state.occupied[j]
     return out
@@ -128,7 +132,6 @@ def _extract(state, j):
 
 def _implant(state, j, single):
     """Write a single-replica state back into rung j."""
-    for name in ("site_idx", "k", "lam", "n_stretch", "sigma",
-                 "dA_par", "dA_perp"):
+    for name in state.replica_fields():
         getattr(state, name)[j] = getattr(single, name)[0]
     state.occupied[j] = single.occupied[0]

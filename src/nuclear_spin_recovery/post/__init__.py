@@ -16,6 +16,13 @@ from .detection import (
     matches,
 )
 from .metrics import PosteriorSummary, summarize
+from .relaxation import (
+    ModalConfiguration,
+    RelaxedCouplings,
+    compare_couplings,
+    modal_configuration,
+    relaxed_couplings,
+)
 from .residual import (
     predictive_from_arrays,
     predictive_signals,
@@ -25,16 +32,21 @@ from .residual import (
 __all__ = [
     "BANDS",
     "MATCH_TOL",
+    "ModalConfiguration",
     "PosteriorSummary",
+    "RelaxedCouplings",
     "band_index",
     "by_band",
+    "compare_couplings",
     "coupling_posterior",
     "couplings",
     "detection_rate",
     "false_absence",
     "matches",
+    "modal_configuration",
     "predictive_from_arrays",
     "predictive_signals",
+    "relaxed_couplings",
     "residual_distribution",
     "summarize",
 ]

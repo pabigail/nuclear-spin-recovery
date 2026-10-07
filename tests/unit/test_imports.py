@@ -37,6 +37,7 @@ MODULES = [
     "nuclear_spin_recovery.post.detection",
     "nuclear_spin_recovery.post.metrics",
     "nuclear_spin_recovery.post.residual",
+    "nuclear_spin_recovery.post.relaxation",
     "nuclear_spin_recovery.post.plots",
     "nuclear_spin_recovery.ensemble",
     "nuclear_spin_recovery.config",
@@ -133,6 +134,12 @@ PUBLIC_NAMES = [
     "LeastInformative",
     "SequenceDuration",
     "DecouplingScaling",
+    "SiteScaledOffset",
+    "ModalConfiguration",
+    "RelaxedCouplings",
+    "compare_couplings",
+    "modal_configuration",
+    "relaxed_couplings",
 ]
 
 

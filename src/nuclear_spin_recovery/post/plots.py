@@ -166,3 +166,55 @@ def plot_coupling_posterior(couplings, frequencies, *, ax=None, top=20,
     ax.set_xlabel(r"$(A_\parallel,\ A_\perp)$  (kHz)")
     ax.set_ylabel("fraction of posterior samples")
     return ax
+
+
+def plot_algorithm_stripes(log_prob, algorithm, *, ax=None, first=0, last=None,
+                           colours=None, alpha=0.22, **kwargs):
+    """Misfit against step, striped by the algorithm that produced each step.
+
+    ``algorithm`` is the per-step label a :class:`~nuclear_spin_recovery.
+    trace.Trace` records.  Each contiguous run of one label gets a band in its
+    colour behind the curve, so a drop in the misfit can be read against the
+    move that caused it.  ``first`` and ``last`` select a window: a hybrid
+    schedule cycles every few dozen steps, and a whole run drawn this way is
+    a blur.
+
+    ``colours`` maps label to colour; labels it does not name take the next
+    colour of the default cycle, in order of first appearance.  The curve is
+    ``-log_prob`` on a log axis.  Returns the Axes; pass the result of
+    ``ax.get_legend_handles_labels()`` to a legend to name the bands.
+    """
+    plt = _pyplot()
+    ax = _axes(ax)
+    log_prob = np.asarray(log_prob, dtype=float)
+    labels = np.asarray(algorithm)
+    last = len(labels) if last is None else min(int(last), len(labels))
+    first = int(first)
+    if not 0 <= first < last:
+        raise ValueError(f"empty window: first={first}, last={last}")
+
+    palette = dict(colours or {})
+    cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    for label in dict.fromkeys(labels.tolist()):
+        palette.setdefault(label, cycle[len(palette) % len(cycle)])
+
+    window = labels[first:last]
+    edges = np.flatnonzero(window[1:] != window[:-1]) + 1
+    starts = np.concatenate([[0], edges])
+    stops = np.concatenate([edges, [len(window)]])
+    seen = set()
+    for a, b in zip(starts, stops, strict=True):
+        label = window[a]
+        ax.axvspan(first + a - 0.5, first + b - 0.5, color=palette[label],
+                   alpha=alpha, lw=0, zorder=0,
+                   label=None if label in seen else str(label))
+        seen.add(label)
+
+    kwargs.setdefault("color", "k")
+    kwargs.setdefault("lw", 1.1)
+    ax.plot(np.arange(first, last), -log_prob[first:last], **kwargs)
+    ax.set_xlim(first - 0.5, last - 0.5)
+    ax.set_yscale("log")
+    ax.set_xlabel("trace step")
+    ax.set_ylabel("− log-likelihood")
+    return ax

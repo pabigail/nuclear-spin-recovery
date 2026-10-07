@@ -122,36 +122,22 @@ class RJMCMC(Algorithm):
 
     @staticmethod
     def _birth(state, r, site):
-        """Append a spin at ``site``, with no offset from its table value."""
-        slot = int(state.k[r])
-        state.site_idx[r, slot] = site
-        state.dA_par[r, slot] = 0.0
-        state.dA_perp[r, slot] = 0.0
-        state.occupied[r, site] = True
-        state.k[r] = slot + 1
+        """Append a spin at ``site``.
+
+        It starts at its table value, or with site memory at the offset the
+        site remembers.
+        """
+        state.add_spin(r, site)
 
     @staticmethod
     def _death(state, r, slot):
-        """Remove one spin, keeping slots [0:k) contiguous.
-
-        Swap-with-last rather than shift: O(1), and the offsets must move with
-        their spin or they would be silently reassigned.
-        """
-        last = int(state.k[r]) - 1
-        state.occupied[r, state.site_idx[r, slot]] = False
-        if slot != last:
-            for arr in (state.site_idx, state.dA_par, state.dA_perp):
-                arr[r, slot] = arr[r, last]
-        state.site_idx[r, last] = -1
-        state.dA_par[r, last] = 0.0
-        state.dA_perp[r, last] = 0.0
-        state.k[r] = last
+        """Remove one spin, keeping slots [0:k) contiguous."""
+        state.remove_spin(r, slot)
 
     @staticmethod
     def _merge(current, proposed, accept):
         out = current.copy()
-        for name in ("site_idx", "k", "lam", "n_stretch", "sigma",
-                     "dA_par", "dA_perp"):
+        for name in out.replica_fields():
             getattr(out, name)[accept] = getattr(proposed, name)[accept]
         out.occupied[accept] = proposed.occupied[accept]
         return out

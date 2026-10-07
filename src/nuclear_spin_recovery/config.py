@@ -31,7 +31,12 @@ from .forward import AnalyticCCE1, StretchedExponential
 from .lattice import SiteTable
 from .likelihood import GaussianL2
 from .neighbors import NeighborIndex
-from .proposals import ContinuousReflected, DiscreteLatticeWalk, GaussianOffset
+from .proposals import (
+    ContinuousReflected,
+    DiscreteLatticeWalk,
+    GaussianOffset,
+    SiteScaledOffset,
+)
 from .simulate import simulate_dataset
 from .state import State
 
@@ -63,7 +68,8 @@ _SECTIONS = {
     "data": {"mode": "simulate", "truth_k": None, "truth_seed": None,
              "noise": 0.002, "path": None},
     "likelihood": {"sigma": _REQUIRED},
-    "state": {"lam": _REQUIRED, "n_stretch": 1.0, "k_max": _REQUIRED},
+    "state": {"lam": _REQUIRED, "n_stretch": 1.0, "k_max": _REQUIRED,
+              "offset_memory": "spin"},
     "ensemble": {"n_ensembles": _REQUIRED, "n_steps": _REQUIRED,
                  "n_burn": _REQUIRED, "root_seed": _REQUIRED,
                  "init_policy": "spread_across_k", "init_k": _REQUIRED},
@@ -79,10 +85,22 @@ _BLOCK = {
     "lam": {"radius": 2e-4, "lower": 5e-4, "upper": 2e-2},
     "n_stretch": {"radius": 0.05, "lower": 0.5, "upper": 3.0},
     "sigma": {"radius": 2e-3, "lower": 1e-3, "upper": 1.0},
-    "offsets": {"radius": 1.5, "scale": 4.0, "bound": None},
+    "offsets": {"radius": 1.5, "scale": 4.0, "bound": None,
+                "width": "absolute", "fraction_par": 0.0, "fraction_perp": 0.0,
+                "floor": 0.0, "prior": "gaussian", "n_sigma": 5.0,
+                "redraw_unoccupied": False},
     "rjmcmc": {"k_max": _REQUIRED, "birth_prob": 0.5},
-    "tempering": {"n_replicas": 6, "inner": "sites", "radius": 5.0},
+    "tempering": {"n_replicas": 6, "inner": "sites", "inner_steps": None,
+                  "radius": 5.0},
 }
+
+#: Whose an offset is: the spin's, travelling with it, or the site's, staying
+#: behind and resumed by whichever spin next lands there.
+OFFSET_MEMORY = ("spin", "site")
+
+#: How wide the offset prior is: the same number of kHz everywhere, or set by
+#: each site's own table value.
+OFFSET_WIDTHS = ("absolute", "site")
 
 
 def _resolve(section, raw, schema, where):
@@ -176,6 +194,17 @@ class RunConfig:
                 f"n_burn={ens['n_burn']} would leave nothing of "
                 f"n_steps={ens['n_steps']}"
             )
+        memory = sections["state"]["offset_memory"]
+        if memory not in OFFSET_MEMORY:
+            raise ValueError(
+                f"state.offset_memory must be one of {list(OFFSET_MEMORY)}, "
+                f"got {memory!r}")
+        for i, block in enumerate(blocks):
+            where = f"[[schedule]] {i}"
+            if block["algorithm"] == "offsets":
+                _check_offsets(block, memory, where)
+            if block["algorithm"] == "tempering":
+                _check_inner(block, blocks, where)
         if sections["data"]["mode"] not in ("simulate", "file"):
             raise ValueError(
                 f"data.mode must be 'simulate' or 'file', "
@@ -290,7 +319,8 @@ class RunConfig:
             lam=np.full((1, n_exp), float(self.state["lam"])),
             n_stretch=np.full((1, n_exp), float(self.state["n_stretch"])),
             sigma=np.full((1, n_exp), float(sigma)),
-            k_max=int(self.state["k_max"]))
+            k_max=int(self.state["k_max"]),
+            site_memory=self.state["offset_memory"] == "site")
 
     def _block(self, spec, site_table):
         """One Step from a resolved schedule block."""
@@ -304,25 +334,112 @@ class RunConfig:
                                                  lower=spec["lower"],
                                                  upper=spec["upper"])), n_steps)
         if name == "offsets":
-            return Step(RWMH(ParameterBlock("offsets"),
-                             GaussianOffset(radius=spec["radius"],
-                                            scale=spec["scale"],
-                                            bound=spec["bound"])), n_steps)
+            return Step(self._offsets(spec, site_table), n_steps)
         if name == "rjmcmc":
             return Step(RJMCMC(ParameterBlock("sites"),
                                BirthDeathKernel(k_max=int(spec["k_max"]),
                                                 birth_prob=spec["birth_prob"])),
                         n_steps)
-        inner = Schedule([Step(RWMH(ParameterBlock("sites"),
-                                    self._walk(spec["radius"], site_table)), 1)])
+        names = _inner_names(spec)
+        counts = spec["inner_steps"] or [1] * len(names)
+        inner = Schedule([
+            Step(self._inner(inner_name, spec, site_table), int(count))
+            for inner_name, count in zip(names, counts, strict=True)])
         return Step(ParallelTempering(inner,
                                       n_replicas=int(spec["n_replicas"])),
                     n_steps)
 
     @staticmethod
+    def _offsets(spec, site_table):
+        """The offset walk a resolved ``offsets`` block describes."""
+        if spec["width"] == "site":
+            proposal = SiteScaledOffset(
+                radius=spec["radius"], site_table=site_table,
+                fraction_par=spec["fraction_par"],
+                fraction_perp=spec["fraction_perp"], floor=spec["floor"],
+                prior=spec["prior"], n_sigma=spec["n_sigma"],
+                redraw_unoccupied=spec["redraw_unoccupied"])
+        else:
+            proposal = GaussianOffset(radius=spec["radius"], scale=spec["scale"],
+                                      bound=spec["bound"])
+        return RWMH(ParameterBlock("offsets"), proposal)
+
+    def _inner(self, name, spec, site_table):
+        """One algorithm of a tempering block's inner schedule.
+
+        ``sites`` is a lattice walk at the tempering block's own radius, as it
+        has always been.  Any other name is the algorithm of the first
+        ``[[schedule]]`` block of that name, so that its settings are written
+        once and the rungs move exactly as the single chain does.
+        """
+        if name == "sites":
+            return RWMH(ParameterBlock("sites"),
+                        self._walk(spec["radius"], site_table))
+        source = next(b for b in self.schedule if b["algorithm"] == name)
+        return self._block(source, site_table).algorithm
+
+    @staticmethod
     def _walk(radius, site_table):
         return DiscreteLatticeWalk(NeighborIndex(site_table.positions,
                                                  radius=float(radius)))
+
+
+def _inner_names(spec):
+    """The inner schedule of a tempering block, as a list of algorithm names."""
+    inner = spec["inner"]
+    return [inner] if isinstance(inner, str) else list(inner)
+
+
+def _check_offsets(block, memory, where):
+    """Reject an ``offsets`` block that cannot mean what it says."""
+    if block["width"] not in OFFSET_WIDTHS:
+        raise ValueError(
+            f"{where}: width must be one of {list(OFFSET_WIDTHS)}, "
+            f"got {block['width']!r}")
+    if block["prior"] not in SiteScaledOffset.PRIORS:
+        raise ValueError(
+            f"{where}: prior must be one of {list(SiteScaledOffset.PRIORS)}, "
+            f"got {block['prior']!r}")
+    for key in ("fraction_par", "fraction_perp", "floor"):
+        if float(block[key]) < 0.0:
+            raise ValueError(f"{where}: {key} must be non-negative, "
+                             f"got {block[key]}")
+    if block["width"] == "site" and memory != "site":
+        raise ValueError(
+            f"{where}: width = 'site' needs state.offset_memory = 'site'. "
+            f"Without site memory an offset travels with its spin from one "
+            f"site's prior into another's, and the site move has no term for "
+            f"that."
+        )
+    if block["width"] == "absolute" and (
+            block["fraction_par"] or block["fraction_perp"] or block["floor"]
+            or block["redraw_unoccupied"] or block["prior"] != "gaussian"):
+        raise ValueError(
+            f"{where}: fraction_par, fraction_perp, floor, prior and "
+            f"redraw_unoccupied apply only with width = 'site'; with "
+            f"width = 'absolute' they would be silently ignored"
+        )
+
+
+def _check_inner(block, blocks, where):
+    """Reject a tempering block whose inner schedule cannot be built."""
+    names = _inner_names(block)
+    if not names:
+        raise ValueError(f"{where}: inner must name at least one algorithm")
+    declared = {b["algorithm"] for b in blocks}
+    for name in names:
+        if name == "tempering":
+            raise ValueError(f"{where}: a tempering block cannot temper itself")
+        if name != "sites" and name not in declared:
+            raise ValueError(
+                f"{where}: inner names {name!r}, but there is no [[schedule]] "
+                f"block with that algorithm to take its settings from")
+    steps = block["inner_steps"]
+    if steps is not None and (len(steps) != len(names)
+                              or any(int(n) < 1 for n in steps)):
+        raise ValueError(
+            f"{where}: inner_steps must give one positive count for each of "
+            f"the {len(names)} inner algorithms")
 
 
 def _build_model():

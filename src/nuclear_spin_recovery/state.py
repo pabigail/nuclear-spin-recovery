@@ -26,10 +26,35 @@ class State:
 
     Offsets are zero unless the ab initio constraint is relaxed (spec Sec. 5.3),
     in which case the model reduces exactly to the constrained one.
+
+    **Whose offset is it?**  By default an offset belongs to the spin: it
+    travels with the spin across a site move, and a newborn spin starts at
+    zero.  With *site memory* an offset belongs to the site instead:
+
+    site_dA_par   (R, n_sites) float  offset each site was last left at, kHz
+    site_dA_perp  (R, n_sites) float
+
+    A spin arriving at a site, by a move or by a birth, takes up the offset
+    that site remembers, and a spin leaving one leaves its offset behind.  A
+    site that has never been occupied remembers zero.  The per-spin arrays are
+    still what the forward model reads; the memory is kept equal to them on
+    every occupied site.  It is ``None`` when site memory is off.
+
+    Moves change a state through :meth:`add_spin`, :meth:`remove_spin`,
+    :meth:`move_spin` and :meth:`set_offset`, which is what keeps the two in
+    step.  Writing to ``dA_par`` directly is fine with site memory off, and
+    with it on must be followed by :meth:`remember_offsets`.
     """
 
+    #: Per-replica arrays that every state carries.  Anything that copies,
+    #: merges or swaps replicas iterates :meth:`replica_fields`, never a list
+    #: of its own.
+    FIELDS = ("site_idx", "k", "lam", "n_stretch", "sigma", "dA_par", "dA_perp")
+    #: Per-replica arrays present only with site memory.
+    MEMORY_FIELDS = ("site_dA_par", "site_dA_perp")
+
     def __init__(self, site_idx, k, lam, n_stretch, sigma, n_sites, k_max,
-                 dA_par=None, dA_perp=None):
+                 dA_par=None, dA_perp=None, site_dA_par=None, site_dA_perp=None):
         self.site_idx = np.asarray(site_idx, dtype=int)
         self.k = np.asarray(k, dtype=int)
         self.lam = np.asarray(lam, dtype=float)
@@ -40,7 +65,107 @@ class State:
         shape = (self.site_idx.shape[0], self.k_max)
         self.dA_par = np.zeros(shape) if dA_par is None else np.asarray(dA_par, float)
         self.dA_perp = np.zeros(shape) if dA_perp is None else np.asarray(dA_perp, float)
+        if (site_dA_par is None) != (site_dA_perp is None):
+            raise ValueError("site memory needs both components or neither")
+        self.site_dA_par = (None if site_dA_par is None
+                            else np.asarray(site_dA_par, float))
+        self.site_dA_perp = (None if site_dA_perp is None
+                             else np.asarray(site_dA_perp, float))
         self._occupied = self._derive_occupancy()
+
+    @property
+    def has_site_memory(self) -> bool:
+        """Whether offsets belong to sites rather than to spins."""
+        return self.site_dA_par is not None
+
+    def replica_fields(self):
+        """Names of every per-replica array this state carries.
+
+        ``occupied`` is not among them: it is derived, and is copied alongside.
+        """
+        return self.FIELDS + (self.MEMORY_FIELDS if self.has_site_memory else ())
+
+    def enable_site_memory(self):
+        """Turn site memory on, remembering the offsets the spins have now.
+
+        Every unoccupied site starts at zero, its table value.
+        """
+        shape = (self.n_replicas, self.n_sites)
+        self.site_dA_par = np.zeros(shape)
+        self.site_dA_perp = np.zeros(shape)
+        self.remember_offsets()
+        return self
+
+    def remember_offsets(self):
+        """Write every live spin's offset to its site's memory."""
+        if not self.has_site_memory:
+            return
+        for r in range(self.n_replicas):
+            sites = self.site_idx[r, : self.k[r]]
+            self.site_dA_par[r, sites] = self.dA_par[r, : self.k[r]]
+            self.site_dA_perp[r, sites] = self.dA_perp[r, : self.k[r]]
+
+    # -- mutation ----------------------------------------------------------
+
+    def _arrive(self, r, slot, site):
+        """Offset of a spin newly placed on ``site``: remembered, or zero."""
+        if self.has_site_memory:
+            self.dA_par[r, slot] = self.site_dA_par[r, site]
+            self.dA_perp[r, slot] = self.site_dA_perp[r, site]
+
+    def add_spin(self, r, site):
+        """Append a spin at ``site`` in replica ``r``.
+
+        It starts at its table value, or with site memory at the offset the
+        site remembers.
+        """
+        slot = int(self.k[r])
+        self.site_idx[r, slot] = site
+        self.dA_par[r, slot] = 0.0
+        self.dA_perp[r, slot] = 0.0
+        self._arrive(r, slot, site)
+        self._occupied[r, site] = True
+        self.k[r] = slot + 1
+
+    def remove_spin(self, r, slot):
+        """Remove the spin in ``slot``, keeping slots [0:k) contiguous.
+
+        Swap-with-last rather than shift: O(1), and the offsets must move with
+        their spin or they would be silently reassigned.  With site memory the
+        vacated site keeps its offset.
+        """
+        last = int(self.k[r]) - 1
+        self._occupied[r, self.site_idx[r, slot]] = False
+        if slot != last:
+            for arr in (self.site_idx, self.dA_par, self.dA_perp):
+                arr[r, slot] = arr[r, last]
+        self.site_idx[r, last] = -1
+        self.dA_par[r, last] = 0.0
+        self.dA_perp[r, last] = 0.0
+        self.k[r] = last
+
+    def move_spin(self, r, slot, site):
+        """Move the spin in ``slot`` to the unoccupied ``site``.
+
+        Its offset goes with it, or with site memory is exchanged for the one
+        the destination remembers.
+        """
+        current = int(self.site_idx[r, slot])
+        self.site_idx[r, slot] = site
+        self._occupied[r, current] = False
+        self._occupied[r, site] = True
+        self._arrive(r, slot, site)
+
+    def set_offset(self, r, slot, component, value):
+        """Set one offset of the spin in ``slot``.
+
+        ``component`` is 0 for the parallel offset and 1 for the perpendicular.
+        """
+        live = self.dA_par if component == 0 else self.dA_perp
+        live[r, slot] = value
+        if self.has_site_memory:
+            memory = self.site_dA_par if component == 0 else self.site_dA_perp
+            memory[r, self.site_idx[r, slot]] = value
 
     def _derive_occupancy(self):
         occupied = np.zeros((self.n_replicas, self.n_sites), dtype=bool)
@@ -68,8 +193,12 @@ class State:
         return np.where(self._active_mask(), gathered, 0.0)
 
     @classmethod
-    def from_sites(cls, sites, *, n_sites, n_exp, lam, n_stretch, sigma, k_max):
-        """Build a single-replica state from a sequence of site indices."""
+    def from_sites(cls, sites, *, n_sites, n_exp, lam, n_stretch, sigma, k_max,
+                   site_memory=False):
+        """Build a single-replica state from a sequence of site indices.
+
+        ``site_memory`` makes offsets belong to sites rather than to spins.
+        """
         sites = np.asarray(list(sites), dtype=int)
         if sites.size > k_max:
             raise ValueError(f"{sites.size} sites exceeds k_max={k_max}")
@@ -83,7 +212,7 @@ class State:
         lam = np.asarray(lam, dtype=float)
         if lam.shape[1] != n_exp:
             raise ValueError(f"lam has {lam.shape[1]} columns, n_exp={n_exp}")
-        return cls(
+        out = cls(
             site_idx=site_idx,
             k=np.array([sites.size]),
             lam=lam,
@@ -92,6 +221,7 @@ class State:
             n_sites=n_sites,
             k_max=k_max,
         )
+        return out.enable_site_memory() if site_memory else out
 
     @property
     def n_replicas(self) -> int:
@@ -105,53 +235,25 @@ class State:
     def occupied(self):
         return self._occupied
 
+    def _rebuild(self, transform):
+        """A new state with ``transform`` applied to every per-replica array."""
+        arrays = {name: transform(getattr(self, name))
+                  for name in self.replica_fields()}
+        return State(n_sites=self.n_sites, k_max=self.k_max, **arrays)
+
     def copy(self):
         """Deep copy; no array is shared with the original."""
-        out = State(
-            site_idx=self.site_idx.copy(),
-            k=self.k.copy(),
-            lam=self.lam.copy(),
-            n_stretch=self.n_stretch.copy(),
-            sigma=self.sigma.copy(),
-            n_sites=self.n_sites,
-            k_max=self.k_max,
-            dA_par=self.dA_par.copy(),
-            dA_perp=self.dA_perp.copy(),
-        )
+        out = self._rebuild(np.copy)
         out._occupied = self._occupied.copy()
         return out
 
     def expand_replicas(self, n_replicas):
         """Return a state with R identical replicas, for a tempering block."""
-        def tile(a):
-            return np.repeat(a[:1], n_replicas, axis=0)
-
-        out = State(
-            site_idx=tile(self.site_idx),
-            k=tile(self.k),
-            lam=tile(self.lam),
-            n_stretch=tile(self.n_stretch),
-            sigma=tile(self.sigma),
-            n_sites=self.n_sites,
-            k_max=self.k_max,
-            dA_par=tile(self.dA_par),
-            dA_perp=tile(self.dA_perp),
-        )
-        return out
+        return self._rebuild(lambda a: np.repeat(a[:1], n_replicas, axis=0))
 
     def collapse_to_cold(self):
         """Return replica 0 only, discarding the hot chains."""
-        out = State(
-            site_idx=self.site_idx[:1].copy(),
-            k=self.k[:1].copy(),
-            lam=self.lam[:1].copy(),
-            n_stretch=self.n_stretch[:1].copy(),
-            sigma=self.sigma[:1].copy(),
-            n_sites=self.n_sites,
-            k_max=self.k_max,
-            dA_par=self.dA_par[:1].copy(),
-            dA_perp=self.dA_perp[:1].copy(),
-        )
+        out = self._rebuild(lambda a: a[:1].copy())
         out._occupied = self._occupied[:1].copy()
         return out
 
@@ -190,3 +292,13 @@ class State:
                 raise ValueError(
                     f"replica {r}: occupancy bitmap disagrees with site_idx"
                 )
+            if self.has_site_memory:
+                k = self.k[r]
+                if not (np.array_equal(self.site_dA_par[r, active],
+                                       self.dA_par[r, :k])
+                        and np.array_equal(self.site_dA_perp[r, active],
+                                           self.dA_perp[r, :k])):
+                    raise ValueError(
+                        f"replica {r}: a spin's offset disagrees with what "
+                        f"its site remembers"
+                    )

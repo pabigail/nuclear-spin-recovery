@@ -38,7 +38,8 @@
 # per-site memory are those of the previous notebook. Only the cold rung is
 # recorded.
 #
-# As before, the classes that give sites a memory are local to this notebook.
+# As before, this is the package's site memory, switched on with
+# `site_memory=True`.
 
 # %%
 import collections
@@ -59,7 +60,6 @@ from nuclear_spin_recovery import (
     RWMH,
     AnalyticCCE1,
     BirthDeathKernel,
-    ContinuousReflected,
     DiscreteLatticeWalk,
     Envelope,
     Experiment,
@@ -70,6 +70,7 @@ from nuclear_spin_recovery import (
     ParallelTempering,
     ParameterBlock,
     Schedule,
+    SiteScaledOffset,
     SiteTable,
     State,
     Step,
@@ -150,17 +151,17 @@ for i in range(N_SITES):
 #
 # CPMG-4 and no envelope, as in the earlier toy notebooks.
 #
-# The three single-chain moves are those of the previous notebook. Two things
-# change to make room for a ladder.
+# The three single-chain moves are those of the previous notebook, and the
+# ladder is the package's `ParallelTempering` wrapped around them.
 #
-# **Each rung needs its own memory.** A site's remembered offset is part of a
-# rung's configuration, so `SiteMemory` now holds one row per rung, and a swap
-# exchanges the two rungs' memories along with their spins.
+# **Each rung has its own memory.** A site's remembered offset is part of the
+# state, so each rung of the ladder carries its own copy, and a swap exchanges
+# two rungs' memories along with their spins. Nothing extra is needed for
+# that.
 #
-# **`RememberingTempering`** is the package's `ParallelTempering` with that
-# bookkeeping added: it points the memory at the right rung before each rung
-# moves, swaps memories when a swap is accepted, and keeps a record of every
-# rung's misfit for the figure in section 5.
+# **`RecordingTempering`** is the only class local to this notebook. It
+# changes nothing about the sampling: it keeps a record of every rung's
+# misfit and of each swap, for the figures in sections 4 and 5.
 #
 # Two properties of the package's tempering matter for reading the results:
 #
@@ -185,111 +186,11 @@ class NoEnvelope(Envelope):
         return np.ones_like(np.asarray(tau, dtype=float))
 
 
-class SiteMemory:
-    """The offset each site was last left at, in kHz, for each rung.
+class RecordingTempering(ParallelTempering):
+    """The package's parallel tempering, keeping a record for the figures."""
 
-    Zero until visited.  ``rung`` says whose memory the moves read and write;
-    it is 0, the cold rung, except while a hotter rung is being advanced.
-    """
-
-    def __init__(self, n_sites, n_rungs=1):
-        self.d_par = np.zeros((n_rungs, n_sites))
-        self.d_perp = np.zeros((n_rungs, n_sites))
-        self.rung = 0
-
-    def load(self, state, slot):
-        """Give the spin in ``slot`` the offset its site remembers."""
-        site = int(state.site_idx[0, slot])
-        state.dA_par[0, slot] = self.d_par[self.rung, site]
-        state.dA_perp[0, slot] = self.d_perp[self.rung, site]
-
-    def store(self, state):
-        """Record the offset of every occupied site."""
-        k = int(state.k[0])
-        sites = state.site_idx[0, :k]
-        self.d_par[self.rung, sites] = state.dA_par[0, :k]
-        self.d_perp[self.rung, sites] = state.dA_perp[0, :k]
-
-    def copy_cold_to_all(self):
-        self.d_par[:] = self.d_par[0]
-        self.d_perp[:] = self.d_perp[0]
-
-    def swap(self, a, b):
-        for arr in (self.d_par, self.d_perp):
-            arr[[a, b]] = arr[[b, a]]
-
-
-class RememberingRJMCMC(RJMCMC):
-    """Birth and death, with a newborn spin resuming its site's offset."""
-
-    def __init__(self, kernel, memory):
-        super().__init__(ParameterBlock("sites"), kernel)
-        self.memory = memory
-
-    def _birth(self, state, r, site):
-        RJMCMC._birth(state, r, site)
-        self.memory.load(state, int(state.k[r]) - 1)
-
-
-class RememberingSiteWalk(RWMH):
-    """Site hop that resumes the destination site's own offset."""
-
-    def __init__(self, proposal, memory):
-        super().__init__(ParameterBlock("sites"), proposal)
-        self.memory = memory
-
-    def _propose_sites(self, state, rng):
-        before = state.site_idx[0].copy()
-        log_ratio = super()._propose_sites(state, rng)
-        for slot in np.flatnonzero(state.site_idx[0] != before):
-            self.memory.load(state, slot)
-        return log_ratio
-
-
-class PerSiteRectangle(RWMH):
-    """Offset walk with a flat prior on each site's own rectangle.
-
-    One spin and one component per step.  The bounds are ±``fraction`` of the
-    table value of the site that spin is on.
-    """
-
-    def __init__(self, step_khz, table, memory, fraction=FRACTION):
-        super().__init__(ParameterBlock("offsets"), ContinuousReflected(step_khz))
-        self.step_khz = float(step_khz)
-        self.table = table
-        self.memory = memory
-        self.fraction = float(fraction)
-
-    def _propose_offsets(self, state, rng):
-        if state.k[0] == 0:
-            return np.zeros(1)
-        which = int(rng.integers(2))
-        slot = int(rng.integers(state.k[0]))
-        site = int(state.site_idx[0, slot])
-        values = state.dA_par if which == 0 else state.dA_perp
-        centre = (self.table.a_par if which == 0 else self.table.a_perp)[site]
-        half = self.fraction * abs(centre)
-        proposed, log_ratio = ContinuousReflected(
-            min(self.step_khz, half), lower=-half, upper=half).propose(
-                rng, float(values[0, slot]))
-        values[0, slot] = float(proposed)
-        return np.array([log_ratio])
-
-    def step(self, state, target, rng, beta=1.0):
-        out = super().step(state, target, rng, beta=beta)
-        self.memory.store(out)
-        return out
-
-
-_RUNG_FIELDS = ("site_idx", "k", "lam", "n_stretch", "sigma", "dA_par", "dA_perp")
-
-
-class RememberingTempering(ParallelTempering):
-    """Parallel tempering in which every rung keeps its own site memory."""
-
-    def __init__(self, inner, memory, n_replicas):
+    def __init__(self, inner, n_replicas):
         super().__init__(inner, n_replicas=n_replicas)
-        self.memory = memory
         #: Per sweep: every rung's untempered log-likelihood, and whether a
         #: swap involving the cold rung was accepted.
         self.rung_log_like = []
@@ -297,51 +198,24 @@ class RememberingTempering(ParallelTempering):
         self.block_starts = []
         self.n_swaps = 0
 
-    def _advance_rungs(self, state, algorithm, target, rng):
-        out = state.copy()
-        for j, beta in enumerate(self.betas):
-            self.memory.rung = j
-            single = state.collapse_to_cold()
-            for name in _RUNG_FIELDS:
-                getattr(single, name)[0] = getattr(state, name)[j]
-            single.occupied[0] = state.occupied[j]
-            moved = algorithm.step(single, target, rng, beta=beta)
-            for name in _RUNG_FIELDS:
-                getattr(out, name)[j] = getattr(moved, name)[0]
-            out.occupied[j] = moved.occupied[0]
-        self.memory.rung = 0
+    def attempt_swap(self, state, target, rng):
+        out = super().attempt_swap(state, target, rng)
+        a, b, accepted = self.last_swap
+        self.rung_log_like.append(target.log_prob(out, beta=1.0))
+        self.cold_swapped.append(accepted and 0 in (a, b))
+        self.n_swaps += int(accepted)
         return out
 
-    def attempt_swap(self, state, target, rng):
-        a, b = rng.choice(self.n_replicas, size=2, replace=False)
-        log_like = target.log_prob(state, beta=1.0)
-        accepted = np.log(rng.uniform()) < (self.betas[a] - self.betas[b]) * (
-            log_like[b] - log_like[a])
-        if accepted:
-            out = state.copy()
-            for name in _RUNG_FIELDS:
-                arr = getattr(out, name)
-                arr[[a, b]] = arr[[b, a]]
-            out.occupied[[a, b]] = out.occupied[[b, a]]
-            self.memory.swap(a, b)
-            log_like[[a, b]] = log_like[[b, a]]
-            self.n_swaps += 1
-            state = out
-        self.rung_log_like.append(log_like)
-        self.cold_swapped.append(bool(accepted and 0 in (a, b)))
-        return state
-
     def run(self, state, target, rng, n_steps, trace=None, beta=1.0):
-        self.memory.copy_cold_to_all()
         self.block_starts.append(len(self.rung_log_like))
         return super().run(state, target, rng, n_steps, trace=trace, beta=beta)
 
 
 #: The label each algorithm writes to the trace, and its name in the figures.
 ALGORITHM_NAMES = {
-    "rememberingrjmcmc:sites": "RJMCMC",
-    "rememberingsitewalk:sites": "site walk",
-    "persiterectangle:offsets": "offset walk",
+    "rjmcmc:sites": "RJMCMC",
+    "rwmh:sites": "site walk",
+    "rwmh:offsets": "offset walk",
     "pt:sites+sites+offsets": "tempering",
 }
 
@@ -354,11 +228,11 @@ def make_state(sites, offsets=None):
         tuple(int(s) for s in sites), n_sites=N_SITES, n_exp=1,
         # A State must carry a decay constant; NoEnvelope never reads it.
         lam=np.ones((1, 1)), n_stretch=np.ones((1, 1)),
-        sigma=np.full((1, 1), LIK_SIGMA), k_max=K_MAX)
+        sigma=np.full((1, 1), LIK_SIGMA), k_max=K_MAX, site_memory=True)
     if offsets is not None:
         for slot, (d_par, d_perp) in enumerate(offsets):
-            state.dA_par[0, slot] = d_par
-            state.dA_perp[0, slot] = d_perp
+            state.set_offset(0, slot, 0, d_par)
+            state.set_offset(0, slot, 1, d_perp)
     return state
 
 
@@ -391,19 +265,21 @@ STEP_KHZ = 1.0
 
 
 def run_walk(seed, tempering=True):
-    memory = SiteMemory(N_SITES, N_RUNGS)
     moves = {
-        "RJMCMC": RememberingRJMCMC(BirthDeathKernel(k_max=K_MAX), memory),
-        "site walk": RememberingSiteWalk(
-            DiscreteLatticeWalk(NeighborIndex(POSITIONS, HOP_RADIUS)), memory),
-        "offset walk": PerSiteRectangle(STEP_KHZ, table, memory),
+        "RJMCMC": RJMCMC(ParameterBlock("sites"), BirthDeathKernel(k_max=K_MAX)),
+        "site walk": RWMH(
+            ParameterBlock("sites"),
+            DiscreteLatticeWalk(NeighborIndex(POSITIONS, HOP_RADIUS))),
+        "offset walk": RWMH(ParameterBlock("offsets"), SiteScaledOffset(
+            STEP_KHZ, table, fraction_par=FRACTION, fraction_perp=FRACTION,
+            prior="flat")),
     }
     blocks = [Step(moves[name], BLOCKS[name]) for name in moves]
     ladder = None
     if tempering:
-        ladder = RememberingTempering(
+        ladder = RecordingTempering(
             Schedule([Step(moves[name], INNER[name]) for name in moves]),
-            memory, n_replicas=N_RUNGS)
+            n_replicas=N_RUNGS)
         blocks.append(Step(ladder, BLOCKS["tempering"]))
     initial = make_state(START_SITES)
     trace = Trace(n_sites=N_SITES, k_max=K_MAX, n_exp=1)

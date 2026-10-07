@@ -36,9 +36,9 @@
 # The data are simulated from three spins that each sit away from their
 # table value. The walk starts with the three spins on three other sites.
 #
-# As in the four-site notebook, the two classes that give sites a memory are
-# local to this notebook; the package's own site move carries the offset with
-# the spin.
+# As in the four-site notebook, this is the package's site memory, switched
+# on with `site_memory=True`, and the site-sized rectangles come from its
+# `SiteScaledOffset` kernel.
 
 # %%
 import sys
@@ -55,7 +55,6 @@ if str(REPO / "src") not in sys.path:
 from nuclear_spin_recovery import (
     RWMH,
     AnalyticCCE1,
-    ContinuousReflected,
     DiscreteLatticeWalk,
     Envelope,
     Experiment,
@@ -65,6 +64,7 @@ from nuclear_spin_recovery import (
     NeighborIndex,
     ParameterBlock,
     Schedule,
+    SiteScaledOffset,
     SiteTable,
     State,
     Step,
@@ -151,13 +151,12 @@ for i in range(N_SITES):
 # out of four ended with a spin on site 4 where site 7 belongs; at 4 pulses,
 # four out of four recovered all three sites.
 #
-# The memory works as before, extended to several spins:
+# Both moves are the package's `RWMH`, as before, now with several spins:
 #
-# - `RememberingSiteWalk` lets the package's lattice walk move one spin, then
-#   gives that spin the offset its new site remembers.
-# - `PerSiteRectangle` picks one spin and one component, and proposes a step
-#   reflected at ±10% of that site's table value. After every step it writes
-#   each occupied site's offset back to the memory.
+# - the site walk moves one spin, and site memory gives that spin the offset
+#   its new site remembers;
+# - the offset walk picks one spin and one component, and `SiteScaledOffset`
+#   proposes a step reflected at ±10% of that site's table value.
 #
 # The largest single step is 1 kHz, or the half-width of the rectangle where
 # that is smaller.
@@ -176,71 +175,6 @@ class NoEnvelope(Envelope):
         return np.ones_like(np.asarray(tau, dtype=float))
 
 
-class SiteMemory:
-    """The offset each site was last left at, in kHz.  Zero until visited."""
-
-    def __init__(self, n_sites):
-        self.d_par = np.zeros(n_sites)
-        self.d_perp = np.zeros(n_sites)
-
-    def store(self, state):
-        """Record the offset of every occupied site."""
-        k = int(state.k[0])
-        sites = state.site_idx[0, :k]
-        self.d_par[sites] = state.dA_par[0, :k]
-        self.d_perp[sites] = state.dA_perp[0, :k]
-
-
-class RememberingSiteWalk(RWMH):
-    """Site hop that resumes the destination site's own offset."""
-
-    def __init__(self, proposal, memory):
-        super().__init__(ParameterBlock("sites"), proposal)
-        self.memory = memory
-
-    def _propose_sites(self, state, rng):
-        before = state.site_idx[0].copy()
-        log_ratio = super()._propose_sites(state, rng)
-        for slot in np.flatnonzero(state.site_idx[0] != before):
-            site = int(state.site_idx[0, slot])
-            state.dA_par[0, slot] = self.memory.d_par[site]
-            state.dA_perp[0, slot] = self.memory.d_perp[site]
-        return log_ratio
-
-
-class PerSiteRectangle(RWMH):
-    """Offset walk with a flat prior on each site's own rectangle.
-
-    One spin and one component per step.  The bounds are ±``fraction`` of the
-    table value of the site that spin is on.
-    """
-
-    def __init__(self, step_khz, table, memory, fraction=FRACTION):
-        super().__init__(ParameterBlock("offsets"), ContinuousReflected(step_khz))
-        self.step_khz = float(step_khz)
-        self.table = table
-        self.memory = memory
-        self.fraction = float(fraction)
-
-    def _propose_offsets(self, state, rng):
-        which = int(rng.integers(2))
-        slot = int(rng.integers(state.k[0]))
-        site = int(state.site_idx[0, slot])
-        values = state.dA_par if which == 0 else state.dA_perp
-        centre = (self.table.a_par if which == 0 else self.table.a_perp)[site]
-        half = self.fraction * abs(centre)
-        proposed, log_ratio = ContinuousReflected(
-            min(self.step_khz, half), lower=-half, upper=half).propose(
-                rng, float(values[0, slot]))
-        values[0, slot] = float(proposed)
-        return np.array([log_ratio])
-
-    def step(self, state, target, rng, beta=1.0):
-        out = super().step(state, target, rng, beta=beta)
-        self.memory.store(out)
-        return out
-
-
 model = AnalyticCCE1(NoEnvelope())
 
 
@@ -250,11 +184,11 @@ def make_state(sites, offsets=None):
         tuple(sites), n_sites=N_SITES, n_exp=1,
         # A State must carry a decay constant; NoEnvelope never reads it.
         lam=np.ones((1, 1)), n_stretch=np.ones((1, 1)),
-        sigma=np.full((1, 1), LIK_SIGMA), k_max=N_SPINS)
+        sigma=np.full((1, 1), LIK_SIGMA), k_max=N_SPINS, site_memory=True)
     if offsets is not None:
         for slot, (d_par, d_perp) in enumerate(offsets):
-            state.dA_par[0, slot] = d_par
-            state.dA_perp[0, slot] = d_perp
+            state.set_offset(0, slot, 0, d_par)
+            state.set_offset(0, slot, 1, d_perp)
     return state
 
 
@@ -274,12 +208,13 @@ data = simulate_dataset(truth, blank, table, model, sigma=DATA_NOISE,
                         rng=np.random.default_rng(3))
 target = Target(data, model, GaussianL2(), table)
 
-memory = SiteMemory(N_SITES)
 schedule = Schedule([
-    Step(RememberingSiteWalk(
-        DiscreteLatticeWalk(NeighborIndex(POSITIONS, HOP_RADIUS)), memory),
-        SITE_STEPS),
-    Step(PerSiteRectangle(STEP_KHZ, table, memory), OFFSET_STEPS),
+    Step(RWMH(ParameterBlock("sites"),
+              DiscreteLatticeWalk(NeighborIndex(POSITIONS, HOP_RADIUS))),
+         SITE_STEPS),
+    Step(RWMH(ParameterBlock("offsets"), SiteScaledOffset(
+        STEP_KHZ, table, fraction_par=FRACTION, fraction_perp=FRACTION,
+        prior="flat")), OFFSET_STEPS),
 ])
 initial = make_state(START_SITES)
 trace = Trace(n_sites=N_SITES, k_max=N_SPINS, n_exp=1)

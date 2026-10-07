@@ -44,12 +44,12 @@ if str(REPO / "src") not in sys.path:
 from nuclear_spin_recovery import (
     RWMH,
     AnalyticCCE1,
-    ContinuousReflected,
     Envelope,
     Experiment,
     ExperimentSet,
     GaussianL2,
     ParameterBlock,
+    SiteScaledOffset,
     SiteTable,
     State,
     Target,
@@ -115,9 +115,9 @@ def make_state(d_par=0.0, d_perp=0.0):
         (0,), n_sites=1, n_exp=1,
         # A State must carry a decay constant; NoEnvelope never reads it.
         lam=np.array([[1.0]]), n_stretch=np.array([[1.0]]),
-        sigma=np.array([[LIK_SIGMA]]), k_max=1)
-    state.dA_par[0, 0] = d_par
-    state.dA_perp[0, 0] = d_perp
+        sigma=np.array([[LIK_SIGMA]]), k_max=1, site_memory=True)
+    state.set_offset(0, 0, 0, d_par)
+    state.set_offset(0, 0, 1, d_perp)
     return state
 
 
@@ -136,42 +136,25 @@ print(f"log-likelihood at the true coupling: {target.log_prob(truth)[0]:9.2f}")
 # %% [markdown]
 # ## 2. The sampler
 #
-# The package's offset walk, `RWMH` with a `GaussianOffset` proposal, has one
-# bound shared by both components and a Gaussian prior centred on the table
-# value. This toy wants neither: the region is twice as wide in $A_\parallel$
-# as in $A_\perp$, and the prior is flat inside it.
+# The walk is the package's `RWMH` over the `offsets` block, with a
+# `SiteScaledOffset` proposal. That kernel sets the width of each component
+# from the site's own table value: with a fraction of 0.10, the allowed
+# offsets are ±10 kHz in $A_\parallel$ and ±5 kHz in $A_\perp$. `prior="flat"`
+# makes the prior uniform inside that rectangle and zero outside it.
 #
-# So the notebook subclasses `RWMH` and replaces only the offset proposal. Each
-# component gets its own `ContinuousReflected` kernel, a uniform step reflected
-# at that component's bounds. Reflection keeps the proposal symmetric, and a
-# flat prior contributes nothing, so the acceptance ratio is the likelihood
-# ratio alone. Everything else — the accept/reject step, the `Target`, the
-# `Trace` — is the package's.
+# Each step picks one of the two components and proposes a uniform step,
+# reflected at that component's bounds. Reflection keeps the proposal
+# symmetric, and a flat prior contributes nothing, so the acceptance ratio is
+# the likelihood ratio alone.
+#
+# A site-scaled kernel needs a state with site memory, in which an offset
+# belongs to its site. With one site and one spin that makes no difference
+# here; it matters in the notebooks that follow.
 
 # %%
-class RectangleOffsets(RWMH):
-    """Offset walk with a flat prior on a rectangle, one component per step."""
-
-    def __init__(self, par, perp):
-        super().__init__(ParameterBlock("offsets"), par)
-        self.proposals = (par, perp)
-
-    def _propose_offsets(self, state, rng):
-        which = int(rng.integers(2))
-        values = state.dA_par if which == 0 else state.dA_perp
-        log_ratio = np.zeros(state.n_replicas)
-        for r in range(state.n_replicas):
-            proposed, log_ratio[r] = self.proposals[which].propose(
-                rng, float(values[r, 0]))
-            values[r, 0] = float(proposed)
-        return log_ratio
-
-
 STEP = 1.0             # kHz, largest single move in either component
-sampler = RectangleOffsets(
-    ContinuousReflected(STEP, lower=-HALF_PAR, upper=HALF_PAR),
-    ContinuousReflected(STEP, lower=-HALF_PERP, upper=HALF_PERP),
-)
+sampler = RWMH(ParameterBlock("offsets"), SiteScaledOffset(
+    STEP, table, fraction_par=0.10, fraction_perp=0.10, prior="flat"))
 
 N_STEPS, N_BURN = 6000, 1000
 trace = Trace(n_sites=1, k_max=1, n_exp=1)

@@ -35,13 +35,15 @@ class SequenceDuration:
         c(tau) = overhead + evolution_per_pulse * N * tau
 
     ``overhead`` is the per-shot time outside the free evolution, in ms --
-    initialisation, readout and any wait -- and has no default, because it is a
-    property of the instrument and a hidden guess would decide the trade-off
-    between short and long sequences.  ``evolution_per_pulse`` is 2 for the
-    forward model's tau convention; see the module docstring.
+    initialisation, readout and any wait.  It defaults to zero, which makes the
+    cost the free evolution alone, ``2 N tau``.  That is a floor, not an
+    estimate: a real shot has overhead, and leaving it out favours many short
+    repetitions over few long ones.  Set it from the instrument when it is
+    known.  ``evolution_per_pulse`` is 2 for the forward model's tau
+    convention; see the module docstring.
     """
 
-    def __init__(self, overhead, evolution_per_pulse=2.0):
+    def __init__(self, overhead=0.0, evolution_per_pulse=2.0):
         overhead = float(overhead)
         if not np.isfinite(overhead) or overhead < 0:
             raise ValueError(f"overhead must be non-negative, got {overhead}")

@@ -7,11 +7,11 @@ baths so the answer is not one seed's:
    detectable table, k_true = 6 -- with pooled ensembles.  Piloted to leave
    the posterior ambiguous but at the noise: effective size 5.5, residual
    1.00 sigma, three of six spins detected at 0.16 or below.
-2. **Design** a follow-up of the same total time three ways:
-     adaptive  ExperimentDesigner, EIG ranking over five windows of a dense
-               grid and the whole of it, InformationDensity allocation
+2. **Design** a follow-up of the same total time two ways:
+     adaptive  ExperimentDesigner: each of five windows of a dense grid, and
+               the whole of it, given its own best delays by information
+               density, and the best design by expected information gain
      uniform   the same time spread evenly over the dense grid
-     anti      the same time on the least informative points
 3. **Measure** each at the truth, with noise sigma / sqrt(w_j).
 4. **Refit** on the first experiment plus the follow-up, every design from
    the same starts and root seed, so the sampler's randomness is shared and
@@ -28,8 +28,12 @@ Two metrics, because they answer different questions:
               first posterior never visited the truth.
 
 And the degenerate control: a posterior collapsed onto one bath must be
-declined by the designer -- NothingToLearn -- while the uniform design, which
-needs no posterior, is still built.
+declined by the designer -- a result with no experiment -- while the uniform
+design, which needs no posterior, is still built.
+
+The budget is counted in repetitions, every repetition costing the same, as
+it was when the protocol was piloted.  The designer's own default charges
+2 N tau; T9 passes a unit cost to keep the pilot's numbers meaningful.
 
 Thresholds are set from this output the standard way (test-plan Sec. 2): the
 measured value, the value with the mechanism disabled, and a threshold between
@@ -53,21 +57,16 @@ from nuclear_spin_recovery import (
     ExperimentDesigner,
     ExperimentSet,
     GaussianL2,
-    InformationDensity,
-    LeastInformative,
     NeighborIndex,
-    NothingToLearn,
     ParallelTempering,
     ParameterBlock,
     ParticleSet,
-    PredictiveVariance,
     Schedule,
     SiteTable,
     State,
     Step,
     StretchedExponential,
     Target,
-    UniformThinning,
     simulate_dataset,
     spread_across_k,
 )
@@ -135,28 +134,34 @@ def candidates():
         Experiment(tau=DENSE, n_pulses=N_PULSES, b_z=B_Z)]
 
 
+def unit_cost(experiment):
+    """Every repetition costs the same; see the module docstring."""
+    return np.ones(len(experiment.tau))
+
+
 def uniform_design():
     """Needs no posterior, so it survives the degenerate control."""
-    idx, weight = UniformThinning(FIRST_POINTS).select(
-        np.zeros((1, DENSE.size)), [1.0], NOISE, BUDGET, None)
+    idx = np.round(np.linspace(0, DENSE.size - 1, FIRST_POINTS)).astype(int)
     return Experiment(tau=DENSE[idx], n_pulses=N_PULSES, b_z=B_Z, sigma=NOISE,
-                      weight=weight)
+                      weight=np.full(idx.size, BUDGET / idx.size))
+
+
+def adaptive_result(particles, measured, rng):
+    designer = ExperimentDesigner(
+        MODEL, TABLE, measured,
+        utility=ExpectedInformationGain(n_draws=EIG_DRAWS), cost=unit_cost)
+    return designer.propose(particles, candidates(), budget=BUDGET, rng=rng,
+                            exclude=measured)
 
 
 def design(kind, particles, measured, rng):
     if kind == "uniform":
         return uniform_design()
     if kind == "adaptive":
-        designer = ExperimentDesigner(ExpectedInformationGain(n_draws=EIG_DRAWS),
-                                      InformationDensity(), MODEL, TABLE, measured)
-        return designer.propose(particles, candidates(), budget=BUDGET, rng=rng,
-                                exclude=measured)
-    if kind == "anti":
-        designer = ExperimentDesigner(PredictiveVariance(),
-                                      LeastInformative(FIRST_POINTS), MODEL,
-                                      TABLE, measured)
-        return designer.propose(particles, [candidates()[-1]], budget=BUDGET,
-                                rng=rng, exclude=measured)
+        proposed = adaptive_result(particles, measured, rng).experiment
+        if proposed is None:
+            raise RuntimeError("the designer found nothing to tell apart")
+        return proposed
     raise ValueError(kind)
 
 
@@ -217,7 +222,7 @@ def one_seed(seed):
            "R0": float(np.mean(before.R_i)),
            "m0": mass_on_truth(particles, sites)}
 
-    for kind in ("adaptive", "uniform", "anti"):
+    for kind in ("adaptive", "uniform"):
         proposal = design(kind, particles, first, np.random.default_rng(seed + 1))
         followup = simulate_dataset(truth, ExperimentSet([proposal]), TABLE,
                                     MODEL, sigma=NOISE,
@@ -241,13 +246,8 @@ def degenerate_control(seed=SEEDS[0]):
     one = state(sites, sigma=NOISE)
     collapsed = ParticleSet(one.site_idx, one.k, [1.0], one.dA_par, one.dA_perp,
                             one.lam, one.n_stretch, one.sigma, len(TABLE), K_MAX)
-    try:
-        design("adaptive", collapsed, measured, np.random.default_rng(0))
-    except NothingToLearn:
-        declined = True
-    else:
-        declined = False
-    return declined, uniform_design().tau.size
+    result = adaptive_result(collapsed, measured, np.random.default_rng(0))
+    return result.experiment is None, uniform_design().tau.size
 
 
 if __name__ == "__main__":
@@ -255,8 +255,8 @@ if __name__ == "__main__":
     print(f"degenerate control: designer declined={declined}, "
           f"uniform still built with {n_uniform} points\n", flush=True)
 
-    cols = ("seed", "eff", "R0", "m0", "R_adaptive", "R_uniform", "R_anti",
-            "u_adaptive", "u_uniform", "u_anti", "n_adaptive")
+    cols = ("seed", "eff", "R0", "m0", "R_adaptive", "R_uniform",
+            "u_adaptive", "u_uniform", "n_adaptive")
     print("  ".join(f"{c:>10}" for c in cols), flush=True)
     rows = []
     for seed in SEEDS:
@@ -275,4 +275,3 @@ if __name__ == "__main__":
     print()
     for metric in ("R", "u"):
         print(paired("adaptive", "uniform", metric))
-        print(paired("uniform", "anti", metric))

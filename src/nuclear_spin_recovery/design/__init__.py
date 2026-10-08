@@ -10,37 +10,36 @@ See docs/phase-5-plan.md.
 """
 
 from .cost import SequenceDuration
-from .designer import ExperimentDesigner
+from .designer import MIN_GAIN, CandidateDesign, DesignResult, ExperimentDesigner
 from .extrapolation import DecouplingScaling
 from .particles import ParticleSet
-from .selection import (
-    GreedyUtility,
-    InformationDensity,
-    LeastInformative,
-    NothingToLearn,
-    PointSelector,
-    UniformThinning,
+from .report import (
+    TIMING_NOTE,
+    format_measurement_table,
+    measurement_rows,
+    measurement_table_html,
+    write_measurement_csv,
 )
-from .utility import (
-    DesignUtility,
-    ExpectedInformationGain,
-    PredictiveVariance,
-    information_density,
-)
+from .selection import InformationDensity, NothingToLearn, PointSelector
+from .utility import DesignUtility, ExpectedInformationGain, information_density
 
 __all__ = [
+    "MIN_GAIN",
+    "TIMING_NOTE",
+    "CandidateDesign",
     "DecouplingScaling",
+    "DesignResult",
     "DesignUtility",
     "ExpectedInformationGain",
     "ExperimentDesigner",
-    "GreedyUtility",
     "InformationDensity",
-    "LeastInformative",
     "NothingToLearn",
     "ParticleSet",
     "PointSelector",
-    "PredictiveVariance",
     "SequenceDuration",
-    "UniformThinning",
+    "format_measurement_table",
     "information_density",
+    "measurement_rows",
+    "measurement_table_html",
+    "write_measurement_csv",
 ]

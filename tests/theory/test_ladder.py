@@ -22,12 +22,7 @@ from nuclear_spin_recovery import (
     Experiment,
     ExperimentDesigner,
     ExperimentSet,
-    InformationDensity,
-    LeastInformative,
-    NothingToLearn,
     ParticleSet,
-    PredictiveVariance,
-    UniformThinning,
     simulate_dataset,
     GaussianL2,
     ContinuousReflected,
@@ -701,7 +696,7 @@ def test_t8_a_calibrated_weight_actually_changes_the_chain(
 # ---------------------------------------------------------------------------
 
 # One round of the design loop on the detectable table: fit a sparse, noisy
-# first experiment, design a follow-up of the same total time three ways,
+# first experiment, design a follow-up of the same total time two ways,
 # measure each at the truth, refit on both.  Piloted: this first experiment
 # leaves the posterior ambiguous but at the noise -- effective size 5.5,
 # residual 1.00 sigma, three of six spins at R_i <= 0.16.  The protocol and its
@@ -713,10 +708,9 @@ T9_BUDGET = float(T9_FIRST_POINTS)
 T9_DENSE = np.linspace(0.0, 8e-3, 250, endpoint=False) + 8e-3 / 250
 T9_ENSEMBLES, T9_STEPS, T9_BURN = 4, 1200, 400
 
-#: Paired margins on mean R_i, set from scripts/calibrate_t9.py.  None until
+#: Paired margin on mean R_i, set from scripts/calibrate_t9.py.  None until
 #: that run is recorded in test-plan Sec. 5.11.
 T9_ADAPTIVE_OVER_UNIFORM = None
-T9_UNIFORM_OVER_ANTI = None
 
 
 def _calibrated(value, name):
@@ -756,25 +750,40 @@ def _t9_candidates():
         Experiment(tau=T9_DENSE, n_pulses=N_PULSES, b_z=B_Z)]
 
 
+def _t9_unit_cost(experiment):
+    """Every repetition costs the same.
+
+    T9 was set up, and piloted, with the budget counted in repetitions: the
+    follow-up gets as many as the first experiment had points.  Keeping that
+    here keeps the pilot's numbers meaningful; the designer's own default
+    charges 2 N tau.
+    """
+    return np.ones(len(experiment.tau))
+
+
 def _t9_uniform():
-    idx, weight = UniformThinning(T9_FIRST_POINTS).select(
-        np.zeros((1, T9_DENSE.size)), [1.0], T9_NOISE, T9_BUDGET, None)
+    """The control: the budget spread evenly over the dense grid.  Needs no
+    posterior."""
+    idx = np.round(np.linspace(0, T9_DENSE.size - 1, T9_FIRST_POINTS)).astype(int)
     return Experiment(tau=T9_DENSE[idx], n_pulses=N_PULSES, b_z=B_Z,
-                      sigma=T9_NOISE, weight=weight)
+                      sigma=T9_NOISE,
+                      weight=np.full(idx.size, T9_BUDGET / idx.size))
+
+
+def _t9_adaptive(tbl, model, particles, measured, rng):
+    """The designer's answer, as a DesignResult."""
+    return ExperimentDesigner(
+        model, tbl, measured, utility=ExpectedInformationGain(n_draws=256),
+        cost=_t9_unit_cost).propose(particles, _t9_candidates(),
+                                    budget=T9_BUDGET, rng=rng, exclude=measured)
 
 
 def _t9_design(kind, tbl, model, particles, measured, rng):
     if kind == "uniform":
         return _t9_uniform()
-    if kind == "adaptive":
-        return ExperimentDesigner(
-            ExpectedInformationGain(n_draws=256), InformationDensity(), model,
-            tbl, measured).propose(particles, _t9_candidates(), budget=T9_BUDGET,
-                                   rng=rng, exclude=measured)
-    return ExperimentDesigner(
-        PredictiveVariance(), LeastInformative(T9_FIRST_POINTS), model, tbl,
-        measured).propose(particles, [_t9_candidates()[-1]], budget=T9_BUDGET,
-                          rng=rng, exclude=measured)
+    proposed = _t9_adaptive(tbl, model, particles, measured, rng).experiment
+    assert proposed is not None, "the designer found nothing to tell apart"
+    return proposed
 
 
 _T9_CACHE = {}
@@ -794,7 +803,7 @@ def _t9_round(tbl, model):
     particles = ParticleSet.from_trace(_t9_fit(tbl, model, first, T9_SEED), tbl,
                                        stride=10)
     out = {}
-    for kind in ("adaptive", "uniform", "anti"):
+    for kind in ("adaptive", "uniform"):
         proposal = _t9_design(kind, tbl, model, particles, first,
                               np.random.default_rng(T9_SEED + 1))
         followup = simulate_dataset(truth, ExperimentSet([proposal]), tbl, model,
@@ -823,25 +832,12 @@ def test_t9_adaptive_design_beats_uniform_at_equal_time(detectable_table,
     assert r["adaptive"] - r["uniform"] >= margin, r
 
 
-def test_t9_anti_design_does_worse_than_uniform(detectable_table, model):
-    """The negative control, and the reason the rung above means anything.
-
-    The same budget on the *least* informative points must do worse than
-    uniform.  Without it, adaptive beating uniform is consistent with "any
-    extra measurement helps", which is not the claim: the claim is that
-    *where* matters.
-    """
-    r = _t9_round(detectable_table, model)
-    margin = _calibrated(T9_UNIFORM_OVER_ANTI, "T9_UNIFORM_OVER_ANTI")
-    assert r["uniform"] - r["anti"] >= margin, r
-
-
 def test_t9_a_collapsed_posterior_is_declined(detectable_table, model):
     """The degenerate control.
 
     The plan asks that adaptive and uniform be indistinguishable when the
-    posterior has collapsed.  Unit 5d made that stronger: the designer
-    declines, raising NothingToLearn, rather than returning an arbitrary
+    posterior has collapsed.  The designer does something stronger: it
+    declines, returning a result with no experiment, rather than an arbitrary
     design that would then have to be shown equal to uniform.  The uniform
     design needs no posterior and is still built.
     """
@@ -853,7 +849,7 @@ def test_t9_a_collapsed_posterior_is_declined(detectable_table, model):
                             one.lam, one.n_stretch, one.sigma, len(tbl), 32)
     measured = ExperimentSet([Experiment(tau=_t9_grid(T9_FIRST_POINTS),
                                          n_pulses=N_PULSES, b_z=B_Z)])
-    with pytest.raises(NothingToLearn):
-        _t9_design("adaptive", tbl, model, collapsed, measured,
-                   np.random.default_rng(0))
+    result = _t9_adaptive(tbl, model, collapsed, measured,
+                          np.random.default_rng(0))
+    assert result.experiment is None and not result.distinguishable
     assert _t9_uniform().weight.sum() == pytest.approx(T9_BUDGET)

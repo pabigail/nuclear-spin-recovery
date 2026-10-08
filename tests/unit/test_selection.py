@@ -1,20 +1,12 @@
-"""Point selectors: which points of a candidate to measure, and for how long.
+"""The point selector: which points of a candidate to measure, and for how long.
 
-The contract every selector shares is the one the designer and the likelihood
-rely on: distinct points in increasing order, positive weights, and a total
-that equals the budget -- because the budget is total measurement time, and
-designs are compared at equal time (docs/phase-5-plan.md Sec. 6, question 2).
+The contract is the one the designer and the likelihood rely on: distinct
+points in increasing order, positive weights, and a total that equals the
+budget -- because the budget is total measurement time, and designs are
+compared at equal time (docs/phase-5-plan.md Sec. 6, question 2).
 
-Beyond that, each selector has a known answer on a constructed case:
-UniformThinning's spacing, InformationDensity's allocation by hand, and
-GreedyUtility under predictive variance, which is additive and so reduces to
-taking the top points by density.  Greedy under EIG is Monte Carlo; its
-thresholds were measured on a reference implementation first, in the scene
-below:
-
-  first pick informative, 64 draws          30/30 scenes
-  all four picks informative, 64 draws      26/30 -- not asserted
-  all four picks informative, 1024 draws    30/30
+Beyond that, ``InformationDensity`` has a known answer on a constructed case,
+checked by hand.
 
 docs/phase-5-plan.md, unit 5c.
 """
@@ -25,14 +17,9 @@ import numpy as np
 import pytest
 
 from nuclear_spin_recovery import (
-    ExpectedInformationGain,
-    GreedyUtility,
     InformationDensity,
-    LeastInformative,
     NothingToLearn,
     PointSelector,
-    PredictiveVariance,
-    UniformThinning,
     information_density,
 )
 
@@ -66,16 +53,11 @@ def ladder_of_density(a):
     return np.vstack([np.zeros_like(a), 2 * a]), np.array([0.5, 0.5])
 
 
-# Factories, not instances: constructors are stubs until 5c is implemented,
-# and an instance built at collection time would error rather than fail.
 SELECTORS = {
-    "uniform": lambda: UniformThinning(4),
     "density": lambda: InformationDensity(),
-    "greedy_pv": lambda: GreedyUtility(PredictiveVariance(), 4),
-    "greedy_eig": lambda: GreedyUtility(ExpectedInformationGain(), 4),
-    "least": lambda: LeastInformative(4),
+    "density_unpruned": lambda: InformationDensity(power=1.0, prune_fraction=0.0),
 }
-DETERMINISTIC = ["uniform", "density", "greedy_pv", "least"]
+DETERMINISTIC = list(SELECTORS)
 
 
 # --------------------------------------------------------------------------
@@ -89,8 +71,7 @@ def test_point_selector_is_abstract():
 
 
 def test_selectors_are_point_selectors():
-    for cls in (UniformThinning, InformationDensity, GreedyUtility,
-                LeastInformative):
+    for cls in (InformationDensity,):
         assert issubclass(cls, PointSelector)
 
 
@@ -135,43 +116,6 @@ def test_the_budget_scales_the_weights_and_not_the_points(name):
     b_idx, b_w = SELECTORS[name]().select(scene(), W3, SIGMA, 12.0, rng())
     np.testing.assert_array_equal(a_idx, b_idx)
     np.testing.assert_allclose(b_w, 3 * np.asarray(a_w))
-
-
-# --------------------------------------------------------------------------
-# UniformThinning -- the control
-# --------------------------------------------------------------------------
-
-
-def test_uniform_spacing_on_a_uniform_grid():
-    idx, weight = UniformThinning(4).select(np.zeros((2, 10)), [0.5, 0.5],
-                                            SIGMA, 2.0, rng())
-    assert list(idx) == [0, 3, 6, 9]
-    np.testing.assert_allclose(weight, [0.5] * 4)
-
-
-def test_uniform_can_take_every_point():
-    idx, _ = UniformThinning(N_GRID).select(scene(), W3, SIGMA, 4.0, rng())
-    assert list(idx) == list(range(N_GRID))
-
-
-@pytest.mark.parametrize("n_points", [0, N_GRID + 1])
-def test_uniform_point_count_must_fit_the_grid(n_points):
-    with pytest.raises(ValueError):
-        UniformThinning(n_points).select(scene(), W3, SIGMA, 4.0, rng())
-
-
-def test_uniform_does_not_look_at_the_predictions():
-    a, _ = UniformThinning(5).select(scene(0), W3, SIGMA, 4.0, rng())
-    b, _ = UniformThinning(5).select(scene(9), W3, SIGMA, 4.0, rng())
-    np.testing.assert_array_equal(a, b)
-
-
-def test_uniform_works_on_a_collapsed_posterior():
-    """T9's degenerate control needs the uniform design to keep working."""
-    idx, weight = UniformThinning(4).select(collapsed(), [1.0], SIGMA, 4.0,
-                                            rng())
-    assert len(idx) == 4
-    assert np.sum(weight) == pytest.approx(4.0)
 
 
 # --------------------------------------------------------------------------
@@ -249,116 +193,3 @@ def test_density_on_identical_predictions_raises():
     P = np.tile(scene()[0], (3, 1))
     with pytest.raises(NothingToLearn):
         InformationDensity().select(P, W3, SIGMA, 4.0, rng())
-
-
-# --------------------------------------------------------------------------
-# GreedyUtility -- the direct comparison
-# --------------------------------------------------------------------------
-
-
-def test_greedy_predictive_variance_takes_the_top_points_by_density():
-    """Predictive variance is a sum over points, so greedy is exact for it."""
-    P = scene()
-    idx, weight = GreedyUtility(PredictiveVariance(), 5).select(
-        P, W3, SIGMA, 5.0, rng())
-    top = np.sort(np.argsort(information_density(P, W3, SIGMA))[-5:])
-    np.testing.assert_array_equal(idx, top)
-    np.testing.assert_allclose(weight, [1.0] * 5)
-
-
-def test_greedy_can_take_every_point():
-    idx, _ = GreedyUtility(PredictiveVariance(), N_GRID).select(
-        scene(), W3, SIGMA, 4.0, rng())
-    assert list(idx) == list(range(N_GRID))
-
-
-@pytest.mark.parametrize("n_points", [0, N_GRID + 1])
-def test_greedy_point_count_must_fit_the_grid(n_points):
-    with pytest.raises(ValueError):
-        GreedyUtility(PredictiveVariance(), n_points).select(
-            scene(), W3, SIGMA, 4.0, rng())
-
-
-def test_greedy_eig_first_pick_is_informative():
-    """At the default 64 draws: 30 of 30 scenes on the reference."""
-    greedy = GreedyUtility(ExpectedInformationGain(), 1)
-    for seed in range(30):
-        idx, _ = greedy.select(scene(seed), W3, SIGMA, 4.0, rng(seed))
-        assert idx[0] >= INFORMATIVE, f"scene {seed}"
-
-
-def test_greedy_eig_stays_informative_with_enough_draws():
-    """At 64 draws a late pick strays on 4 of 30 scenes, where estimator noise
-    exceeds the marginal gain; at 1024, on none."""
-    greedy = GreedyUtility(ExpectedInformationGain(n_draws=1024), 4)
-    for seed in range(30):
-        idx, _ = greedy.select(scene(seed), W3, SIGMA, 4.0, rng(seed))
-        assert np.all(np.asarray(idx) >= INFORMATIVE), f"scene {seed}: {idx}"
-
-
-def test_greedy_eig_is_deterministic_given_the_seed():
-    greedy = GreedyUtility(ExpectedInformationGain(), 4)
-    a, _ = greedy.select(scene(), W3, SIGMA, 4.0, rng(3))
-    b, _ = greedy.select(scene(), W3, SIGMA, 4.0, rng(3))
-    np.testing.assert_array_equal(a, b)
-
-
-@pytest.mark.parametrize("utility_cls", [PredictiveVariance,
-                                         ExpectedInformationGain])
-def test_greedy_on_a_collapsed_posterior_raises(utility_cls):
-    with pytest.raises(NothingToLearn):
-        GreedyUtility(utility_cls(), 4).select(collapsed(), [1.0], SIGMA, 4.0,
-                                               rng())
-
-
-# --------------------------------------------------------------------------
-# LeastInformative -- the anti-design, T9's negative control
-# --------------------------------------------------------------------------
-
-
-def test_least_informative_takes_the_lowest_density_points():
-    """Densities 16, 1, 9, 0, 4: the lowest two are indices 3 and 1."""
-    P, w = ladder_of_density([4.0, 1.0, 3.0, 0.0, 2.0])
-    idx, weight = LeastInformative(2).select(P, w, 1.0, 6.0, rng())
-    assert list(idx) == [1, 3]
-    np.testing.assert_allclose(weight, [3.0, 3.0])
-
-
-def test_least_informative_spends_its_time_where_the_particles_agree():
-    idx, _ = LeastInformative(4).select(scene(), W3, SIGMA, 4.0, rng())
-    assert np.all(np.asarray(idx) < INFORMATIVE)
-
-
-def test_least_informative_breaks_ties_by_index():
-    idx, _ = LeastInformative(3).select(collapsed(), [1.0], SIGMA, 3.0, rng())
-    assert list(idx) == [0, 1, 2]
-
-
-def test_least_informative_works_on_a_collapsed_posterior():
-    """A control; T9's degenerate case needs it to keep working."""
-    idx, weight = LeastInformative(4).select(collapsed(), [1.0], SIGMA, 4.0,
-                                             rng())
-    assert len(idx) == 4
-    assert np.sum(weight) == pytest.approx(4.0)
-
-
-def test_least_informative_never_chooses_an_unmeasurable_point():
-    """Infinite noise has zero density, the lowest there is -- which is exactly
-    why it must be excluded rather than ranked."""
-    noise = np.full(N_GRID, SIGMA)
-    noise[:2] = np.inf
-    idx, _ = LeastInformative(3).select(collapsed(), [1.0], noise, 3.0, rng())
-    assert list(idx) == [2, 3, 4]
-
-
-def test_least_informative_raises_if_too_few_points_are_measurable():
-    noise = np.full(N_GRID, np.inf)
-    noise[:3] = SIGMA
-    with pytest.raises(ValueError):
-        LeastInformative(4).select(scene(), W3, noise, 4.0, rng())
-
-
-@pytest.mark.parametrize("n_points", [0, N_GRID + 1])
-def test_least_informative_point_count_must_fit_the_grid(n_points):
-    with pytest.raises(ValueError):
-        LeastInformative(n_points).select(scene(), W3, SIGMA, 4.0, rng())

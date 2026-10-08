@@ -8,6 +8,28 @@ Phases 1–4 are implemented. The PyCCE backend, previously numbered 5, becomes
 phase 6; numbering follows build order everywhere else in this project and the
 adaptive engine is wanted first.
 
+> **Revised since this plan was written.** The designer described in unit 5d
+> below chose a candidate on its whole grid measured evenly and then picked
+> delays within the winner. It was re-prototyped in
+> `notebooks/adaptive_design_prototype.py` and rewritten to match:
+>
+> - **Pulse number and delays are chosen together.** Every candidate is given
+>   its own best delays, and the finished designs are compared.
+> - **Time is always charged.** The cost defaults to the free evolution of the
+>   sequence, $2N\tau$; there is no uncosted mode.
+> - **Nothing to tell apart is an answer.** Below a threshold on the expected
+>   information gain, 0.05 nats by default, the result carries no experiment.
+>   Nothing is raised.
+> - **One utility and one selector.** `PredictiveVariance`, `GreedyUtility`,
+>   `UniformThinning` and the unimplemented `LeastInformative` are gone; what
+>   remains is `ExpectedInformationGain` and `InformationDensity`. T9 keeps a
+>   uniform control of its own and has lost its anti-design control.
+> - **A measurement table.** `design/report.py` writes the proposal out for
+>   whoever will run it.
+>
+> The module docstrings are the current description. The sections below are
+> kept as the record of what was planned.
+
 ---
 
 ## 1. What the old implementation does

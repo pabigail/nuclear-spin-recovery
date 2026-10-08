@@ -11,7 +11,7 @@
 # ---
 
 # %% [markdown]
-# # Prototype: which experiment to run next
+# # Which experiment to run next
 #
 # One coherence signal has been measured and fitted, and the posterior still
 # holds several explanations of it. Given a list of experiments that could be
@@ -38,10 +38,10 @@
 # at, with how the measurement time is to be shared between them. Section 6
 # prints it as a table to hand to whoever runs the measurement.
 #
-# This is a standalone prototype. The design logic in section 4 is written
-# here from scratch and does not use the package's `ExperimentDesigner`. The
-# package supplies the forward model, the sampler that produces the posterior,
-# and the grouping of posterior draws into baths.
+# This notebook is where the procedure was first worked out, as a standalone
+# prototype. It now runs on the package: section 4 sets up
+# `nuclear_spin_recovery.design.ExperimentDesigner`, which carries out the
+# five steps above, and nothing in the calculation is local to the notebook.
 
 # %%
 import collections
@@ -51,7 +51,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from IPython.display import HTML, display
-from scipy.special import logsumexp
 
 REPO = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
 if str(REPO / "src") not in sys.path:
@@ -62,15 +61,20 @@ from nuclear_spin_recovery import (
     RWMH,
     AnalyticCCE1,
     BirthDeathKernel,
+    DecouplingScaling,
     DiscreteLatticeWalk,
+    ExpectedInformationGain,
     Experiment,
+    ExperimentDesigner,
     ExperimentSet,
     GaussianL2,
     HybridDriver,
+    InformationDensity,
     NeighborIndex,
     ParameterBlock,
     ParticleSet,
     Schedule,
+    SequenceDuration,
     SiteScaledOffset,
     SiteTable,
     State,
@@ -79,10 +83,11 @@ from nuclear_spin_recovery import (
     Target,
     Trace,
     gyromagnetic_ratio,
+    measurement_table_html,
     merge_traces,
     simulate_dataset,
+    write_measurement_csv,
 )
-from nuclear_spin_recovery.post import predictive_from_arrays
 
 # One colour per pulse number, in a fixed order, used in every figure.
 PULSE_COLOURS = {4: "#2a78d6", 8: "#eb6834", 16: "#1baf7a", 32: "#eda100",
@@ -227,7 +232,8 @@ print(f"{len(pooled)} pooled draws from {N_CHAINS} chains")
 # their table values. With relaxation on, a coupling wanders by kilohertz
 # within one hypothesis, and at 0.1 kHz almost every draw is counted as its
 # own bath. A looser tolerance is needed; the table shows what each choice
-# gives.
+# gives. The package warns when a grouping has left most draws as baths of
+# their own, as it does for the first two rows here.
 
 # %%
 STRIDE = 20
@@ -266,228 +272,57 @@ for sites, share in set_weight.most_common(6):
 # occupied and, more finely, *what their couplings are*.
 
 # %% [markdown]
-# ## 4. The design calculation
+# ## 4. The designer
 #
-# Everything the method does is in this cell.
+# The calculation is the package's `ExperimentDesigner`. What it does with
+# each candidate:
 #
 # **Time.** One repetition at delay $\tau$ of a sequence with $N$ pulses takes
-# `time_cost` $= 2N\tau$. A point measured with weight $w$ is repeated $w$
-# times as often as a point of the first experiment, costs $w \cdot 2N\tau$,
-# and has noise $\sigma/\sqrt{w}$.
+# $2N\tau$; that is `SequenceDuration`, the designer's default cost. A point
+# measured with weight $w$ is repeated $w$ times as often as a point of the
+# first experiment, costs $w \cdot 2N\tau$, and has noise $\sigma/\sqrt{w}$.
 #
-# **Where the baths disagree.** `bath_variance` is the weighted variance of
-# the baths' signals at each delay. `information_rate` is that variance in
-# units of the noise variance, per unit of time.
+# **Where the baths disagree.** The information density is the weighted
+# variance of the baths' signals at each delay, in units of the noise
+# variance. Divided by the cost, it is information per unit of time.
 #
-# **Which delays.** `choose_points` shares the time budget over the delays in
-# proportion to the square root of that rate, and drops any delay whose share
-# is under a fifth of the largest. The square root spreads the time: with the
-# rate itself, nearly everything goes to the single best delay.
+# **Which delays.** `InformationDensity`, the designer's default selector,
+# shares the time budget over the delays in proportion to the square root of
+# that rate, and drops any delay whose share is under a twentieth of the
+# largest. The square root spreads the time: with the rate itself, nearly
+# everything goes to the single best delay.
 #
-# **How good the design is.** `expected_information_gain` simulates data from
-# a bath drawn by weight, and asks how much better that bath explains the data
+# **How good the design is.** `ExpectedInformationGain` simulates data from a
+# bath drawn by weight, and asks how much better that bath explains the data
 # than the set as a whole does, averaged over many draws. It is the mutual
 # information between *which bath is true* and the data, in nats. The same
 # simulated baths and noise are used for every candidate, so that candidates
 # are compared on their designs and not on their luck.
 #
 # **The answer.** `propose` gives every candidate its own best delays, scores
-# each design, and returns the best as a single `Experiment`: its pulse
-# number, its delays, and the weight of each. If even the best gains less
-# than `min_gain` it returns `None`, the verdict that nothing on the list can
-# tell the baths apart. The comparison of all the candidates is returned
-# alongside, for the figures.
+# each design, and returns a result whose `experiment` is the best of them:
+# one `Experiment`, with its pulse number, its delays, and the weight of each.
+# If even the best gains less than `min_gain`, `experiment` is `None`: the
+# verdict that nothing on the list can tell the baths apart. The design of
+# every candidate is on the result as well, for the figures.
+#
+# Two things the designer has to be told. The decay at a pulse number that
+# has not been measured comes from `DecouplingScaling`, with the $\gamma$ of
+# section 1. And each candidate carries the noise of one of its points at
+# unit weight; without that the designer would take the noise from the
+# posterior, which here holds the likelihood width and not the data noise.
 
 # %%
-def time_cost(n_pulses, tau):
-    """Duration of one repetition at each delay: 2 N tau."""
-    return 2.0 * n_pulses * np.asarray(tau, dtype=float)
+MIN_GAIN = 0.05            # nats
+designer = ExperimentDesigner(
+    model, table, first,
+    utility=ExpectedInformationGain(n_draws=1000),
+    envelope=DecouplingScaling(GAMMA), min_gain=MIN_GAIN)
+time_cost = SequenceDuration()             # 2 N tau, the designer's default
 
 
-def predict(n_pulses, tau):
-    """Signal of every bath for one candidate. (n_baths, n_points)"""
-    lam = np.full((particles.n_particles, 1), decay_constant(n_pulses))
-    candidate = ExperimentSet([Experiment(tau=tau, n_pulses=n_pulses, b_z=B_Z)])
-    return predictive_from_arrays(
-        particles.site_idx, particles.k, particles.dA_par, particles.dA_perp,
-        lam, particles.n_stretch, particles.sigma, candidate, table, model,
-        k_max=particles.k_max)
-
-
-def bath_variance(signals):
-    """Weighted variance of the baths' signals at each delay. (n_points,)"""
-    deviation = signals - signals[:1]
-    return weights @ (deviation - weights @ deviation) ** 2
-
-
-def information_rate(signals, cost, noise=DATA_NOISE):
-    """Variance across the baths, in noise units, per unit time. (n_points,)"""
-    return bath_variance(signals) / noise**2 / cost
-
-
-def choose_points(signals, cost, budget, power=0.5, prune=0.2):
-    """The delays to measure and the weight of each, spending ``budget``."""
-    rate = information_rate(signals, cost)
-    share = np.where(rate > 0, rate**power, 0.0)
-    if not share.any():
-        return np.array([], dtype=int), np.array([])
-    keep = np.flatnonzero(share >= prune * share.max())
-    time_spent = budget * share[keep] / share[keep].sum()
-    return keep, time_spent / cost[keep]
-
-
-def expected_information_gain(signals, point_weight, draws, noise=DATA_NOISE):
-    """Mutual information between bath and data for one design, in nats."""
-    if signals.shape[1] == 0:
-        return 0.0
-    truth, eps = draws
-    scaled = signals * np.sqrt(point_weight) / noise        # in noise units
-    simulated = scaled[truth] + eps[:, : scaled.shape[1]]
-    log_like = -0.5 * np.sum(
-        (simulated[:, None, :] - scaled[None, :, :]) ** 2, axis=2)
-    evidence = logsumexp(np.log(weights)[None, :] + log_like, axis=1)
-    return float(np.mean(log_like[np.arange(truth.size), truth] - evidence))
-
-
-def propose(candidates, budget, min_gain, n_draws=1000, seed=0):
-    """Choose a pulse number and its delays together, or decline.
-
-    ``candidates`` is a list of ``(n_pulses, tau)``.  Returns
-    ``(experiment, designs)``.  ``experiment`` is the one experiment to run
-    next -- an :class:`Experiment` carrying the pulse number, the delays and
-    the weight of each -- or None when even the best candidate gains less
-    than ``min_gain``.  ``designs`` holds the design worked out for every
-    candidate, the chosen one included.
-    """
-    rng = np.random.default_rng(seed)
-    widest = max(len(tau) for _, tau in candidates)
-    draws = (rng.choice(particles.n_particles, size=n_draws, p=weights),
-             rng.standard_normal((n_draws, widest)))
-    designs = []
-    for n_pulses, tau in candidates:
-        signals = predict(n_pulses, tau)
-        cost = time_cost(n_pulses, tau)
-        idx, point_weight = choose_points(signals, cost, budget)
-        designs.append({
-            "n_pulses": n_pulses, "grid": tau, "signals": signals,
-            "variance": bath_variance(signals),
-            "rate": information_rate(signals, cost),
-            "index": idx, "tau": tau[idx], "weight": point_weight,
-            "time": point_weight * cost[idx],
-            "gain": expected_information_gain(signals[:, idx], point_weight,
-                                              draws),
-            "chosen": False,
-        })
-    best = max(designs, key=lambda d: d["gain"])
-    if best["gain"] < min_gain:
-        return None, designs
-    best["chosen"] = True
-    experiment = Experiment(tau=best["tau"], n_pulses=best["n_pulses"],
-                            b_z=B_Z, sigma=DATA_NOISE, weight=best["weight"])
-    return experiment, designs
-
-
-def report(experiment, designs, min_gain):
-    """The comparison of the candidates, and what was decided."""
-    print(f"{'pulses':>6s} {'points':>7s} {'delays (µs)':>14s} "
-          f"{'gain (nats)':>12s}")
-    for d in designs:
-        span = (f"{d['tau'].min() * 1e3:.2f} – {d['tau'].max() * 1e3:.2f}"
-                if d["tau"].size else "none")
-        mark = "   <- chosen" if d["chosen"] else ""
-        print(f"{d['n_pulses']:6d} {d['tau'].size:7d} {span:>14s} "
-              f"{d['gain']:12.3f}{mark}")
-    if experiment is None:
-        best = max(d["gain"] for d in designs)
-        print(f"\nNo experiment on this list can tell the baths apart: the best "
-              f"gains {best:.3f} nats, under the threshold of {min_gain} nats.")
-    else:
-        print(f"\nRun CPMG-{experiment.n_pulses} at {len(experiment)} delays "
-              f"between {experiment.tau.min() * 1e3:.2f} and "
-              f"{experiment.tau.max() * 1e3:.2f} µs.")
-
-
-def chosen_design(designs):
-    """The design behind the proposed experiment."""
-    return next(d for d in designs if d["chosen"])
-
-
-def measurement_rows(experiment):
-    """One row per delay of ``experiment``, in the order to be read.
-
-    Each row is ``(delay in ns, sequence duration in µs, share of the
-    measurement time, share of the repetitions, expected noise)``.  The
-    sequence duration is 2 N tau, the free evolution of one repetition.  The
-    shares say how to divide whatever total time is available; the noise is
-    what the design assumed, at the budget it was worked out for.
-    """
-    tau = experiment.tau
-    duration = time_cost(experiment.n_pulses, tau)
-    time_spent = experiment.weight * duration
-    return [(t * 1e6, c * 1e3, share, reps, noise) for t, c, share, reps, noise
-            in zip(tau, duration, time_spent / time_spent.sum(),
-                   experiment.weight / experiment.weight.sum(),
-                   experiment.sigma / np.sqrt(experiment.weight), strict=True)]
-
-
-def measurement_table(experiment, gain=None):
-    """The proposed experiment as a table for whoever will run it."""
-    rows = measurement_rows(experiment)
-    total = float(np.sum(experiment.weight
-                         * time_cost(experiment.n_pulses, experiment.tau)))
-    facts = [
-        ("Sequence", f"CPMG-{experiment.n_pulses}"),
-        ("Magnetic field", f"{experiment.b_z:g} G"),
-        ("Delays to measure", f"{len(experiment)}"),
-        ("Delay range",
-         f"{experiment.tau.min() * 1e3:.2f} – {experiment.tau.max() * 1e3:.2f} µs"),
-        ("Time budget designed for",
-         f"{total / FIRST_TIME:.2%} of the first experiment"),
-    ]
-    if gain is not None:
-        facts.append(("Expected information gain", f"{gain:.2f} nats"))
-    cell = "padding:3px 14px;text-align:right;font-variant-numeric:tabular-nums"
-    head = "padding:4px 14px;text-align:right;border-bottom:1.5px solid #888"
-    body = "".join(
-        f"<tr><td style='{cell}'>{i}</td><td style='{cell}'>{t:.0f}</td>"
-        f"<td style='{cell}'>{c:.2f}</td><td style='{cell}'>{share:.1%}</td>"
-        f"<td style='{cell}'>{reps:.1%}</td><td style='{cell}'>{noise:.3f}</td></tr>"
-        for i, (t, c, share, reps, noise) in enumerate(rows, start=1))
-    summary = "".join(
-        f"<tr><td style='padding:2px 14px 2px 0;color:#666'>{name}</td>"
-        f"<td style='padding:2px 0'><b>{value}</b></td></tr>"
-        for name, value in facts)
-    return HTML(
-        "<div style='font-family:sans-serif;font-size:14px'>"
-        "<div style='font-size:17px;margin-bottom:6px'><b>Next measurement</b></div>"
-        f"<table style='border-collapse:collapse;margin-bottom:10px'>{summary}</table>"
-        "<table style='border-collapse:collapse'><thead><tr>"
-        f"<th style='{head}'>#</th>"
-        f"<th style='{head}'>delay τ (ns)</th>"
-        f"<th style='{head}'>sequence duration 2Nτ (µs)</th>"
-        f"<th style='{head}'>share of time</th>"
-        f"<th style='{head}'>share of repetitions</th>"
-        f"<th style='{head}'>expected noise</th>"
-        f"</tr></thead><tbody>{body}</tbody></table>"
-        "<div style='color:#666;margin-top:8px;max-width:640px'>"
-        "τ is the delay before the first π pulse and after the last; "
-        "consecutive π pulses are 2τ apart. Divide the available measurement "
-        "time between the delays by <i>share of time</i>; because long "
-        "sequences take longer per repetition, that gives the repetition "
-        "counts in <i>share of repetitions</i>. <i>Expected noise</i> is the "
-        "standard deviation of the coherence at each delay for the budget "
-        "above, and falls as the square root of any extra time.</div></div>")
-
-
-def measurement_csv(experiment, path):
-    """Write the same table to ``path`` as CSV."""
-    header = ("n_pulses,b_z_gauss,delay_tau_ns,sequence_duration_us,"
-              "share_of_time,share_of_repetitions,expected_noise")
-    lines = [header]
-    lines += [f"{experiment.n_pulses},{experiment.b_z:g},{t:.1f},{c:.4f},"
-              f"{share:.5f},{reps:.5f},{noise:.5f}"
-              for t, c, share, reps, noise in measurement_rows(experiment)]
-    Path(path).write_text("\n".join(lines) + "\n")
+def candidate(n_pulses, tau):
+    return Experiment(tau=tau, n_pulses=n_pulses, b_z=B_Z, sigma=DATA_NOISE)
 
 
 # %% [markdown]
@@ -503,21 +338,23 @@ def measurement_csv(experiment, path):
 # generous budget lets every candidate tell the baths apart completely, and
 # they all score the same; section 7 shows where that happens.
 #
-# **The threshold** is 0.05 nats. For scale, identifying the true bath
-# outright would gain the entropy of the set, printed above, and the estimate
-# of a design that gains nothing scatters around zero by a few thousandths.
+# **The threshold** is 0.05 nats, the designer's default. For scale,
+# identifying the true bath outright would gain the entropy of the set,
+# printed above, and the estimate of a design that gains nothing scatters
+# around zero by a few thousandths.
 
 # %%
-FIRST_TIME = float(time_cost(4, tau_first).sum())
+FIRST_TIME = float(time_cost(first.experiments[0]).sum())
 BUDGET = 2e-4 * FIRST_TIME
-MIN_GAIN = 0.05            # nats
 grid = np.linspace(0.05e-3, 16e-3, 320)
-candidates = [(n, grid) for n in PULSE_COLOURS]
+candidates = [candidate(n, grid) for n in PULSE_COLOURS]
 
-next_experiment, designs = propose(candidates, BUDGET, MIN_GAIN)
+result = designer.propose(particles, candidates, budget=BUDGET,
+                          rng=np.random.default_rng(0))
+next_experiment, designs = result.experiment, result.designs
 print(f"budget: {BUDGET:.4f} ms, {BUDGET / FIRST_TIME:.2%} of the first "
       f"experiment's {FIRST_TIME:.2f} ms\n")
-report(next_experiment, designs, MIN_GAIN)
+print(result)
 
 # %% [markdown]
 # ### The candidate signals and the variance across the baths
@@ -532,25 +369,27 @@ report(next_experiment, designs, MIN_GAIN)
 fig, axes = plt.subplots(len(candidates), 2, figsize=(13.0, 10.5), sharex=True,
                          gridspec_kw={"hspace": 0.38, "wspace": 0.16})
 for (left, right), d in zip(axes, designs, strict=True):
-    n_pulses, colour = d["n_pulses"], PULSE_COLOURS[d["n_pulses"]]
+    n_pulses, colour = d.n_pulses, PULSE_COLOURS[d.n_pulses]
+    tau_grid = d.candidate.tau
+    variance = d.density * d.sigma**2
     for i in range(particles.n_particles):
-        left.plot(d["grid"] * 1e3, d["signals"][i], color=colour, lw=0.4,
+        left.plot(tau_grid * 1e3, d.signals[i], color=colour, lw=0.4,
                   alpha=0.12, zorder=1)
-    whole = ExperimentSet([Experiment(tau=d["grid"], n_pulses=n_pulses, b_z=B_Z)])
-    left.plot(d["grid"] * 1e3,
+    whole = ExperimentSet([Experiment(tau=tau_grid, n_pulses=n_pulses, b_z=B_Z)])
+    left.plot(tau_grid * 1e3,
               model.coherence(truth_state(n_pulses), whole, table)[0],
               color=C_INK, lw=0.9, zorder=2)
     left.set_ylim(-0.02, 1.02)
     left.set_title(f"CPMG-{n_pulses}: signals of the {particles.n_particles} "
                    f"baths", loc="left", fontsize=10, color=C_INK)
 
-    right.plot(d["grid"] * 1e3, d["variance"], color=colour, lw=1.3, zorder=2)
+    right.plot(tau_grid * 1e3, variance, color=colour, lw=1.3, zorder=2)
     right.set_yscale("log")
     right.set_ylim(1e-8, 0.3)
     right.grid(axis="y")
     right.set_title(f"CPMG-{n_pulses}: variance across the baths, largest "
-                    f"{d['variance'].max():.1e} at "
-                    f"{d['grid'][np.argmax(d['variance'])] * 1e3:.2f} µs",
+                    f"{variance.max():.1e} at "
+                    f"{tau_grid[np.argmax(variance)] * 1e3:.2f} µs",
                     loc="left", fontsize=10, color=C_INK)
 axes[len(axes) // 2, 0].set_ylabel("coherence")
 axes[len(axes) // 2, 1].set_ylabel("variance of coherence")
@@ -570,19 +409,19 @@ plt.show()
 # %%
 fig, axes = plt.subplots(len(candidates), 1, figsize=(11.0, 9.6), sharex=True,
                          gridspec_kw={"hspace": 0.38})
-largest = max(d["time"].max() for d in designs if d["time"].size)
+largest = max(d.time.max() for d in designs if d.time.size)
 for ax, d in zip(axes, designs, strict=True):
-    colour = PULSE_COLOURS[d["n_pulses"]]
-    ax.plot(d["grid"] * 1e3, d["rate"], color=colour, lw=1.4, zorder=2)
-    ax.scatter(d["tau"] * 1e3, d["rate"][d["index"]],
-               s=20 + 160 * d["time"] / largest, color=colour,
+    colour = PULSE_COLOURS[d.n_pulses]
+    ax.plot(d.candidate.tau * 1e3, d.rate, color=colour, lw=1.4, zorder=2)
+    ax.scatter(d.tau * 1e3, d.rate[d.index],
+               s=20 + 160 * d.time / largest, color=colour,
                edgecolor="white", linewidths=0.8, zorder=3)
     ax.set_yscale("log")
-    ax.set_ylim(max(d["rate"].max() * 1e-4, 1e-3), d["rate"].max() * 4)
+    ax.set_ylim(max(d.rate.max() * 1e-4, 1e-3), d.rate.max() * 4)
     ax.grid(axis="y")
-    chosen = " (chosen)" if d["chosen"] else ""
-    ax.set_title(f"CPMG-{d['n_pulses']}: {d['tau'].size} delays, gain "
-                 f"{d['gain']:.2f} nats{chosen}", loc="left", fontsize=10,
+    chosen = " (chosen)" if d.chosen else ""
+    ax.set_title(f"CPMG-{d.n_pulses}: {d.tau.size} delays, gain "
+                 f"{d.gain:.2f} nats{chosen}", loc="left", fontsize=10,
                  color=C_INK)
 axes[len(axes) // 2].set_ylabel("variance across baths, in noise units, per ms")
 axes[-1].set_xlabel(r"delay $\tau$ (µs)")
@@ -598,6 +437,37 @@ plt.show()
 # hypotheses predict different dips.
 
 # %% [markdown]
+# ### How many delays: the pruning cut-off
+#
+# The selector drops a delay whose share of the time is under a set fraction
+# of the largest share. The designer's default is 0.05, which keeps over a
+# hundred delays here. The same choice at two higher cut-offs:
+
+# %%
+print(f"{'cut-off':>8s} {'chosen':>9s} {'delays':>7s} {'gain (nats)':>12s}")
+for prune in (0.05, 0.2, 0.5):
+    trial = ExperimentDesigner(
+        model, table, first, utility=ExpectedInformationGain(n_draws=1000),
+        selector=InformationDensity(prune_fraction=prune),
+        envelope=DecouplingScaling(GAMMA), min_gain=MIN_GAIN,
+    ).propose(particles, candidates, budget=BUDGET, rng=np.random.default_rng(0))
+    print(f"{prune:8.2f} {'CPMG-' + str(trial.experiment.n_pulses):>9s} "
+          f"{len(trial.experiment):7d} {trial.gain:12.3f}")
+
+# %% [markdown]
+# The cut-off matters here, and the default is not the best of the three. At
+# 0.05 the time is spread over 107 delays, each so briefly measured that the
+# design gains 2.56 nats. At 0.2 it is concentrated on 20 delays and gains
+# 3.15, and the choice of pulse number moves from 32 to 64. At 0.5 only six
+# delays are left and the gain is about the same as at 0.2.
+#
+# This budget is very small, which is when concentrating pays most: there is
+# not enough time to measure a hundred delays usefully. The rest of the
+# notebook keeps the default, but for a budget this tight a higher cut-off is
+# the better design, and the cut-off is worth trying at more than one value
+# before a measurement is committed to.
+
+# %% [markdown]
 # ## 6. The experiment to run
 #
 # The output of the whole calculation: one experiment, as a table. Each row
@@ -606,15 +476,16 @@ plt.show()
 # columns say how to divide the measurement between them.
 
 # %%
-display(measurement_table(next_experiment, gain=chosen_design(designs)["gain"]))
+display(HTML(measurement_table_html(next_experiment, gain=result.gain,
+                                    reference_time=FIRST_TIME)))
 
 # %% [markdown]
 # The same rows are written to `next_experiment.csv`, beside this notebook,
 # for the instrument or a spreadsheet.
 
 # %%
-CSV_PATH = (REPO / "notebooks" / "next_experiment.csv")
-measurement_csv(next_experiment, CSV_PATH)
+CSV_PATH = write_measurement_csv(next_experiment,
+                                 REPO / "notebooks" / "next_experiment.csv")
 print(f"wrote {CSV_PATH.relative_to(REPO)}:\n")
 print("\n".join(CSV_PATH.read_text().splitlines()[:6]))
 print("...")
@@ -644,18 +515,17 @@ print("...")
 # horizontal axis differs.
 
 # %%
-grid_time = {n: float(time_cost(n, grid).sum()) for n in PULSE_COLOURS}
+grid_time = np.array([designer.cost_of(c).sum() for c in candidates])
 print(f"{'pulses':>6s} {'one pass over the grid':>24s} {'relative to CPMG-4':>20s}")
-for n, t in grid_time.items():
-    print(f"{n:6d} {t:21.2f} ms {t / grid_time[4]:19.0f}x")
+for c, t in zip(candidates, grid_time, strict=True):
+    print(f"{c.n_pulses:6d} {t:21.2f} ms {t / grid_time[0]:19.0f}x")
 
 multiples = np.logspace(-5.5, -1.5, 17)
-gain_curves = {n: [] for n in PULSE_COLOURS}
-for n in PULSE_COLOURS:
-    for multiple in multiples:
-        _, one = propose([(n, grid)], multiple * grid_time[n], MIN_GAIN,
-                         n_draws=400)
-        gain_curves[n].append(one[0]["gain"])
+sweep = ExperimentDesigner(
+    model, table, first, utility=ExpectedInformationGain(n_draws=400),
+    envelope=DecouplingScaling(GAMMA))
+gain_curves = sweep.gain_curve(particles, candidates,
+                               multiples[:, None] * grid_time[None, :])
 
 fig, (by_reps, by_time) = plt.subplots(1, 2, figsize=(13.0, 4.8), sharey=True,
                                        gridspec_kw={"wspace": 0.06})
@@ -663,10 +533,11 @@ for ax in (by_reps, by_time):
     ax.axhline(ENTROPY, color=C_MUTED, lw=1.0, ls="--", zorder=1)
     ax.set_xscale("log")
     ax.grid(axis="y")
-for n, gains in gain_curves.items():
-    by_reps.plot(multiples, gains, color=PULSE_COLOURS[n], lw=1.8, zorder=3,
-                 label=f"CPMG-{n}")
-    by_time.plot(multiples * grid_time[n], gains, color=PULSE_COLOURS[n],
+for c, cand in enumerate(candidates):
+    colour = PULSE_COLOURS[cand.n_pulses]
+    by_reps.plot(multiples, gain_curves[:, c], color=colour, lw=1.8, zorder=3,
+                 label=f"CPMG-{cand.n_pulses}")
+    by_time.plot(multiples * grid_time[c], gain_curves[:, c], color=colour,
                  lw=1.8, zorder=3)
 by_reps.text(multiples[0], ENTROPY, " entropy of the bath set: nothing left "
              "to learn", va="bottom", fontsize=9, color="#52514e")
@@ -692,16 +563,17 @@ plt.show()
 # not in it.
 #
 # Counted in time, the long sequences pay for themselves and the curves move
-# together. CPMG-16, 32 and 64 are now close: 64 is ahead across the range
-# shown, but by about half a nat at most. CPMG-4 and CPMG-8 remain well
-# behind: at this decay rate their dips are too shallow for the saving in
-# time to make up for.
+# together. CPMG-16, 32 and 64 are nearly on top of one another: 32 is
+# slightly ahead at the smallest budgets and 64 at larger ones, and the
+# differences between them are a few tenths of a nat. CPMG-4 and CPMG-8
+# remain well behind: at this decay rate their dips are too shallow for the
+# saving in time to make up for.
 #
 # Every curve climbs to the same ceiling, the entropy of the bath set, which
 # is the gain from identifying the true bath outright. Once the budget is
 # large enough for several candidates to reach it, the gain no longer
-# separates them, and the cheapest of them would be the sensible pick; this
-# prototype does not make that second comparison.
+# separates them, and the cheapest of them would be the sensible pick; the
+# designer does not make that second comparison.
 
 # %% [markdown]
 # ## 8. Running the proposed experiment
@@ -711,23 +583,25 @@ plt.show()
 # bath is reweighted by how well it explains the new data.
 #
 # Before, the true set of sites holds just under half the weight, and the
-# rest is on the same three sites with one or two extra spins. After, all of
-# it is on the true set. That includes ruling out the extra spin on site 1,
-# the weakly coupled site that the four-pulse data could not decide: sixty-four
-# pulses with a slow decay resolve a spin that four pulses cannot see.
+# rest is on the same three sites with one or two extra spins. After, the
+# true set holds 92%. The sets with an extra spin on site 5 or site 9 are
+# ruled out; the remaining 8% is on the true set plus site 1, the weakly
+# coupled site that the four-pulse data could not decide, which this design
+# makes unlikely without excluding.
 #
-# The entropy does not fall to zero. What remains is spread over baths that
-# share the true sites and differ in how far their couplings have relaxed.
+# The entropy does not fall to zero. Most of what remains is spread over
+# baths that share the true sites and differ in how far their couplings have
+# relaxed.
 
 # %%
-design = chosen_design(designs)
+design = result.chosen
 new_exp = ExperimentSet([Experiment(tau=next_experiment.tau,
                                     n_pulses=next_experiment.n_pulses, b_z=B_Z)])
 clean = model.coherence(truth_state(next_experiment.n_pulses), new_exp, table)[0]
 point_noise = next_experiment.sigma / np.sqrt(next_experiment.weight)
 measured = clean + np.random.default_rng(21).normal(0.0, point_noise)
 
-predicted = design["signals"][:, design["index"]]
+predicted = design.signals[:, design.index]
 log_like = -0.5 * np.sum(((measured - predicted) / point_noise) ** 2, axis=1)
 updated = weights * np.exp(log_like - log_like.max())
 updated /= updated.sum()
@@ -737,7 +611,7 @@ for i in range(particles.n_particles):
     after[site_set(particles, i)] += updated[i]
 entropy_after = float(-np.sum(updated[updated > 0] * np.log(updated[updated > 0])))
 print(f"entropy of the bath set: {ENTROPY:.2f} nats before, "
-      f"{entropy_after:.2f} after; expected gain was {design['gain']:.2f}")
+      f"{entropy_after:.2f} after; expected gain was {design.gain:.2f}")
 print(f"\n{'occupied sites':18s} {'before':>8s} {'after':>8s}")
 for sites, _ in set_weight.most_common():
     tag = "   <- the true set" if sites == TRUE_SITES else ""
@@ -752,25 +626,26 @@ for s, _ in after.most_common(3):
 labels = [("true: " if s == TRUE_SITES else "") + ", ".join(map(str, s))
           for s in shown]
 y = np.arange(len(shown))
+tau_grid = design.candidate.tau
 
 fig, (left, right) = plt.subplots(1, 2, figsize=(12.0, 4.6),
                                   gridspec_kw={"width_ratios": [1.25, 1]})
 for i in range(particles.n_particles):
-    left.plot(design["grid"] * 1e3, design["signals"][i], color=C_MUTED,
-              lw=0.5, alpha=0.25, zorder=1)
-full = ExperimentSet([Experiment(tau=design["grid"],
-                                 n_pulses=design["n_pulses"], b_z=B_Z)])
-left.plot(design["grid"] * 1e3,
-          model.coherence(truth_state(design["n_pulses"]), full, table)[0],
+    left.plot(tau_grid * 1e3, design.signals[i], color=C_MUTED, lw=0.5,
+              alpha=0.25, zorder=1)
+full = ExperimentSet([Experiment(tau=tau_grid, n_pulses=design.n_pulses,
+                                 b_z=B_Z)])
+left.plot(tau_grid * 1e3,
+          model.coherence(truth_state(design.n_pulses), full, table)[0],
           color=C_INK, lw=1.4, zorder=2, label="true bath")
 left.plot([], [], color=C_MUTED, lw=1.0, label="baths of the posterior")
-left.errorbar(design["tau"] * 1e3, measured, yerr=point_noise, fmt="o", ms=5,
-              color=PULSE_COLOURS[design["n_pulses"]], ecolor=C_INK,
+left.errorbar(design.tau * 1e3, measured, yerr=point_noise, fmt="o", ms=5,
+              color=PULSE_COLOURS[design.n_pulses], ecolor=C_INK,
               elinewidth=0.8, zorder=3, label="proposed measurement")
-left.set_xlim(0, design["tau"].max() * 1e3 * 1.6)
+left.set_xlim(0, design.tau.max() * 1e3 * 1.6)
 left.set_xlabel(r"delay $\tau$ (µs)")
 left.set_ylabel("coherence")
-left.set_title(f"The proposed CPMG-{design['n_pulses']} experiment", loc="left",
+left.set_title(f"The proposed CPMG-{design.n_pulses} experiment", loc="left",
                color=C_INK)
 left.legend(loc="lower right", fontsize=9)
 
@@ -796,9 +671,10 @@ plt.show()
 
 # %%
 short = np.linspace(0.02e-3, 0.25e-3, 40)
-nothing, short_designs = propose([(4, short), (8, short)], BUDGET, MIN_GAIN)
-report(nothing, short_designs, MIN_GAIN)
-print(f"\nproposed experiment: {nothing}")
+nothing = designer.propose(particles, [candidate(4, short), candidate(8, short)],
+                           budget=BUDGET, rng=np.random.default_rng(0))
+print(nothing)
+print(f"\nproposed experiment: {nothing.experiment}")
 
 # %% [markdown]
 # `propose` returns no experiment here, and says why. The gains are not
@@ -807,7 +683,7 @@ print(f"\nproposed experiment: {nothing}")
 # scatter is why the test is a threshold and not a comparison with zero.
 
 # %% [markdown]
-# ## 10. What this prototype assumes
+# ## 10. What this assumes
 #
 # - **The decay at an unmeasured pulse number** comes from the scaling with
 #   $\gamma$ in section 1. Only four pulses have been measured, so every
@@ -824,4 +700,5 @@ print(f"\nproposed experiment: {nothing}")
 #   subsets scored by gain directly would be a stronger, slower version.
 # - **Time is $2N\tau$ and nothing else.** There is no per-shot overhead for
 #   initialisation and readout, which in a real experiment favours fewer,
-#   longer repetitions than this does.
+#   longer repetitions than this does. `SequenceDuration(overhead=...)` adds
+#   it.

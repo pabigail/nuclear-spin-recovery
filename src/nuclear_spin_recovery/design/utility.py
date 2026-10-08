@@ -1,10 +1,12 @@
 """How informative a candidate experiment is, given the posterior's particles.
 
-Two answers to one question, behind one interface so that either can rank
-candidates or choose points and a third can be added without touching the
-designer.  Both take arrays only -- predictions, weights, noise -- and never a
-model, table or experiment, which is what makes them testable against cases
-with a known answer.
+Two quantities.  :func:`information_density` says, point by point, where the
+particles disagree, and is what delays are chosen on.
+:class:`ExpectedInformationGain` says how much a finished design is expected
+to tell the particles apart, and is what designs are compared on.  Both take
+arrays only -- predictions, weights, noise -- and never a model, table or
+experiment, which is what makes them testable against cases with a known
+answer.
 
 **Noise** is broadcastable to ``(n_points,)`` and is the *effective* standard
 deviation at each point, ``sigma_e / sqrt(w_j)`` when the point carries a
@@ -176,20 +178,3 @@ class ExpectedInformationGain(DesignUtility):
             own = ll[np.arange(d.shape[0]), truth[lo:lo + block]]
             total += np.sum(own - log_evidence)
         return float(total / n_draws)
-
-
-class PredictiveVariance(DesignUtility):
-    """Total information density: the sum over points of
-    :func:`information_density`.
-
-    Deterministic -- ``rng`` is accepted for the interface and ignored -- and
-    cheap, so it is the natural choice for scoring single points in a greedy
-    selector.  It rewards disagreement without asking whether that
-    disagreement is resolvable, which EIG does; the two can rank differently,
-    and which is better for which job is what T9 is for.
-    """
-
-    def score_many(self, predictions, weights, noise, rng):
-        cands = _candidates(predictions, noise)
-        return np.array([information_density(P, weights, s).sum()
-                         for P, s in cands], dtype=float)

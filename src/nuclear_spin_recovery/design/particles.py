@@ -14,6 +14,13 @@ particle when they have the same k and their spins can be paired one-to-one
 with both couplings within ``tol``; offsets are included, so a relaxed run is
 not read as a constrained one.
 
+**Relaxed posteriors need a looser tolerance.**  The default ``tol`` is the
+detection tolerance, 0.1 kHz, which suits couplings pinned to their table
+values.  When offsets are sampled a coupling moves by kilohertz within one
+hypothesis, and at 0.1 kHz nearly every draw is its own particle: measured on
+a ten-site toy posterior, 1,725 particles from 1,800 draws, against 128 at
+3 kHz.  :meth:`ParticleSet.from_trace` warns when that happens.
+
 Sorting the pairs and comparing elementwise is **not** that test.  Under a
 tolerance there is no canonical order: an orbit swap can move a spin past a
 different spin whose A_par lies within ``tol`` of it, and the elementwise
@@ -36,11 +43,19 @@ See docs/phase-5-plan.md, unit 5a.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from ..post.detection import MATCH_TOL
 from ..post.residual import predictive_from_arrays
+
+#: A grouping that leaves more than this share of the draws as particles of
+#: their own has probably not grouped anything; warned about, from this many
+#: draws up.
+_FRAGMENT_SHARE = 0.5
+_FRAGMENT_MIN_DRAWS = 50
 
 
 class ParticleSet:
@@ -165,6 +180,14 @@ class ParticleSet:
                 count.append(1)
                 env_sum.append(envelope[:, j].copy())
 
+        if rows.size >= _FRAGMENT_MIN_DRAWS and (
+                len(founders) > _FRAGMENT_SHARE * rows.size):
+            warnings.warn(
+                f"{len(founders)} of {rows.size} draws became particles of "
+                f"their own at tol={tol} kHz. If the hyperfine offsets were "
+                f"sampled, a coupling wanders by more than that within one "
+                f"hypothesis and the posterior has been split into its draws; "
+                f"pass a larger tol.", stacklevel=2)
         founders = np.asarray(founders)
         count = np.asarray(count, dtype=float)
         env_mean = np.stack(env_sum) / count[:, None, None]

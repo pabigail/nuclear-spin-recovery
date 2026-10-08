@@ -218,24 +218,31 @@ penalty off must get the calibrated sampler, bit for bit.
 
 ### T9 — adaptive design beats a uniform grid  ·  phase 5, not yet calibrated
 
-The claim the design engine rests on, with a control at each end. One round of
-the loop on the detectable table: fit a sparse, noisy first experiment, design a
-follow-up of the **same total measurement time** three ways, measure each at the
-truth with noise $\sigma/\sqrt{w_j}$, and refit on both. Every refit shares its
-starts and root seed, so the comparison is paired.
+The claim the design engine rests on. One round of the loop on the detectable
+table: fit a sparse, noisy first experiment, design a follow-up of the **same
+total measurement time** two ways, measure each at the truth with noise
+$\sigma/\sqrt{w_j}$, and refit on both. Every refit shares its starts and root
+seed, so the comparison is paired.
 
-- **Positive.** Adaptive (EIG ranking, information-density allocation) beats the
-  same time spread uniformly, on mean $R_i$ after the refit.
-- **Negative control.** The same time on the *least* informative points does
-  worse than uniform. Without it the positive is consistent with "any extra
-  measurement helps", which is not the claim.
+- **Positive.** Adaptive — every candidate given its best delays by information
+  density, the best design chosen by expected information gain — beats the same
+  time spread uniformly, on mean $R_i$ after the refit.
 - **Degenerate control.** A posterior collapsed onto one bath is **declined** —
-  the designer raises `NothingToLearn` — while the uniform design, which needs
-  no posterior, is still built. Stronger than the plan's "indistinguishable
-  from uniform": unit 5d refuses to rank what cannot be ranked.
+  the designer returns a result with no experiment — while the uniform design,
+  which needs no posterior, is still built. Stronger than the plan's
+  "indistinguishable from uniform": the designer does not propose what it
+  cannot justify.
 
 Equal time, not equal point count: a design that wins by measuring more is not a
-design. Thresholds pending the seed sweep in `scripts/calibrate_t9.py`; §5.11.
+design. T9 counts its budget in repetitions, every repetition costing the same,
+as it was piloted; the designer's own default charges $2N\tau$. Threshold
+pending the seed sweep in `scripts/calibrate_t9.py`; §5.11.
+
+*There is no negative control.* The plan called for an anti-design, the same
+time on the least informative points, to rule out "any extra measurement
+helps". Its selector was never implemented and has been removed, so the
+positive result, once calibrated, will not by itself distinguish *where* from
+*more*.
 
 ### T6 — experimental data  ·  phase 4
 

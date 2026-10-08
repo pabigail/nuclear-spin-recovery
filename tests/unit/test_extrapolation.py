@@ -20,11 +20,11 @@ from nuclear_spin_recovery import (
     Experiment,
     ExperimentDesigner,
     ExperimentSet,
-    InformationDensity,
     ParticleSet,
-    PredictiveVariance,
     StretchedExponential,
 )
+
+from .design_doubles import TotalDensity
 
 B_Z = 311.0
 TAU = np.linspace(1e-4, 8e-3, 20)
@@ -55,9 +55,9 @@ def measured_at(*pulses, b_z=B_Z):
 
 
 def designer(table, measured, envelope=None):
-    return ExperimentDesigner(PredictiveVariance(), InformationDensity(),
-                              AnalyticCCE1(StretchedExponential()), table,
-                              measured, envelope=envelope)
+    return ExperimentDesigner(AnalyticCCE1(StretchedExponential()), table,
+                              measured, utility=TotalDensity(),
+                              envelope=envelope, min_gain=0.0)
 
 
 def cand(n_pulses, b_z=B_Z):
@@ -160,5 +160,6 @@ def test_a_different_field_is_still_refused(tiny_site_table):
 def test_a_proposal_can_be_at_a_new_pulse_number(tiny_site_table):
     d = designer(tiny_site_table, measured_at(8),
                  envelope=DecouplingScaling(2 / 3))
-    out = d.propose(particles_with([3e-3]), [cand(32)], budget=4.0, rng=rng())
+    out = d.propose(particles_with([3e-3]), [cand(32)], budget=4.0,
+                    rng=rng()).experiment
     assert out.n_pulses == 32

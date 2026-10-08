@@ -1,11 +1,11 @@
 """Measurement time that depends on the point: the sequence-duration cost.
 
-Two things carry this file.  The **reduction**: with no cost model, or a cost
-of 1 everywhere, every selector and the designer give exactly what they gave
-before costs existed -- every calibrated threshold in the suite was measured
-that way.  And the **accounting**: with a cost, weights still mean relative
-repetitions, the budget is ``sum_j w_j c_j``, and information is bought per
-unit time, so an expensive point has to earn its cost.
+Two things carry this file.  The **reduction**: a selector given no cost, or
+a cost of 1 everywhere, gives exactly what it gave before costs existed.  And
+the **accounting**: with a cost, weights still mean relative repetitions, the
+budget is ``sum_j w_j c_j``, and information is bought per unit time, so an
+expensive point has to earn its cost.  The designer always charges: its
+default cost is the free evolution of the sequence, ``2 N tau``.
 
 The cost model itself is pinned to the forward model's tau convention: the
 free evolution of CPMG-N is 2 N tau, because tau is half the pulse spacing in
@@ -19,21 +19,18 @@ import pytest
 
 from nuclear_spin_recovery import (
     AnalyticCCE1,
-    ExpectedInformationGain,
     Experiment,
     ExperimentDesigner,
     ExperimentSet,
-    GreedyUtility,
     InformationDensity,
     ParticleSet,
-    PredictiveVariance,
     SequenceDuration,
     StretchedExponential,
-    UniformThinning,
-    information_density,
     single_spin_modulation,
     to_angular,
 )
+
+from .design_doubles import EvenSpread, TotalDensity
 
 W3 = np.array([0.5, 0.3, 0.2])
 SIGMA = 0.05
@@ -59,10 +56,8 @@ def ladder_of_density(a):
 COSTLY = np.linspace(1.0, 4.0, N_GRID)
 
 SELECTORS = {
-    "uniform": lambda: UniformThinning(4),
     "density": lambda: InformationDensity(),
-    "greedy_pv": lambda: GreedyUtility(PredictiveVariance(), 4),
-    "greedy_eig": lambda: GreedyUtility(ExpectedInformationGain(), 4),
+    "density_unpruned": lambda: InformationDensity(power=1.0, prune_fraction=0.0),
 }
 
 
@@ -75,6 +70,13 @@ def test_duration_is_overhead_plus_two_n_tau():
     exp = Experiment(tau=np.array([1e-3, 2e-3]), n_pulses=16, b_z=B_Z)
     np.testing.assert_allclose(SequenceDuration(5e-3)(exp),
                                [5e-3 + 32e-3, 5e-3 + 64e-3])
+
+
+def test_with_no_overhead_given_the_duration_is_two_n_tau():
+    """The default: the free evolution of the sequence and nothing else."""
+    exp = Experiment(tau=np.array([1e-3, 2e-3]), n_pulses=16, b_z=B_Z)
+    assert SequenceDuration().overhead == 0.0
+    np.testing.assert_allclose(SequenceDuration()(exp), 2.0 * 16 * exp.tau)
 
 
 def test_duration_grows_linearly_with_pulse_number():
@@ -130,7 +132,7 @@ def test_the_budget_is_spent_in_time(name):
     assert np.all(np.asarray(weight) > 0)
 
 
-@pytest.mark.parametrize("name", ["uniform", "density", "greedy_pv"])
+@pytest.mark.parametrize("name", SELECTORS)
 def test_a_constant_cost_divides_the_weights(name):
     """Every point three times as expensive buys a third of the repetitions
     and changes nothing else -- the information per unit time keeps its
@@ -150,12 +152,6 @@ def test_a_bad_cost_raises(name, bad):
         SELECTORS[name]().select(scene(), W3, SIGMA, 4.0, rng(), cost=bad)
 
 
-def test_uniform_gives_equal_time_not_equal_repetitions():
-    idx, weight = UniformThinning(4).select(scene(), W3, SIGMA, 8.0, rng(),
-                                            cost=COSTLY)
-    np.testing.assert_allclose(np.asarray(weight) * COSTLY[idx], [2.0] * 4)
-
-
 def test_density_allocates_by_information_per_unit_time():
     """Densities 1, 4, 16 at costs 1, 1, 4: rates 1, 4, 4; power 1/2 gives
     time in proportion 1, 2, 2, so a budget of 5 is times 1, 2, 2 and
@@ -169,19 +165,23 @@ def test_density_allocates_by_information_per_unit_time():
 
 def test_an_expensive_point_must_earn_its_cost():
     """Two points equally informative per repetition; one costs ten times as
-    much.  Greedy predictive variance, choosing one, takes the cheap one."""
+    much.  It is given less of the time, and far fewer repetitions."""
     P, w = ladder_of_density([1.0, 1.0])
-    idx, _ = GreedyUtility(PredictiveVariance(), 1).select(
-        P, w, 1.0, 1.0, rng(), cost=np.array([10.0, 1.0]))
+    idx, weight = InformationDensity().select(P, w, 1.0, 1.0, rng(),
+                                              cost=np.array([10.0, 1.0]))
+    assert list(idx) == [0, 1]
+    time = np.asarray(weight) * np.array([10.0, 1.0])
+    assert time[0] < time[1]
+    assert weight[0] < weight[1] / 10
+
+
+def test_a_costly_enough_point_is_dropped():
+    """At a hundred times the cost its share falls under the pruning cut."""
+    P, w = ladder_of_density([1.0, 1.0])
+    idx, weight = InformationDensity(prune_fraction=0.2).select(
+        P, w, 1.0, 1.0, rng(), cost=np.array([100.0, 1.0]))
     assert list(idx) == [1]
-
-
-def test_greedy_takes_the_top_points_by_density_per_unit_time():
-    P = scene()
-    idx, _ = GreedyUtility(PredictiveVariance(), 5).select(
-        P, W3, SIGMA, 5.0, rng(), cost=COSTLY)
-    rate = information_density(P, W3, SIGMA) / COSTLY
-    np.testing.assert_array_equal(idx, np.sort(np.argsort(rate)[-5:]))
+    assert weight[0] == pytest.approx(1.0)
 
 
 # --------------------------------------------------------------------------
@@ -210,21 +210,41 @@ def setup(tiny_site_table):
     return tiny_site_table, model, measured, particles
 
 
-def designer(setup, cost=None, selector=None):
+def unit_cost(experiment):
+    return np.ones(len(experiment.tau))
+
+
+def designer(setup, cost=unit_cost, selector=None):
+    """Deterministic utility; unit cost unless the test is about another."""
     table, model, measured, _ = setup
-    return ExperimentDesigner(PredictiveVariance(),
-                              selector or InformationDensity(), model, table,
-                              measured, cost=cost)
+    return ExperimentDesigner(model, table, measured, utility=TotalDensity(),
+                              selector=selector, cost=cost, min_gain=0.0)
 
 
-def test_designer_without_cost_is_unchanged(setup):
+def test_the_designer_charges_two_n_tau_unless_told_otherwise(setup):
+    """Leaving the cost out is not the same as charging nothing."""
     *_, particles = setup
     cands = [Experiment(tau=TAU, n_pulses=16, b_z=B_Z),
              Experiment(tau=TAU, n_pulses=8, b_z=B_Z)]
-    a = designer(setup).rank(particles, cands, budget=4.0, rng=rng())
-    b = designer(setup, cost=lambda e: np.ones(len(e.tau))).rank(
+    default = designer(setup, cost=None).rank(particles, cands, budget=4.0,
+                                              rng=rng())
+    explicit = designer(setup, cost=lambda e: 2.0 * e.n_pulses * e.tau).rank(
         particles, cands, budget=4.0, rng=rng())
-    np.testing.assert_array_equal(a, b)
+    uncharged = designer(setup).rank(particles, cands, budget=4.0, rng=rng())
+    np.testing.assert_allclose(default, explicit, rtol=1e-12)
+    assert not np.allclose(default, uncharged)
+
+
+def test_the_same_delays_cost_twice_as_much_at_twice_the_pulses(setup):
+    """Equal time buys half the repetitions at N = 16 that it buys at N = 8,
+    delay for delay."""
+    *_, particles = setup
+    d = ExperimentDesigner(setup[1], setup[0], setup[2], utility=TotalDensity(),
+                           selector=EvenSpread(20), min_gain=0.0)
+    at_16, at_8 = (d.propose(particles, [Experiment(tau=TAU, n_pulses=n,
+                                                    b_z=B_Z)], budget=4.0,
+                             rng=rng()).experiment for n in (16, 8))
+    np.testing.assert_allclose(at_16.weight, at_8.weight / 2, rtol=1e-12)
 
 
 def test_doubling_every_cost_halves_predictive_variance(setup):
@@ -255,17 +275,20 @@ def test_proposal_spends_the_budget_in_sequence_time(setup):
     cost = SequenceDuration(5e-3)
     out = designer(setup, cost=cost).propose(
         particles, [Experiment(tau=TAU, n_pulses=16, b_z=B_Z)], budget=2.0,
-        rng=rng())
+        rng=rng()).experiment
     assert np.sum(out.weight * cost(out)) == pytest.approx(2.0)
 
 
-def test_uniform_control_spends_equal_time_through_the_designer(setup):
+def test_an_overhead_is_added_to_every_repetition(setup):
+    """With an even spread, each kept delay gets the same time whatever the
+    overhead; the overhead only changes how many repetitions that buys."""
     *_, particles = setup
     cost = SequenceDuration(5e-3)
-    out = designer(setup, cost=cost, selector=UniformThinning(5)).propose(
+    out = designer(setup, cost=cost, selector=EvenSpread(5)).propose(
         particles, [Experiment(tau=TAU, n_pulses=16, b_z=B_Z)], budget=2.0,
-        rng=rng())
+        rng=rng()).experiment
     np.testing.assert_allclose(out.weight * cost(out), [0.4] * 5)
+    np.testing.assert_allclose(cost(out), 5e-3 + 2.0 * 16 * out.tau)
 
 
 def test_a_cost_that_returns_the_wrong_shape_raises(setup):

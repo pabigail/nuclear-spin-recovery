@@ -26,7 +26,6 @@ import pytest
 from nuclear_spin_recovery import (
     DesignUtility,
     ExpectedInformationGain,
-    PredictiveVariance,
     information_density,
 )
 
@@ -43,7 +42,7 @@ def two_particles(delta, n=10):
 
 
 UNIFORM2 = np.array([0.5, 0.5])
-BOTH = [ExpectedInformationGain, PredictiveVariance]
+BOTH = [ExpectedInformationGain]
 
 
 # --------------------------------------------------------------------------
@@ -56,9 +55,8 @@ def test_design_utility_is_abstract():
         DesignUtility()
 
 
-def test_both_utilities_are_design_utilities():
+def test_the_utility_is_a_design_utility():
     assert issubclass(ExpectedInformationGain, DesignUtility)
-    assert issubclass(PredictiveVariance, DesignUtility)
 
 
 @pytest.mark.parametrize("utility_cls", BOTH)
@@ -158,51 +156,6 @@ def test_density_is_zero_at_an_unmeasured_point():
     dens = information_density(two_particles(0.3), UNIFORM2, noise)
     assert dens[3] == 0.0
     assert np.all(dens[np.arange(10) != 3] > 0)
-
-
-# --------------------------------------------------------------------------
-# predictive variance
-# --------------------------------------------------------------------------
-
-
-def test_predictive_variance_is_zero_for_identical_predictions():
-    P = np.tile(np.linspace(0.2, 0.9, 10), (4, 1))
-    assert PredictiveVariance().score(P, np.full(4, 0.25), 1.0, rng()) == 0.0
-
-
-def test_predictive_variance_of_one_particle_is_zero():
-    P = np.linspace(0.2, 0.9, 10)[None, :]
-    assert PredictiveVariance().score(P, np.array([1.0]), 1.0, rng()) == 0.0
-
-
-def test_predictive_variance_is_the_summed_density():
-    P = rng(2).normal(size=(5, 12))
-    w = np.array([0.4, 0.25, 0.15, 0.12, 0.08])
-    assert PredictiveVariance().score(P, w, 0.3, rng()) == pytest.approx(
-        information_density(P, w, 0.3).sum())
-
-
-def test_predictive_variance_scales_as_inverse_noise_variance():
-    P = two_particles(0.3)
-    pv = PredictiveVariance()
-    assert pv.score(P, UNIFORM2, 2.0, rng()) == pytest.approx(
-        pv.score(P, UNIFORM2, 1.0, rng()) / 4)
-
-
-def test_predictive_variance_ignores_the_rng():
-    P = rng(2).normal(size=(5, 12))
-    w = np.full(5, 0.2)
-    pv = PredictiveVariance()
-    assert pv.score(P, w, 1.0, rng(0)) == pv.score(P, w, 1.0, rng(99))
-
-
-def test_predictive_variance_is_invariant_to_permuting_particles():
-    P = rng(2).normal(size=(5, 12))
-    w = np.array([0.4, 0.25, 0.15, 0.12, 0.08])
-    perm = [3, 0, 4, 1, 2]
-    pv = PredictiveVariance()
-    assert pv.score(P, w, 1.0, rng()) == pytest.approx(
-        pv.score(P[perm], w[perm], 1.0, rng()))
 
 
 # --------------------------------------------------------------------------

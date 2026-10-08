@@ -67,8 +67,8 @@
 # | `SequenceDuration` | what one repetition at each point costs in time: overhead $+\,2N\tau$ |
 # | `DecouplingScaling` | the decay constant at a pulse number not yet measured |
 # | `ExpectedInformationGain` | how much a candidate measurement would teach the posterior, in nats |
-# | `InformationDensity` | how to spend the time budget over the chosen candidate's delays |
-# | `ExperimentDesigner` | rank candidates at equal *wall-clock* time; propose a real `Experiment` |
+# | `InformationDensity` | which of a candidate's delays to measure, and for how long |
+# | `ExperimentDesigner` | give every candidate its best delays, compare them at equal *wall-clock* time, and propose one `Experiment` — or none |
 #
 # The NV centre is simulated, so we know the true bath and can watch the
 # posterior close in on it. Everything the designer sees, though, is what a
@@ -100,13 +100,11 @@ from nuclear_spin_recovery import (
     ExperimentDesigner,
     ExperimentSet,
     GaussianL2,
-    GreedyUtility,
     InformationDensity,
     NeighborIndex,
     ParallelTempering,
     ParameterBlock,
     ParticleSet,
-    PredictiveVariance,
     Schedule,
     SequenceDuration,
     SiteTable,
@@ -114,7 +112,6 @@ from nuclear_spin_recovery import (
     Step,
     StretchedExponential,
     Target,
-    UniformThinning,
     information_density,
     simulate_dataset,
     spread_across_k,
@@ -348,10 +345,13 @@ for n in PULSES:
 #
 # **The budget** for each round is the lab time round 0 took: the same number
 # of repetitions per point, times the sequence durations. Every candidate is
-# scored at that same wall-clock budget: the budget is split evenly over its
-# delays, and each delay's share buys share $/\,c_j$ repetitions, where $c_j$
-# is the duration of one repetition there. A CPMG-64 window gets far fewer
-# repetitions per delay than a CPMG-4 window, and pays for it in noise.
+# scored at that same wall-clock budget. Each is first given its own best
+# delays: the budget goes to the delays where the hypotheses disagree most
+# per unit of time, and a delay's share buys share $/\,c_j$ repetitions, where
+# $c_j$ is the duration of one repetition there. A CPMG-64 window gets far
+# fewer repetitions per delay than a CPMG-4 window, and pays for it in noise.
+# The candidates are then compared on those designs, so the pulse number and
+# the delays are chosen together.
 #
 # **The score** is expected information gain: simulate the measurement under
 # each hypothesis in turn, and ask how far the posterior would move. It is in
@@ -366,8 +366,8 @@ candidates = [cpmg(w, n) for n in PULSES for w in windows]
 
 
 def designer_for(measured):
-    return ExperimentDesigner(ExpectedInformationGain(n_draws=256),
-                              InformationDensity(), model, table, measured,
+    return ExperimentDesigner(model, table, measured,
+                              utility=ExpectedInformationGain(n_draws=256),
                               cost=cost, envelope=scaling)
 
 
@@ -452,10 +452,13 @@ plt.tight_layout()
 # %% [markdown]
 # ### The proposal, as a measurement plan
 #
-# `propose` takes the best candidate, spends the budget over its delays with
-# `InformationDensity` — time in proportion to the square root of information
-# per unit time, small allocations pruned — and returns an ordinary
-# `Experiment`. Everything a lab needs is on it:
+# `propose` returns a result whose `experiment` is the best candidate's
+# design: its delays chosen by `InformationDensity` — time in proportion to
+# the square root of information per unit time, small allocations pruned —
+# as an ordinary `Experiment`. If no candidate were expected to gain a set
+# threshold, 0.05 nats by default, `experiment` would be `None`: the designer
+# says that nothing on the list can tell the hypotheses apart, and proposes
+# nothing. Everything a lab needs is on the experiment:
 #
 # | field | meaning |
 # |---|---|
@@ -508,7 +511,7 @@ def measurement_plan(proposal, round_number, full=True):
 
 proposal1 = designer_for(data).propose(particles, candidates, budget=BUDGET,
                                        rng=np.random.default_rng(1),
-                                       exclude=data)
+                                       exclude=data).experiment
 plan1 = measurement_plan(proposal1, 1)
 
 # To hand a plan to an instrument:
@@ -600,8 +603,12 @@ for r in range(2, ROUNDS + 1):
     eigs[r] = eig_table(particles, data, seed=r)
     proposal = designer_for(data).propose(particles, candidates, budget=BUDGET,
                                           rng=np.random.default_rng(r),
-                                          exclude=data)
+                                          exclude=data).experiment
     print()
+    if proposal is None:
+        print(f"round {r}: no candidate can tell the remaining hypotheses "
+              f"apart; the cycle stops here")
+        break
     plans[r] = measurement_plan(proposal, r, full=False)
     data, particles = measure_and_update(plans[r], data, particles, r)
 print(f"\n{ROUNDS} rounds of measure-and-update in {time.time() - t0:.0f} s")
@@ -690,9 +697,8 @@ plt.tight_layout()
 # - **One bath, one seed, no control.** The cycle shows the posterior
 #   changing round by round, but not that design beat the alternative: a
 #   fixed CPMG-16 grid with the same lab time might have done as well. That
-#   comparison — adaptive against uniform at equal time, with an anti-design
-#   control — is the T9 rung, calibrated over many baths by
-#   `scripts/calibrate_t9.py`.
+#   comparison — adaptive against uniform at equal time — is the T9 rung,
+#   run over many baths by `scripts/calibrate_t9.py`.
 # - **Round 0's fit is quick; the refits cannot be.** Four ensembles of 800
 #   steps were enough to choose round 1, but as refits they got stuck on two of
 #   three seeds, and a cycle built on a stuck posterior separates the wrong
@@ -705,9 +711,10 @@ plt.tight_layout()
 #   pulse number moves with it.
 # - **The design is greedy for one round**: it maximises what the next
 #   measurement tells the current posterior, and nothing about the round after.
-# - **The cost model is yours to set.** `SequenceDuration(overhead)` has no
-#   default overhead on purpose: it decides how expensive a long sequence is
-#   relative to a short one.
+# - **The cost model is yours to set.** Left alone, `SequenceDuration()`
+#   charges the free evolution $2N\tau$ and nothing else. The per-shot
+#   overhead decides how expensive a long sequence is relative to a short
+#   one, and here it was set to 5 µs.
 
 # %% [markdown]
 # ## Appendix: inside the designer
@@ -716,15 +723,12 @@ plt.tight_layout()
 #
 # ### Spending a budget over delays
 #
-# Once a candidate is chosen, a selector decides which delays to measure and
-# for how long. With a cost model every selector spends **time**: the weights
-# are relative repetitions, and $\sum_j w_j c_j$ equals the budget.
-#
-# | selector | rule |
-# |---|---|
-# | `UniformThinning(n)` | evenly spaced, equal time per delay — the control |
-# | `InformationDensity()` | time $\propto$ (density / cost)$^{1/2}$, small allocations pruned |
-# | `GreedyUtility(utility, n)` | add the delay that most improves a utility, equal time each |
+# Within a candidate, the selector decides which delays to measure and for
+# how long. It spends **time**: the weights are relative repetitions, and
+# $\sum_j w_j c_j$ equals the budget. `InformationDensity` gives each delay
+# time in proportion to (density / cost)$^{\text{power}}$ and drops any delay
+# whose share is under `prune_fraction` of the largest. Its two numbers
+# change the character of the design:
 
 # %%
 best1 = int(np.argmax(eig1))
@@ -732,9 +736,12 @@ win_cand = candidates[best1]
 Pw = predictions_at(round0_particles, round0_data, win_cand.n_pulses,
                     win_cand.tau)
 cw = cost(win_cand)
-selectors = {"UniformThinning(12)": UniformThinning(12),
-             "InformationDensity()": InformationDensity(),
-             "GreedyUtility(PV, 12)": GreedyUtility(PredictiveVariance(), 12)}
+selectors = {
+    "InformationDensity()  [power 0.5, prune 0.05]": InformationDensity(),
+    "InformationDensity(power=1.0)": InformationDensity(power=1.0),
+    "InformationDensity(prune_fraction=0.5)":
+        InformationDensity(prune_fraction=0.5),
+}
 fig, axes = plt.subplots(len(selectors), 1, figsize=(11, 6), sharex=True)
 for ax, (name, sel) in zip(axes, selectors.items(), strict=True):
     idx, w = sel.select(Pw, round0_particles.weight, sigma_design, BUDGET,
@@ -747,10 +754,9 @@ axes[-1].set_xlabel("τ (µs)")
 plt.tight_layout()
 
 # %% [markdown]
-# `UniformThinning` gives equal *time* to each delay, so later delays — longer
-# repetitions — get fewer repetitions. `InformationDensity` is the rule of the
-# original `adaptive_exp.py`. `GreedyUtility` with predictive variance is
-# exactly "the top delays by information per unit time".
+# The default is the rule of the original `adaptive_exp.py`. A power of one
+# follows the information more closely and concentrates the time on the
+# sharpest delays; a higher pruning cut-off keeps fewer of them.
 #
 # ### Common random numbers
 #
@@ -766,9 +772,9 @@ second = order[np.argmax(flat[order[0]] - flat[order] > 0.08)]
 pair = [candidates[order[0]], candidates[second]]
 flips = {}
 for shared in (True, False):
-    d = ExperimentDesigner(ExpectedInformationGain(n_draws=64,
-                                                   common_random=shared),
-                           InformationDensity(), model, table, round0_data,
+    d = ExperimentDesigner(model, table, round0_data,
+                           utility=ExpectedInformationGain(
+                               n_draws=64, common_random=shared),
                            cost=cost, envelope=scaling)
     diffs = [np.subtract(*d.rank(round0_particles, pair, budget=BUDGET,
                                  rng=np.random.default_rng(s)))

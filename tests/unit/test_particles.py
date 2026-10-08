@@ -413,3 +413,42 @@ def test_design_imports_no_sampler():
                     parts = set(alias.name.split("."))
                     assert not parts & SAMPLER_MODULES, (
                         f"{path.name} imports {alias.name}")
+
+
+# --------------------------------------------------------------------------
+# relaxed posteriors: a tolerance that groups nothing
+# --------------------------------------------------------------------------
+
+
+def _relaxed_trace(table, n_draws, spread, seed=0):
+    """One bath, its offsets wandering by ``spread`` kHz from draw to draw."""
+    gen = np.random.default_rng(seed)
+    return trace_of([
+        make_state([0, 3], table, offsets=(gen.uniform(-spread, spread, 2),
+                                           gen.uniform(-spread, spread, 2)))
+        for _ in range(n_draws)])
+
+
+def test_a_relaxed_posterior_at_the_default_tolerance_warns(tiny_site_table):
+    """One hypothesis whose couplings wander by kilohertz is split into its
+    draws at 0.1 kHz, which a design would then read as many hypotheses."""
+    trace = _relaxed_trace(tiny_site_table, 80, spread=3.0)
+    with pytest.warns(UserWarning, match="larger tol"):
+        ps = ParticleSet.from_trace(trace, tiny_site_table)
+    assert ps.n_particles > 40
+
+
+def test_a_looser_tolerance_groups_it_and_does_not_warn(tiny_site_table,
+                                                        recwarn):
+    trace = _relaxed_trace(tiny_site_table, 80, spread=3.0)
+    ps = ParticleSet.from_trace(trace, tiny_site_table, tol=6.0)
+    assert ps.n_particles == 1
+    assert not [w for w in recwarn if "larger tol" in str(w.message)]
+
+
+def test_a_handful_of_distinct_draws_does_not_warn(tiny_site_table, recwarn):
+    """Too few draws to tell fragmentation from a posterior that is simply
+    spread out."""
+    ParticleSet.from_trace(_relaxed_trace(tiny_site_table, 10, spread=3.0),
+                           tiny_site_table)
+    assert not [w for w in recwarn if "larger tol" in str(w.message)]

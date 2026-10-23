@@ -44,7 +44,9 @@ from .proposals import (
 from .likelihood import (
     GaussianL2,
     Likelihood,
+    MixedWassersteinL2,
     WassersteinL2,
+    level_measures,
     signal_measure,
     wasserstein_signal_distance,
 )
@@ -96,6 +98,7 @@ __all__ = [
     "KNOWN_ALGORITHMS",
     "Likelihood",
     "MATCH_TOL",
+    "MixedWassersteinL2",
     "NeighborIndex",
     "PERLMUTTER_ACCOUNT",
     "PERLMUTTER_WORKDIR",
@@ -128,6 +131,7 @@ __all__ = [
     "false_absence",
     "geometric_ladder",
     "gyromagnetic_ratio",
+    "level_measures",
     "load_ensembles",
     "matches",
     "merge_run",

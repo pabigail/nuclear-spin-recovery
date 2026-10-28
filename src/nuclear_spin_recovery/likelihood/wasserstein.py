@@ -45,7 +45,27 @@ def signal_measure(signal, floor=0.0):
     return np.clip(1.0 - np.asarray(signal, dtype=float), floor, None)
 
 
-def wasserstein_signal_distance(a, b, tau, floor=0.0):
+def level_measures(a, b):
+    """The pre-rewrite reading of two signals as weights. Two (n_points,) arrays.
+
+    Each signal's height above the *joint* minimum of the pair, as in
+    ``WassersteinError`` of the original research code (``error.py``).  The
+    mass sits where coherence is high, so most of it is unmodulated background
+    and a translated dip moves very little of it; it responds to amplitude and
+    envelope more than to where the features are.  Kept for comparison with
+    that code, not as a recommendation.
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    low = min(a.min(), b.min())
+    return a - low, b - low
+
+
+#: Ways to read a pair of signals as transportable weights.
+MEASURES = ("dip", "level")
+
+
+def wasserstein_signal_distance(a, b, tau, floor=0.0, measure="dip"):
     """Normalised 1-Wasserstein distance between two signals' tau-measures.
 
     Dimensionless and in [0, 1]: the transport cost divided by the span of
@@ -56,7 +76,15 @@ def wasserstein_signal_distance(a, b, tau, floor=0.0):
     coherence carry no features to transport, which is agreement, not an error
     -- and 1 when exactly one is empty, since no transport plan turns a
     featureless signal into a modulated one.
+
+    ``measure`` is ``"dip"`` (the dip depth, :func:`signal_measure`) or
+    ``"level"`` (the pre-rewrite reading, :func:`level_measures`; ``floor`` is
+    ignored).  The pre-rewrite code also placed the mass at the sample index
+    rather than at tau; on a uniform grid that only multiplies the distance by
+    ``n_points - 1``, which a scale absorbs.
     """
+    if measure not in MEASURES:
+        raise ValueError(f"measure must be one of {MEASURES}, got {measure!r}")
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
     tau = np.asarray(tau, dtype=float)
@@ -68,7 +96,10 @@ def wasserstein_signal_distance(a, b, tau, floor=0.0):
     if span <= 0.0:
         raise ValueError("tau spans zero, so the distance cannot be normalised")
 
-    weight_a, weight_b = signal_measure(a, floor), signal_measure(b, floor)
+    if measure == "dip":
+        weight_a, weight_b = signal_measure(a, floor), signal_measure(b, floor)
+    else:
+        weight_a, weight_b = level_measures(a, b)
     mass_a, mass_b = float(weight_a.sum()), float(weight_b.sum())
     if mass_a <= 0.0 and mass_b <= 0.0:
         return 0.0
@@ -156,3 +187,143 @@ class WassersteinL2(Likelihood):
                 in zip(pieces, observed, expset.experiments, strict=True)
             )
         return out
+
+
+class MixedWassersteinL2(Likelihood):
+    """Gaussian L2 and transport, mixed by a fraction ``zeta`` in [0, 1].
+
+    Per experiment e, with S_e = sum_j (d_j - f_j)**2 and W_e the normalised
+    transport distance of :func:`wasserstein_signal_distance`:
+
+        form="penalty":  log L = -sum_e [ S_e + zeta/(1-zeta) s_e W_e ] / 2 sigma_e**2
+        form="mixture":  log L = -sum_e [ (1-zeta) S_e + zeta s_e W_e ] / 2 sigma_e**2
+
+    **What makes zeta a fraction.**  ``s_e`` converts transport into units of
+    squared residual, so that ``zeta = 0.5`` weighs the two terms equally.  With
+    ``scale="flat"`` it is fixed by the data before sampling: the featureless
+    prediction f = 1 is charged the same by both terms,
+
+        s_e = S_e(f = 1) / W_e(f = 1),
+
+    which for the dip measure is just S_e(f = 1), since a flat signal carries no
+    dip and so sits at the maximal distance 1.  A number (or one per
+    experiment) can be given instead.
+
+    **The two forms differ only in temperature.**  Both put the two terms in the
+    ratio (1 - zeta) : zeta.  ``"penalty"`` keeps the Gaussian term whole and
+    adds the transport on top, so sigma keeps its meaning and zeta = 1 is not
+    allowed; it is :class:`WassersteinL2` with
+    ``weight = zeta/(1-zeta) s_e / 2 sigma_e**2``.  ``"mixture"`` scales the
+    Gaussian by (1 - zeta), which at zeta = 0.5 is the same as doubling sigma**2
+    -- a broader posterior whatever the transport does -- and allows the pure
+    transport limit zeta = 1.  It is the form of ``CompositeError`` in the
+    pre-rewrite code, which mixed the two errors linearly inside the exponent.
+
+    zeta = 0 is :class:`~nuclear_spin_recovery.likelihood.gaussian.GaussianL2`
+    exactly, in both forms, for the same reason as in :class:`WassersteinL2`.
+
+    The transport normalises mass away, so it cannot tell a shallow dip from a
+    deep one; near zeta = 1 the number of spins is poorly identified.
+    """
+
+    FORMS = ("penalty", "mixture")
+
+    def __init__(self, zeta=0.0, scale="flat", form="penalty", measure="dip",
+                 floor=0.0):
+        self.zeta = float(zeta)
+        if not 0.0 <= self.zeta <= 1.0:
+            raise ValueError(f"zeta is a fraction in [0, 1], got {zeta}")
+        if form not in self.FORMS:
+            raise ValueError(f"form must be one of {self.FORMS}, got {form!r}")
+        if form == "penalty" and self.zeta == 1.0:
+            raise ValueError(
+                "zeta = 1 leaves no Gaussian term to keep whole; use "
+                "form='mixture' for the pure transport limit"
+            )
+        if measure not in MEASURES:
+            raise ValueError(f"measure must be one of {MEASURES}, got {measure!r}")
+        if isinstance(scale, str):
+            if scale != "flat":
+                raise ValueError(f"scale must be 'flat' or a number, got {scale!r}")
+        else:
+            scale = np.asarray(scale, dtype=float)
+            if scale.ndim > 1 or np.any(~np.isfinite(scale)) or np.any(scale <= 0.0):
+                raise ValueError("a numeric scale must be positive and finite, "
+                                 "one number or one per experiment")
+        self.scale = scale
+        self.form = form
+        self.measure = measure
+        self.floor = float(floor)
+        self._cached = (None, None)
+
+    def scales(self, expset):
+        """s_e, the transport-to-squared-residual conversion. (n_experiments,)
+
+        Computed once per ExperimentSet and cached; build a new set rather than
+        editing a set's data in place.
+        """
+        if not isinstance(self.scale, str):
+            return np.broadcast_to(self.scale, (expset.n_experiments,)).astype(float)
+        cached_set, cached = self._cached
+        if cached_set is expset:
+            return cached
+        out = np.empty(expset.n_experiments)
+        weights = _point_weights(expset)
+        for e, (seen, experiment) in enumerate(
+                zip(expset.split(expset.data_all), expset.experiments, strict=True)):
+            flat = np.ones_like(seen)
+            w = 1.0 if weights is None else expset.split(weights)[e]
+            squared = float(np.sum(w * (seen - flat) ** 2))
+            moved = wasserstein_signal_distance(flat, seen, experiment.tau,
+                                                self.floor, self.measure)
+            if not (squared > 0.0 and moved > 0.0):
+                raise ValueError(
+                    f"experiment {e} cannot set a 'flat' scale (squared residual "
+                    f"{squared}, transport {moved}); pass a numeric scale"
+                )
+            out[e] = squared / moved
+        self._cached = (expset, out)
+        return out
+
+    def log_prob(self, state, expset, model, site_table):
+        """Log-likelihood per replica. (n_replicas,)"""
+        predicted = model.coherence(state, expset, site_table)
+        residual = expset.data_all[None, :] - predicted
+        sigma = state.sigma[:, expset.exp_id]
+        squared = (residual / sigma) ** 2
+        weights = _point_weights(expset)
+        if weights is not None:
+            squared = weights[None, :] * squared
+        gaussian = -0.5 * np.sum(squared, axis=1)
+        if self.zeta == 0.0:
+            # Short-circuit, as in WassersteinL2: 0 * nan is nan.
+            return gaussian
+        transport = self._transport(predicted, expset)            # (n_rep, n_exp)
+        charge = -0.5 * np.sum(self.scales(expset)[None, :] * transport
+                               / state.sigma ** 2, axis=1)
+        if self.form == "penalty":
+            return gaussian + self.zeta / (1.0 - self.zeta) * charge
+        return (1.0 - self.zeta) * gaussian + self.zeta * charge
+
+    def _transport(self, predicted, expset):
+        """Normalised transport per replica and experiment. (n_replicas, n_exp)"""
+        observed = expset.split(expset.data_all)
+        out = np.zeros((predicted.shape[0], expset.n_experiments))
+        for r in range(predicted.shape[0]):
+            for e, (piece, seen, experiment) in enumerate(zip(
+                    expset.split(predicted[r]), observed, expset.experiments,
+                    strict=True)):
+                out[r, e] = wasserstein_signal_distance(
+                    piece, seen, experiment.tau, self.floor, self.measure)
+        return out
+
+
+def _point_weights(expset):
+    """Per-point measurement weights where the ExperimentSet carries them.
+
+    Later versions of ExperimentSet add ``weight_all`` (relative measurement
+    time per point); on those the Gaussian term is weighted exactly as in
+    GaussianL2, and here, without it, every point counts once.
+    """
+    weights = getattr(expset, "weight_all", None)
+    return None if weights is None else np.asarray(weights, dtype=float)

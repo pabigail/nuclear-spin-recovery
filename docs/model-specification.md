@@ -480,6 +480,36 @@ $\beta$, the penalty is applied **additively in log space** as written above.
 The two agree wherever the product form is defined at all, and the additive form
 is finite everywhere.
 
+*The weight as a mixing fraction.* `MixedWassersteinL2` re-expresses the same
+penalty with a fraction $\zeta \in [0, 1]$ in place of the rate $\lambda_W$.
+Per experiment, with $S_e$ the summed squared residual and $\widehat{W}_e$ the
+normalized distance,
+
+$$\log \mathcal{L} = -\sum_e \frac{S_e + \frac{\zeta}{1-\zeta}\, s_e \widehat{W}_e}{2\sigma_e^2}
+\quad\text{(penalty form)},\qquad
+\log \mathcal{L} = -\sum_e \frac{(1-\zeta) S_e + \zeta\, s_e \widehat{W}_e}{2\sigma_e^2}
+\quad\text{(mixture form)}.$$
+
+The scale $s_e$ is what makes $\zeta$ a fraction. By default it is fixed from
+the data before sampling, $s_e = S_e(f{=}1)/\widehat{W}_e(f{=}1)$, so that the
+featureless prediction is charged equally by both terms at $\zeta = 1/2$; for
+the dip measure $\widehat{W}_e(f{=}1) = 1$ and $s_e$ is the flat squared
+residual. The penalty form is the additive penalty above with
+$\lambda_W = \frac{\zeta}{1-\zeta} s_e / 2\sigma_e^2$, and keeps $\sigma_e$'s
+meaning. The mixture form puts the terms in the same ratio but also multiplies
+the Gaussian by $1-\zeta$, which acts as a temperature (at $\zeta = 1/2$, the
+same as doubling $\sigma_e^2$); it is the linear mixture of the pre-rewrite
+research code's `CompositeError` and admits the pure-transport limit
+$\zeta = 1$. Both reduce exactly to the Gaussian at $\zeta = 0$.
+
+The pre-rewrite `WassersteinError` also used a different measure: each signal's
+height above the pair's joint minimum, at the sample index. It is available as
+`measure="level"`, which on a uniform grid reproduces that distance up to the
+factor $n - 1$ that a scale absorbs. Most of that mass is unmodulated
+background, so it barely registers a translated dip — a dip moved by 1% of the
+window scores about a hundredth of what the dip measure gives — and responds
+instead to amplitude and envelope.
+
 The likelihood remains a replaceable component: any function of predicted and
 observed signal may be substituted, and the sampling machinery — including the
 tempered likelihoods used in parallel tempering — operates on whatever is
